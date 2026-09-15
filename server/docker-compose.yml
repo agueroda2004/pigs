@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pig_farm}
+      POSTGRES_USER: ${POSTGRES_USER:-pig_farm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pig_farm_dev_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+    # Comandos útiles:
+    # Levantar PostgreSQL:        docker compose up postgres
+    # Levantar en segundo plano:  docker compose up -d postgres
+    # Ver los logs:               docker compose logs -f postgres
+    # Detener los contenedores:   docker compose down
+    # Borrar también los datos:   docker compose down -v
+
+volumes:
+  postgres_data:
