@@ -81,6 +81,40 @@ func (r *PostgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*us
 	return result, nil
 }
 
+func (r *PostgresUserRepository) FindByUsername(ctx context.Context, username string) (*userdomain.User, error) {
+	result := &userdomain.User{}
+	var role string
+	var createdBy, updatedBy *string
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, name, username, password, role,
+		       created_at, updated_at, created_by, updated_by
+		FROM users
+		WHERE username = $1
+	`, username).Scan(
+		&result.ID,
+		&result.Name,
+		&result.Username,
+		&result.Password,
+		&role,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&createdBy,
+		&updatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el usuario: %w", err)
+	}
+
+	result.Role = userdomain.Role(role)
+	result.CreatedBy = stringValue(createdBy)
+	result.UpdatedBy = stringValue(updatedBy)
+	return result, nil
+}
+
 func (r *PostgresUserRepository) ExistsByUsername(ctx context.Context, username string) (bool, error) {
 	var exists bool
 	if err := r.pool.QueryRow(ctx, `
