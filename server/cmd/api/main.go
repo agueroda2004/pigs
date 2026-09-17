@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	userinfrastructure "server/internal/modules/user/infrastructure"
 	"server/internal/platform/config"
 	appcontainer "server/internal/platform/container"
 )
@@ -31,12 +30,11 @@ func main() {
 	defer dependencies.Close()
 
 	mux := http.NewServeMux()
-	userHandler := userinfrastructure.NewUserHandler(
-		dependencies.CreateUser,
-		dependencies.UpdateOwnUser,
-		dependencies.UpdateUserByAdmin,
-	)
+	userHandler := dependencies.User.Handler
 	userHandler.RegisterRoutes(mux)
+
+	authHandler := dependencies.Auth.Handler
+	authHandler.RegisterRoutes(mux)
 
 	server := &http.Server{
 		Addr:    ":" + applicationConfig.Port,

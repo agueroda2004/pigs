@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	authdomain "server/internal/modules/auth/domain"
 	userapplication "server/internal/modules/user/application"
 	userdomain "server/internal/modules/user/domain"
 	"server/internal/modules/user/ports"
@@ -18,16 +19,16 @@ import (
 
 func TestUserHandlerCreate(t *testing.T) {
 	user := handlerUser()
+	actorID := uuid.New()
 
-	t.Run("creates user and forwards actor header", func(t *testing.T) {
+	t.Run("creates user with actor from context", func(t *testing.T) {
 		create := &fakeCreateUserUseCase{user: user}
 		handler := newTestHandler(create, &fakeUpdateUserUseCase{}, &fakeUpdateUserByAdminUseCase{})
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(`{"name":"Ana","username":"ana","password":"secret","role":"User"}`))
-		request.Header.Set("Content-Type", "application/json")
-		request.Header.Set("X-Actor-ID", "actor-1")
+		request = authenticatedRequest(request, actorID)
 		response := serve(handler, request)
 
-		if response.Code != http.StatusCreated || create.command.CreatedBy != "actor-1" || create.command.Username != "ana" {
+		if response.Code != http.StatusCreated || create.command.CreatedBy != actorID.String() || create.command.Username != "ana" {
 			t.Fatalf("status=%d command=%#v", response.Code, create.command)
 		}
 		if response.Header().Get("Content-Type") != "application/json" {
@@ -35,13 +36,13 @@ func TestUserHandlerCreate(t *testing.T) {
 		}
 	})
 
-	t.Run("uses local actor by default", func(t *testing.T) {
+	t.Run("returns unauthorized when actor is missing", func(t *testing.T) {
 		create := &fakeCreateUserUseCase{user: user}
 		handler := newTestHandler(create, &fakeUpdateUserUseCase{}, &fakeUpdateUserByAdminUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(`{"name":"Ana","username":"ana","password":"secret"}`)))
 
-		if response.Code != http.StatusCreated || create.command.CreatedBy != "local" {
-			t.Fatalf("status=%d actor=%q", response.Code, create.command.CreatedBy)
+		if response.Code != http.StatusUnauthorized || create.called {
+			t.Fatalf("status=%d called=%v", response.Code, create.called)
 		}
 	})
 
@@ -68,7 +69,9 @@ func TestUserHandlerCreate(t *testing.T) {
 			t.Run(test.name, func(t *testing.T) {
 				create := &fakeCreateUserUseCase{err: test.err}
 				handler := newTestHandler(create, &fakeUpdateUserUseCase{}, &fakeUpdateUserByAdminUseCase{})
-				response := serve(handler, httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(`{"name":"Ana"}`)))
+				request := httptest.NewRequest(http.MethodPost, "/api/v1/users", strings.NewReader(`{"name":"Ana"}`))
+				request = authenticatedRequest(request, actorID)
+				response := serve(handler, request)
 				if response.Code != test.status {
 					t.Fatalf("status=%d, want %d", response.Code, test.status)
 				}
@@ -124,27 +127,28 @@ func TestUserHandlerUpdate(t *testing.T) {
 
 func TestUserHandlerUpdateByAdmin(t *testing.T) {
 	userID := uuid.New()
+	actorID := uuid.New()
 	role := userdomain.RoleAdmin
 
 	t.Run("updates all administrative fields and forwards actor", func(t *testing.T) {
 		update := &fakeUpdateUserByAdminUseCase{user: handlerUser()}
 		handler := newTestHandler(&fakeCreateUserUseCase{}, &fakeUpdateUserUseCase{}, update)
 		request := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/users/"+userID.String(), strings.NewReader(`{"name":"New Name","username":"new-user","password":"secret","role":"Admin"}`))
-		request.Header.Set("X-Actor-ID", "admin-1")
+		request = authenticatedRequest(request, actorID)
 		response := serve(handler, request)
 
-		if response.Code != http.StatusOK || update.userID != userID || update.command.UpdatedBy != "admin-1" || update.command.Name == nil || update.command.Username == nil || update.command.Password == nil || update.command.Role == nil || *update.command.Role != role {
+		if response.Code != http.StatusOK || update.userID != userID || update.command.UpdatedBy != actorID.String() || update.command.Name == nil || update.command.Username == nil || update.command.Password == nil || update.command.Role == nil || *update.command.Role != role {
 			t.Fatalf("status=%d id=%v command=%#v", response.Code, update.userID, update.command)
 		}
 	})
 
-	t.Run("uses local actor by default", func(t *testing.T) {
+	t.Run("returns unauthorized when actor is missing", func(t *testing.T) {
 		update := &fakeUpdateUserByAdminUseCase{user: handlerUser()}
 		handler := newTestHandler(&fakeCreateUserUseCase{}, &fakeUpdateUserUseCase{}, update)
 		response := serve(handler, httptest.NewRequest(http.MethodPatch, "/api/v1/admin/users/"+userID.String(), strings.NewReader(`{"name":"New Name"}`)))
 
-		if response.Code != http.StatusOK || update.command.UpdatedBy != "local" {
-			t.Fatalf("status=%d actor=%q", response.Code, update.command.UpdatedBy)
+		if response.Code != http.StatusUnauthorized || update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
 		}
 	})
 
@@ -158,7 +162,9 @@ func TestUserHandlerUpdateByAdmin(t *testing.T) {
 
 		update = &fakeUpdateUserByAdminUseCase{err: ports.ErrUsernameAlreadyUsed}
 		handler = newTestHandler(&fakeCreateUserUseCase{}, &fakeUpdateUserUseCase{}, update)
-		response = serve(handler, httptest.NewRequest(http.MethodPatch, "/api/v1/admin/users/"+userID.String(), strings.NewReader(`{"username":"taken"}`)))
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/users/"+userID.String(), strings.NewReader(`{"username":"taken"}`))
+		request = authenticatedRequest(request, actorID)
+		response = serve(handler, request)
 		if response.Code != http.StatusConflict {
 			t.Fatalf("duplicate status=%d", response.Code)
 		}
@@ -209,8 +215,14 @@ func (f *fakeUpdateUserByAdminUseCase) Execute(_ context.Context, userID uuid.UU
 }
 
 func newTestHandler(create CreateUserUseCase, update UpdateOwnUserUseCase, updateAdmin UpdateUserByAdminUseCase) *UserHandler {
-	handler := NewUserHandler(create, update, updateAdmin)
-	return handler
+	return NewUserHandler(create, update, updateAdmin, func(next http.Handler) http.Handler { return next })
+}
+
+func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {
+	return request.WithContext(authdomain.WithAuthenticatedUser(request.Context(), authdomain.AuthenticatedUser{
+		UserID: userID,
+		Role:   userdomain.RoleAdmin,
+	}))
 }
 
 func serve(handler *UserHandler, request *http.Request) *httptest.ResponseRecorder {

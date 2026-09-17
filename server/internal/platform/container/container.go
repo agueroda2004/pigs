@@ -6,18 +6,16 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	userapplication "server/internal/modules/user/application"
+	authinfrastructure "server/internal/modules/auth/infrastructure"
 	userinfrastructure "server/internal/modules/user/infrastructure"
 	"server/internal/platform/config"
 	"server/internal/platform/database"
 )
 
 type Container struct {
-	DB *pgxpool.Pool
-
-	CreateUser        *userapplication.CreateUserService
-	UpdateOwnUser     *userapplication.UpdateOwnUserService
-	UpdateUserByAdmin *userapplication.UpdateUserByAdminService
+	DB   *pgxpool.Pool
+	User *userinfrastructure.Module
+	Auth *authinfrastructure.Module
 }
 
 func New(ctx context.Context, applicationConfig config.Config) (*Container, error) {
@@ -26,15 +24,45 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		return nil, err
 	}
 
-	repository := userinfrastructure.NewPostgresUserRepository(db)
+	// + === GLOBALS ===
 	hasher := userinfrastructure.NewBcryptPasswordHasher(applicationConfig.BcryptCost)
 	clock := time.Now
 
+	// + === USER MODULE ===
+	userRepository := userinfrastructure.NewPostgresUserRepository(db)
+
+	// + === AUTH MODULE ===
+	refreshTokenRepository := authinfrastructure.NewPostgresRefreshTokenRepository(db)
+	tokenGenerator := authinfrastructure.NewRandomTokenGenerator()
+	tokenHasher := authinfrastructure.NewSHA256TokenHasher()
+	accessIssuer := authinfrastructure.NewJWTAccessTokenIssuer(
+		applicationConfig.JWTSecret,
+		applicationConfig.AccessTokenTTL,
+	)
+	accessVerifier := authinfrastructure.NewJWTAccessTokenVerifier(applicationConfig.JWTSecret)
+	cookieConfig := authinfrastructure.CookieConfig{
+		Secure:   applicationConfig.CookieSecure,
+		SameSite: authinfrastructure.SameSiteFromString(applicationConfig.CookieSameSite),
+	}
+
+	authModule := authinfrastructure.NewModule(
+		userRepository,
+		refreshTokenRepository,
+		hasher,
+		accessIssuer,
+		accessVerifier,
+		tokenGenerator,
+		tokenHasher,
+		clock,
+		applicationConfig.AccessTokenTTL,
+		applicationConfig.RefreshTokenTTL,
+		cookieConfig,
+	)
+
 	return &Container{
-		DB:                db,
-		CreateUser:        userapplication.NewCreateUserService(repository, hasher, clock),
-		UpdateOwnUser:     userapplication.NewUpdateOwnUserService(repository, hasher, clock),
-		UpdateUserByAdmin: userapplication.NewUpdateUserByAdminService(repository, hasher, clock),
+		DB:   db,
+		User: userinfrastructure.NewModule(userRepository, hasher, clock, authModule.AdminMiddleware),
+		Auth: authModule,
 	}, nil
 }
 

@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 
+	authdomain "server/internal/modules/auth/domain"
 	userapplication "server/internal/modules/user/application"
 	userdomain "server/internal/modules/user/domain"
 	"server/internal/modules/user/ports"
@@ -34,6 +34,7 @@ type UserHandler struct {
 	createUser      CreateUserUseCase
 	updateOwnUser   UpdateOwnUserUseCase
 	updateUserAdmin UpdateUserByAdminUseCase
+	adminMiddleware func(http.Handler) http.Handler
 }
 
 // + === CONSTRUCTOR ===
@@ -41,19 +42,21 @@ func NewUserHandler(
 	createUser CreateUserUseCase,
 	updateOwnUser UpdateOwnUserUseCase,
 	updateUserAdmin UpdateUserByAdminUseCase,
+	adminMiddleware func(http.Handler) http.Handler,
 ) *UserHandler {
 	return &UserHandler{
 		createUser:      createUser,
 		updateOwnUser:   updateOwnUser,
 		updateUserAdmin: updateUserAdmin,
+		adminMiddleware: adminMiddleware,
 	}
 }
 
 // + === ROUTES ===
 func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/v1/users", h.create)
+	mux.Handle("POST /api/v1/users", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.HandleFunc("PATCH /api/v1/users/{id}", h.update)
-	mux.HandleFunc("PATCH /api/v1/admin/users/{id}", h.updateByAdmin)
+	mux.Handle("PATCH /api/v1/admin/users/{id}", h.adminMiddleware(http.HandlerFunc(h.updateByAdmin)))
 }
 
 // + === REQUESTS ===
@@ -100,9 +103,10 @@ func (h *UserHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdBy := strings.TrimSpace(r.Header.Get("X-Actor-ID"))
-	if createdBy == "" {
-		createdBy = "local"
+	actor, ok := authdomain.AuthenticatedUserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
+		return
 	}
 
 	createdUser, err := h.createUser.Execute(r.Context(), userapplication.CreateUserCommand{
@@ -110,7 +114,7 @@ func (h *UserHandler) create(w http.ResponseWriter, r *http.Request) {
 		Username:  request.Username,
 		Password:  request.Password,
 		Role:      request.Role,
-		CreatedBy: createdBy,
+		CreatedBy: actor.UserID.String(),
 	})
 	if err != nil {
 		writeUserError(w, err)
@@ -158,9 +162,10 @@ func (h *UserHandler) updateByAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedBy := strings.TrimSpace(r.Header.Get("X-Actor-ID"))
-	if updatedBy == "" {
-		updatedBy = "local"
+	actor, ok := authdomain.AuthenticatedUserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
+		return
 	}
 
 	updatedUser, err := h.updateUserAdmin.Execute(r.Context(), userID, userapplication.UpdateUserByAdminCommand{
@@ -168,7 +173,7 @@ func (h *UserHandler) updateByAdmin(w http.ResponseWriter, r *http.Request) {
 		Username:  request.Username,
 		Password:  request.Password,
 		Role:      request.Role,
-		UpdatedBy: updatedBy,
+		UpdatedBy: actor.UserID.String(),
 	})
 	if err != nil {
 		writeUserError(w, err)
