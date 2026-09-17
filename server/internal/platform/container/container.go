@@ -15,8 +15,9 @@ import (
 type Container struct {
 	DB *pgxpool.Pool
 
-	CreateUser    *userapplication.CreateUserService
-	UpdateOwnUser *userapplication.UpdateOwnUserService
+	CreateUser        *userapplication.CreateUserService
+	UpdateOwnUser     *userapplication.UpdateOwnUserService
+	UpdateUserByAdmin *userapplication.UpdateUserByAdminService
 }
 
 func New(ctx context.Context, applicationConfig config.Config) (*Container, error) {
@@ -30,9 +31,10 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 	clock := time.Now
 
 	return &Container{
-		DB:            db,
-		CreateUser:    userapplication.NewCreateUserService(repository, hasher, clock),
-		UpdateOwnUser: userapplication.NewUpdateOwnUserService(repository, hasher, clock),
+		DB:                db,
+		CreateUser:        userapplication.NewCreateUserService(repository, hasher, clock),
+		UpdateOwnUser:     userapplication.NewUpdateOwnUserService(repository, hasher, clock),
+		UpdateUserByAdmin: userapplication.NewUpdateUserByAdminService(repository, hasher, clock),
 	}, nil
 }
 

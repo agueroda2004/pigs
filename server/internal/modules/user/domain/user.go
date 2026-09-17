@@ -119,6 +119,67 @@ func (u *User) UpdateOwnProfile(name *string, passwordHash *string, updatedBy st
 	return nil
 }
 
+func (u *User) UpdateByAdmin(
+	name *string,
+	username *string,
+	passwordHash *string,
+	role *Role,
+	updatedBy string,
+	now time.Time,
+) error {
+	if u == nil || u.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if strings.TrimSpace(updatedBy) == "" {
+		return ErrInvalidUpdatedBy
+	}
+	if name == nil && username == nil && passwordHash == nil && role == nil {
+		return ErrInvalidUpdate
+	}
+
+	validatedName := u.Name
+	if name != nil {
+		var err error
+		validatedName, err = validateName(*name)
+		if err != nil {
+			return err
+		}
+	}
+
+	validatedUsername := u.Username
+	if username != nil {
+		var err error
+		validatedUsername, err = validateUsername(*username)
+		if err != nil {
+			return err
+		}
+	}
+
+	validatedPassword := u.Password
+	if passwordHash != nil {
+		if strings.TrimSpace(*passwordHash) == "" {
+			return ErrInvalidPassword
+		}
+		validatedPassword = *passwordHash
+	}
+
+	validatedRole := u.Role
+	if role != nil {
+		if !isValidRole(*role) {
+			return ErrInvalidRole
+		}
+		validatedRole = *role
+	}
+
+	u.Name = validatedName
+	u.Username = validatedUsername
+	u.Password = validatedPassword
+	u.Role = validatedRole
+	u.UpdatedAt = now
+	u.UpdatedBy = updatedBy
+	return nil
+}
+
 func validateName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > maxNameLength {

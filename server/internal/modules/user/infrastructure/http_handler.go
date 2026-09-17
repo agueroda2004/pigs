@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -15,26 +16,47 @@ import (
 
 const maxRequestBodySize = 1 << 20
 
-type UserHandler struct {
-	createUser    *userapplication.CreateUserService
-	updateOwnUser *userapplication.UpdateOwnUserService
+// + === INTERFACES ===
+type CreateUserUseCase interface {
+	Execute(context.Context, userapplication.CreateUserCommand) (*userdomain.User, error)
 }
 
+type UpdateOwnUserUseCase interface {
+	Execute(context.Context, uuid.UUID, userapplication.UpdateOwnUserCommand) (*userdomain.User, error)
+}
+
+type UpdateUserByAdminUseCase interface {
+	Execute(context.Context, uuid.UUID, userapplication.UpdateUserByAdminCommand) (*userdomain.User, error)
+}
+
+// + === OBJECT ===
+type UserHandler struct {
+	createUser      CreateUserUseCase
+	updateOwnUser   UpdateOwnUserUseCase
+	updateUserAdmin UpdateUserByAdminUseCase
+}
+
+// + === CONSTRUCTOR ===
 func NewUserHandler(
-	createUser *userapplication.CreateUserService,
-	updateOwnUser *userapplication.UpdateOwnUserService,
+	createUser CreateUserUseCase,
+	updateOwnUser UpdateOwnUserUseCase,
+	updateUserAdmin UpdateUserByAdminUseCase,
 ) *UserHandler {
 	return &UserHandler{
-		createUser:    createUser,
-		updateOwnUser: updateOwnUser,
+		createUser:      createUser,
+		updateOwnUser:   updateOwnUser,
+		updateUserAdmin: updateUserAdmin,
 	}
 }
 
+// + === ROUTES ===
 func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/users", h.create)
 	mux.HandleFunc("PATCH /api/v1/users/{id}", h.update)
+	mux.HandleFunc("PATCH /api/v1/admin/users/{id}", h.updateByAdmin)
 }
 
+// + === REQUESTS ===
 type createUserRequest struct {
 	Name     string          `json:"name"`
 	Username string          `json:"username"`
@@ -47,6 +69,14 @@ type updateUserRequest struct {
 	Password *string `json:"password"`
 }
 
+type updateUserByAdminRequest struct {
+	Name     *string          `json:"name"`
+	Username *string          `json:"username"`
+	Password *string          `json:"password"`
+	Role     *userdomain.Role `json:"role"`
+}
+
+// + === RESPONSES ===
 type userResponse struct {
 	ID        uuid.UUID       `json:"id"`
 	Name      string          `json:"name"`
@@ -62,6 +92,7 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
+// + === HANDLERS ===
 func (h *UserHandler) create(w http.ResponseWriter, r *http.Request) {
 	var request createUserRequest
 	if err := decodeJSON(w, r, &request); err != nil {
@@ -114,6 +145,40 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toUserResponse(updatedUser))
 }
 
+func (h *UserHandler) updateByAdmin(w http.ResponseWriter, r *http.Request) {
+	userID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, errors.New("El identificador del usuario no es válido"))
+		return
+	}
+
+	var request updateUserByAdminRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	updatedBy := strings.TrimSpace(r.Header.Get("X-Actor-ID"))
+	if updatedBy == "" {
+		updatedBy = "local"
+	}
+
+	updatedUser, err := h.updateUserAdmin.Execute(r.Context(), userID, userapplication.UpdateUserByAdminCommand{
+		Name:      request.Name,
+		Username:  request.Username,
+		Password:  request.Password,
+		Role:      request.Role,
+		UpdatedBy: updatedBy,
+	})
+	if err != nil {
+		writeUserError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, toUserResponse(updatedUser))
+}
+
+// + === UTILS ===
 func decodeJSON(w http.ResponseWriter, r *http.Request, destination any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 	decoder := json.NewDecoder(r.Body)

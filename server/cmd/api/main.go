@@ -34,6 +34,7 @@ func main() {
 	userHandler := userinfrastructure.NewUserHandler(
 		dependencies.CreateUser,
 		dependencies.UpdateOwnUser,
+		dependencies.UpdateUserByAdmin,
 	)
 	userHandler.RegisterRoutes(mux)
 
