@@ -15,6 +15,8 @@ type Module struct {
 	Handler           *UserHandler
 }
 
+// NewModule assembles the user use cases and HTTP handler from its dependencies.
+// It returns a module exposing the services and handler for wiring.
 func NewModule(
 	repository ports.UserRepository,
 	hasher ports.PasswordHasher,

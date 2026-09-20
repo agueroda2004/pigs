@@ -24,6 +24,8 @@ type UpdateUserByAdminService struct {
 	clock      func() time.Time
 }
 
+// NewUpdateUserByAdminService builds an admin update use case with its dependencies.
+// It returns a service ready to execute UpdateUserByAdminCommand values.
 func NewUpdateUserByAdminService(
 	repository ports.UserRepository,
 	hasher ports.PasswordHasher,
@@ -36,6 +38,8 @@ func NewUpdateUserByAdminService(
 	}
 }
 
+// Execute updates any user's fields on behalf of an administrator.
+// It hashes the password only when provided and persists the updated user.
 func (s *UpdateUserByAdminService) Execute(
 	ctx context.Context,
 	userID uuid.UUID,

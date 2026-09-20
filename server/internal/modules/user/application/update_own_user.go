@@ -21,6 +21,8 @@ type UpdateOwnUserService struct {
 	clock      func() time.Time
 }
 
+// NewUpdateOwnUserService builds an update-own-profile use case with its dependencies.
+// It returns a service ready to execute UpdateOwnUserCommand values.
 func NewUpdateOwnUserService(
 	repository ports.UserRepository,
 	hasher ports.PasswordHasher,
@@ -33,6 +35,8 @@ func NewUpdateOwnUserService(
 	}
 }
 
+// Execute updates the caller's own name and/or password by their identifier.
+// It hashes the password only when provided and persists the updated user.
 func (s *UpdateOwnUserService) Execute(
 	ctx context.Context,
 	userID uuid.UUID,

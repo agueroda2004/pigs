@@ -20,10 +20,14 @@ type PostgresUserRepository struct {
 	pool *pgxpool.Pool
 }
 
+// NewPostgresUserRepository creates a repository backed by a pgx pool.
+// It stores the pool used for all user queries.
 func NewPostgresUserRepository(pool *pgxpool.Pool) *PostgresUserRepository {
 	return &PostgresUserRepository{pool: pool}
 }
 
+// Create inserts a new user row into the database.
+// It maps unique constraint violations to ErrUsernameAlreadyUsed.
 func (r *PostgresUserRepository) Create(ctx context.Context, user *userdomain.User) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO users (
@@ -47,6 +51,8 @@ func (r *PostgresUserRepository) Create(ctx context.Context, user *userdomain.Us
 	return nil
 }
 
+// GetByID fetches a single user by its identifier.
+// It returns ErrUserNotFound when no row matches.
 func (r *PostgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*userdomain.User, error) {
 	result := &userdomain.User{}
 	var role string
@@ -81,6 +87,8 @@ func (r *PostgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*us
 	return result, nil
 }
 
+// FindByUsername fetches a single user by username.
+// It returns ErrUserNotFound when no row matches.
 func (r *PostgresUserRepository) FindByUsername(ctx context.Context, username string) (*userdomain.User, error) {
 	result := &userdomain.User{}
 	var role string
@@ -115,6 +123,8 @@ func (r *PostgresUserRepository) FindByUsername(ctx context.Context, username st
 	return result, nil
 }
 
+// ExistsByUsername reports whether a username is already taken.
+// It wraps any query failure with context.
 func (r *PostgresUserRepository) ExistsByUsername(ctx context.Context, username string) (bool, error) {
 	var exists bool
 	if err := r.pool.QueryRow(ctx, `
@@ -127,6 +137,8 @@ func (r *PostgresUserRepository) ExistsByUsername(ctx context.Context, username 
 	return exists, nil
 }
 
+// Update persists the user's mutable fields by id.
+// It returns ErrUserNotFound when no row was affected.
 func (r *PostgresUserRepository) Update(ctx context.Context, user *userdomain.User) error {
 	commandTag, err := r.pool.Exec(ctx, `
 		UPDATE users
@@ -155,6 +167,8 @@ func (r *PostgresUserRepository) Update(ctx context.Context, user *userdomain.Us
 	return nil
 }
 
+// mapPostgresError translates PostgreSQL errors into domain port errors.
+// Unique violations become ErrUsernameAlreadyUsed; others are wrapped.
 func mapPostgresError(err error) error {
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
@@ -163,6 +177,8 @@ func mapPostgresError(err error) error {
 	return fmt.Errorf("No se pudo guardar el usuario: %w", err)
 }
 
+// nullableString converts an empty string into a SQL NULL value.
+// Non-empty values are returned unchanged.
 func nullableString(value string) any {
 	if value == "" {
 		return nil
@@ -170,6 +186,8 @@ func nullableString(value string) any {
 	return value
 }
 
+// stringValue dereferences a nullable string pointer.
+// It returns an empty string when the pointer is nil.
 func stringValue(value *string) string {
 	if value == nil {
 		return ""

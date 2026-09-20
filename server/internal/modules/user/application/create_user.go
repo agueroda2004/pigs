@@ -27,6 +27,8 @@ type CreateUserService struct {
 	clock      func() time.Time
 }
 
+// NewCreateUserService builds a create-user use case with its repository, hasher and clock.
+// It returns a service ready to execute CreateUserCommand values.
 func NewCreateUserService(
 	repository ports.UserRepository,
 	hasher ports.PasswordHasher,
@@ -39,6 +41,8 @@ func NewCreateUserService(
 	}
 }
 
+// Execute creates a new user after ensuring the username is free and hashing the password.
+// It returns ErrUsernameAlreadyExists when the username is already taken.
 func (s *CreateUserService) Execute(ctx context.Context, command CreateUserCommand) (*userdomain.User, error) {
 	username := strings.TrimSpace(command.Username)
 	exists, err := s.repository.ExistsByUsername(ctx, username)

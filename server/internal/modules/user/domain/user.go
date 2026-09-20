@@ -42,6 +42,8 @@ type User struct {
 	UpdatedBy string
 }
 
+// NewUser builds a user after validating id, name, username, password and role.
+// An empty role defaults to RoleUser and sets CreatedAt/UpdatedAt to now.
 func NewUser(
 	id uuid.UUID,
 	name string,
@@ -88,6 +90,8 @@ func NewUser(
 	}, nil
 }
 
+// UpdateOwnProfile updates the user's own name and/or hashed password.
+// It requires at least one field and records updatedBy plus the timestamp.
 func (u *User) UpdateOwnProfile(name *string, passwordHash *string, updatedBy string, now time.Time) error {
 	if u == nil || u.ID == uuid.Nil {
 		return ErrInvalidID
@@ -119,6 +123,8 @@ func (u *User) UpdateOwnProfile(name *string, passwordHash *string, updatedBy st
 	return nil
 }
 
+// UpdateByAdmin updates name, username, password and role of a user.
+// It applies only non-nil fields, validates each value and records updatedBy and now.
 func (u *User) UpdateByAdmin(
 	name *string,
 	username *string,
@@ -180,6 +186,8 @@ func (u *User) UpdateByAdmin(
 	return nil
 }
 
+// validateName trims the name and requires it to be non-empty.
+// It returns ErrInvalidName when the name exceeds the maximum length.
 func validateName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > maxNameLength {
@@ -188,6 +196,8 @@ func validateName(name string) (string, error) {
 	return name, nil
 }
 
+// validateUsername trims the username and requires it to be non-empty.
+// It returns ErrInvalidUsername when the username exceeds the maximum length.
 func validateUsername(username string) (string, error) {
 	username = strings.TrimSpace(username)
 	if username == "" || len([]rune(username)) > maxUsernameLength {
@@ -196,6 +206,8 @@ func validateUsername(username string) (string, error) {
 	return username, nil
 }
 
+// isValidRole checks whether the role belongs to the user domain.
+// Only RoleUser and RoleAdmin are considered valid.
 func isValidRole(role Role) bool {
 	return role == RoleUser || role == RoleAdmin
 }
