@@ -2,7 +2,6 @@ package infrastructure
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -12,11 +11,9 @@ import (
 	userapplication "server/internal/modules/user/application"
 	userdomain "server/internal/modules/user/domain"
 	"server/internal/modules/user/ports"
+	platformhttp "server/internal/platform/http"
 )
 
-const maxRequestBodySize = 1 << 20
-
-// + === INTERFACES ===
 type CreateUserUseCase interface {
 	Execute(context.Context, userapplication.CreateUserCommand) (*userdomain.User, error)
 }
@@ -29,7 +26,6 @@ type UpdateUserByAdminUseCase interface {
 	Execute(context.Context, uuid.UUID, userapplication.UpdateUserByAdminCommand) (*userdomain.User, error)
 }
 
-// + === OBJECT ===
 type UserHandler struct {
 	createUser      CreateUserUseCase
 	updateOwnUser   UpdateOwnUserUseCase
@@ -37,7 +33,8 @@ type UserHandler struct {
 	adminMiddleware func(http.Handler) http.Handler
 }
 
-// + === CONSTRUCTOR ===
+// NewUserHandler wires the user use cases and admin middleware into a handler.
+// It returns a handler ready to register its routes.
 func NewUserHandler(
 	createUser CreateUserUseCase,
 	updateOwnUser UpdateOwnUserUseCase,
@@ -52,14 +49,14 @@ func NewUserHandler(
 	}
 }
 
-// + === ROUTES ===
+// RegisterRoutes registers the user create and update endpoints on the mux.
+// Admin-only routes are wrapped with the admin middleware.
 func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/users", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.HandleFunc("PATCH /api/v1/users/{id}", h.update)
 	mux.Handle("PATCH /api/v1/admin/users/{id}", h.adminMiddleware(http.HandlerFunc(h.updateByAdmin)))
 }
 
-// + === REQUESTS ===
 type createUserRequest struct {
 	Name     string          `json:"name"`
 	Username string          `json:"username"`
@@ -79,7 +76,6 @@ type updateUserByAdminRequest struct {
 	Role     *userdomain.Role `json:"role"`
 }
 
-// + === RESPONSES ===
 type userResponse struct {
 	ID        uuid.UUID       `json:"id"`
 	Name      string          `json:"name"`
@@ -91,21 +87,18 @@ type userResponse struct {
 	UpdatedBy string          `json:"updated_by,omitempty"`
 }
 
-type errorResponse struct {
-	Error string `json:"error"`
-}
-
-// + === HANDLERS ===
+// create handles POST /api/v1/users and creates a user from the request body.
+// It reads the actor from the context to set CreatedBy.
 func (h *UserHandler) create(w http.ResponseWriter, r *http.Request) {
 	var request createUserRequest
-	if err := decodeJSON(w, r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	if err := platformhttp.DecodeJSON(w, r, &request); err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	actor, ok := authdomain.AuthenticatedUserFromContext(r.Context())
 	if !ok {
-		writeError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
+		platformhttp.WriteError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
 		return
 	}
 
@@ -121,19 +114,21 @@ func (h *UserHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, toUserResponse(createdUser))
+	platformhttp.WriteJSON(w, http.StatusCreated, toUserResponse(createdUser))
 }
 
+// update handles PATCH /api/v1/users/{id} and updates the caller's own profile.
+// It parses the id path value before executing the use case.
 func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 	userID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, errors.New("El identificador del usuario no es válido"))
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador del usuario no es válido"))
 		return
 	}
 
 	var request updateUserRequest
-	if err := decodeJSON(w, r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	if err := platformhttp.DecodeJSON(w, r, &request); err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -146,25 +141,27 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toUserResponse(updatedUser))
+	platformhttp.WriteJSON(w, http.StatusOK, toUserResponse(updatedUser))
 }
 
+// updateByAdmin handles PATCH /api/v1/admin/users/{id} and updates any user.
+// It reads the actor from the context to set UpdatedBy.
 func (h *UserHandler) updateByAdmin(w http.ResponseWriter, r *http.Request) {
 	userID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, errors.New("El identificador del usuario no es válido"))
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador del usuario no es válido"))
 		return
 	}
 
 	var request updateUserByAdminRequest
-	if err := decodeJSON(w, r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	if err := platformhttp.DecodeJSON(w, r, &request); err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	actor, ok := authdomain.AuthenticatedUserFromContext(r.Context())
 	if !ok {
-		writeError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
+		platformhttp.WriteError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
 		return
 	}
 
@@ -180,20 +177,11 @@ func (h *UserHandler) updateByAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toUserResponse(updatedUser))
+	platformhttp.WriteJSON(w, http.StatusOK, toUserResponse(updatedUser))
 }
 
-// + === UTILS ===
-func decodeJSON(w http.ResponseWriter, r *http.Request, destination any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
-		return errors.New("El cuerpo de la solicitud no es válido")
-	}
-	return nil
-}
-
+// toUserResponse maps a domain user to the HTTP response shape.
+// It formats timestamps in UTC and omits empty audit fields.
 func toUserResponse(user *userdomain.User) userResponse {
 	return userResponse{
 		ID:        user.ID,
@@ -207,6 +195,8 @@ func toUserResponse(user *userdomain.User) userResponse {
 	}
 }
 
+// writeUserError maps domain and port errors to HTTP status codes.
+// It falls back to 500 for unrecognized errors.
 func writeUserError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
@@ -223,15 +213,5 @@ func writeUserError(w http.ResponseWriter, err error) {
 		errors.Is(err, userdomain.ErrInvalidUpdatedBy):
 		status = http.StatusBadRequest
 	}
-	writeError(w, status, err)
-}
-
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
-}
-
-func writeError(w http.ResponseWriter, status int, err error) {
-	writeJSON(w, status, errorResponse{Error: err.Error()})
+	platformhttp.WriteError(w, status, err)
 }

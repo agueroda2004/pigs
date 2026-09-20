@@ -2,7 +2,6 @@ package infrastructure
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -10,10 +9,8 @@ import (
 	authapplication "server/internal/modules/auth/application"
 	authdomain "server/internal/modules/auth/domain"
 	"server/internal/modules/auth/ports"
+	platformhttp "server/internal/platform/http"
 )
-
-// + === CONSTANTS ===
-const maxRequestBodySize = 1 << 20
 
 // + === TYPE ===
 type LoginUseCase interface {
@@ -72,8 +69,8 @@ type loginRequest struct {
 // + === METHODS ===
 func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	var request loginRequest
-	if err := decodeJSON(w, r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	if err := platformhttp.DecodeJSON(w, r, &request); err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -93,7 +90,7 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) refresh(w http.ResponseWriter, r *http.Request) {
 	refreshToken, err := readCookie(r, refreshTokenCookieName)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, errors.New("Token de refresco no proporcionado"))
+		platformhttp.WriteError(w, http.StatusUnauthorized, errors.New("Token de refresco no proporcionado"))
 		return
 	}
 
@@ -141,29 +138,9 @@ func writeAuthError(w http.ResponseWriter, err error) {
 		errors.Is(err, authdomain.ErrTokenAlreadyUsed):
 		status = http.StatusUnauthorized
 	}
-	writeError(w, status, err)
-}
-
-func decodeJSON(w http.ResponseWriter, r *http.Request, destination any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
-		return errors.New("El cuerpo de la solicitud no es valido")
-	}
-	return nil
+	platformhttp.WriteError(w, status, err)
 }
 
 func writeOK(w http.ResponseWriter) {
-	writeJSON(w, http.StatusOK, map[string]string{"message": "ok"})
-}
-
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
-}
-
-func writeError(w http.ResponseWriter, status int, err error) {
-	writeJSON(w, status, map[string]string{"error": err.Error()})
+	platformhttp.WriteJSON(w, http.StatusOK, map[string]string{"message": "ok"})
 }
