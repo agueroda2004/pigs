@@ -1,4 +1,4 @@
-package application
+package tests
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	userapplication "server/internal/modules/user/application"
 	userdomain "server/internal/modules/user/domain"
 	"server/internal/modules/user/ports"
 )
@@ -21,9 +22,9 @@ func TestUpdateUserByAdminServiceExecute(t *testing.T) {
 		name, username, password, role := "New Name", "new-user", "new-secret", userdomain.RoleAdmin
 		repository := &fakeUserRepository{getUser: user}
 		hasher := &fakePasswordHasher{hash: "new-hash"}
-		service := NewUpdateUserByAdminService(repository, hasher, func() time.Time { return now })
+		service := userapplication.NewUpdateUserByAdminService(repository, hasher, func() time.Time { return now })
 
-		updated, err := service.Execute(context.Background(), userID, UpdateUserByAdminCommand{
+		updated, err := service.Execute(context.Background(), userID, userapplication.UpdateUserByAdminCommand{
 			Name: &name, Username: &username, Password: &password, Role: &role, UpdatedBy: "admin-1",
 		})
 
@@ -43,9 +44,9 @@ func TestUpdateUserByAdminServiceExecute(t *testing.T) {
 		username := "new-user"
 		hasher := &fakePasswordHasher{hash: "unused"}
 		repository := &fakeUserRepository{getUser: user}
-		service := NewUpdateUserByAdminService(repository, hasher, time.Now)
+		service := userapplication.NewUpdateUserByAdminService(repository, hasher, time.Now)
 
-		_, err := service.Execute(context.Background(), userID, UpdateUserByAdminCommand{Username: &username, UpdatedBy: "admin-1"})
+		_, err := service.Execute(context.Background(), userID, userapplication.UpdateUserByAdminCommand{Username: &username, UpdatedBy: "admin-1"})
 
 		if err != nil || hasher.password != "" || user.Password != "old-hash" {
 			t.Fatalf("unexpected result: err=%v hashInput=%q password=%q", err, hasher.password, user.Password)
@@ -55,8 +56,8 @@ func TestUpdateUserByAdminServiceExecute(t *testing.T) {
 	t.Run("propagates dependency and validation errors", func(t *testing.T) {
 		getErr := errors.New("get failed")
 		repository := &fakeUserRepository{getErr: getErr}
-		service := NewUpdateUserByAdminService(repository, &fakePasswordHasher{}, time.Now)
-		_, err := service.Execute(context.Background(), userID, UpdateUserByAdminCommand{UpdatedBy: "admin-1"})
+		service := userapplication.NewUpdateUserByAdminService(repository, &fakePasswordHasher{}, time.Now)
+		_, err := service.Execute(context.Background(), userID, userapplication.UpdateUserByAdminCommand{UpdatedBy: "admin-1"})
 		if !errors.Is(err, getErr) {
 			t.Fatalf("get error = %v", err)
 		}
@@ -64,23 +65,23 @@ func TestUpdateUserByAdminServiceExecute(t *testing.T) {
 		hashErr := errors.New("hash failed")
 		password := "secret"
 		repository = &fakeUserRepository{getUser: testUser(userID)}
-		service = NewUpdateUserByAdminService(repository, &fakePasswordHasher{err: hashErr}, time.Now)
-		_, err = service.Execute(context.Background(), userID, UpdateUserByAdminCommand{Password: &password, UpdatedBy: "admin-1"})
+		service = userapplication.NewUpdateUserByAdminService(repository, &fakePasswordHasher{err: hashErr}, time.Now)
+		_, err = service.Execute(context.Background(), userID, userapplication.UpdateUserByAdminCommand{Password: &password, UpdatedBy: "admin-1"})
 		if !errors.Is(err, hashErr) || repository.updated != nil {
 			t.Fatalf("hash error = %v updated=%v", err, repository.updated)
 		}
 
 		repository = &fakeUserRepository{getUser: testUser(userID)}
-		service = NewUpdateUserByAdminService(repository, &fakePasswordHasher{}, time.Now)
-		_, err = service.Execute(context.Background(), userID, UpdateUserByAdminCommand{UpdatedBy: "admin-1"})
+		service = userapplication.NewUpdateUserByAdminService(repository, &fakePasswordHasher{}, time.Now)
+		_, err = service.Execute(context.Background(), userID, userapplication.UpdateUserByAdminCommand{UpdatedBy: "admin-1"})
 		if !errors.Is(err, userdomain.ErrInvalidUpdate) || repository.updated != nil {
 			t.Fatalf("empty command error = %v", err)
 		}
 
 		username := "taken"
 		repository = &fakeUserRepository{getUser: testUser(userID), updateErr: ports.ErrUsernameAlreadyUsed}
-		service = NewUpdateUserByAdminService(repository, &fakePasswordHasher{}, time.Now)
-		_, err = service.Execute(context.Background(), userID, UpdateUserByAdminCommand{Username: &username, UpdatedBy: "admin-1"})
+		service = userapplication.NewUpdateUserByAdminService(repository, &fakePasswordHasher{}, time.Now)
+		_, err = service.Execute(context.Background(), userID, userapplication.UpdateUserByAdminCommand{Username: &username, UpdatedBy: "admin-1"})
 		if !errors.Is(err, ports.ErrUsernameAlreadyUsed) {
 			t.Fatalf("repository error = %v", err)
 		}

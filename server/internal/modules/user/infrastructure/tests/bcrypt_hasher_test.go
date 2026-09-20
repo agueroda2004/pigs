@@ -1,9 +1,13 @@
-package infrastructure
+package tests
 
-import "testing"
+import (
+	"testing"
+
+	userinfra "server/internal/modules/user/infrastructure"
+)
 
 func TestBcryptPasswordHasherVerify(t *testing.T) {
-	hasher := NewBcryptPasswordHasher(4)
+	hasher := userinfra.NewBcryptPasswordHasher(4)
 
 	hash, err := hasher.Hash("secret")
 	if err != nil {

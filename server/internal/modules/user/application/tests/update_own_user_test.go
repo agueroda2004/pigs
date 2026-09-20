@@ -1,4 +1,4 @@
-package application
+package tests
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	userapplication "server/internal/modules/user/application"
 	userdomain "server/internal/modules/user/domain"
 )
 
@@ -21,9 +22,9 @@ func TestUpdateOwnUserServiceExecute(t *testing.T) {
 		password := "new-secret"
 		repository := &fakeUserRepository{getUser: user}
 		hasher := &fakePasswordHasher{hash: "new-hash"}
-		service := NewUpdateOwnUserService(repository, hasher, func() time.Time { return now })
+		service := userapplication.NewUpdateOwnUserService(repository, hasher, func() time.Time { return now })
 
-		updated, err := service.Execute(context.Background(), userID, UpdateOwnUserCommand{Name: &name, Password: &password})
+		updated, err := service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{Name: &name, Password: &password})
 
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
@@ -41,9 +42,9 @@ func TestUpdateOwnUserServiceExecute(t *testing.T) {
 		name := "Updated"
 		hasher := &fakePasswordHasher{hash: "unused"}
 		repository := &fakeUserRepository{getUser: user}
-		service := NewUpdateOwnUserService(repository, hasher, time.Now)
+		service := userapplication.NewUpdateOwnUserService(repository, hasher, time.Now)
 
-		_, err := service.Execute(context.Background(), userID, UpdateOwnUserCommand{Name: &name})
+		_, err := service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{Name: &name})
 
 		if err != nil || hasher.password != "" || user.Password != "old-hash" {
 			t.Fatalf("unexpected result: err=%v, hashInput=%q, password=%q", err, hasher.password, user.Password)
@@ -53,8 +54,8 @@ func TestUpdateOwnUserServiceExecute(t *testing.T) {
 	t.Run("propagates get, hash, validation, and update errors", func(t *testing.T) {
 		getErr := errors.New("get failed")
 		repository := &fakeUserRepository{getErr: getErr}
-		service := NewUpdateOwnUserService(repository, &fakePasswordHasher{}, time.Now)
-		_, err := service.Execute(context.Background(), userID, UpdateOwnUserCommand{})
+		service := userapplication.NewUpdateOwnUserService(repository, &fakePasswordHasher{}, time.Now)
+		_, err := service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{})
 		if !errors.Is(err, getErr) {
 			t.Fatalf("get error = %v", err)
 		}
@@ -62,16 +63,16 @@ func TestUpdateOwnUserServiceExecute(t *testing.T) {
 		hashErr := errors.New("hash failed")
 		user := testUser(userID)
 		repository = &fakeUserRepository{getUser: user}
-		service = NewUpdateOwnUserService(repository, &fakePasswordHasher{err: hashErr}, time.Now)
+		service = userapplication.NewUpdateOwnUserService(repository, &fakePasswordHasher{err: hashErr}, time.Now)
 		password := "new-secret"
-		_, err = service.Execute(context.Background(), userID, UpdateOwnUserCommand{Password: &password})
+		_, err = service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{Password: &password})
 		if !errors.Is(err, hashErr) || repository.updated != nil {
 			t.Fatalf("hash error = %v, updated=%v", err, repository.updated)
 		}
 
 		repository = &fakeUserRepository{getUser: testUser(userID)}
-		service = NewUpdateOwnUserService(repository, &fakePasswordHasher{}, time.Now)
-		_, err = service.Execute(context.Background(), userID, UpdateOwnUserCommand{})
+		service = userapplication.NewUpdateOwnUserService(repository, &fakePasswordHasher{}, time.Now)
+		_, err = service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{})
 		if !errors.Is(err, userdomain.ErrInvalidUpdate) || repository.updated != nil {
 			t.Fatalf("validation error = %v", err)
 		}
@@ -79,17 +80,10 @@ func TestUpdateOwnUserServiceExecute(t *testing.T) {
 		updateErr := errors.New("update failed")
 		repository = &fakeUserRepository{getUser: testUser(userID), updateErr: updateErr}
 		name := "Updated"
-		service = NewUpdateOwnUserService(repository, &fakePasswordHasher{}, time.Now)
-		_, err = service.Execute(context.Background(), userID, UpdateOwnUserCommand{Name: &name})
+		service = userapplication.NewUpdateOwnUserService(repository, &fakePasswordHasher{}, time.Now)
+		_, err = service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{Name: &name})
 		if !errors.Is(err, updateErr) {
 			t.Fatalf("update error = %v", err)
 		}
 	})
-}
-
-func testUser(id uuid.UUID) *userdomain.User {
-	return &userdomain.User{
-		ID: id, Name: "Old Name", Username: "user", Password: "old-hash",
-		Role: userdomain.RoleUser, CreatedAt: time.Now(), UpdatedAt: time.Now(),
-	}
 }
