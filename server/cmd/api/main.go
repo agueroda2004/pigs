@@ -12,6 +12,7 @@ import (
 
 	"server/internal/platform/config"
 	appcontainer "server/internal/platform/container"
+	platformhttp "server/internal/platform/http"
 )
 
 func main() {
@@ -38,7 +39,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:    ":" + applicationConfig.Port,
-		Handler: mux,
+		Handler: platformhttp.CORS(applicationConfig.CorsAllowedOrigins)(mux),
 	}
 
 	listener, err := net.Listen("tcp", server.Addr)

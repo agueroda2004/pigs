@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -22,6 +23,8 @@ type Config struct {
 	RefreshTokenTTL time.Duration
 	CookieSecure    bool
 	CookieSameSite  string
+
+	CorsAllowedOrigins []string
 }
 
 func Load() (Config, error) {
@@ -77,16 +80,34 @@ func Load() (Config, error) {
 		cookieSameSite = "lax"
 	}
 
+	corsAllowedOrigins := parseOrigins(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	if len(corsAllowedOrigins) == 0 {
+		corsAllowedOrigins = []string{"http://localhost:4200"}
+	}
+
 	return Config{
-		DatabaseURL:     databaseURL,
-		Port:            port,
-		BcryptCost:      bcryptCost,
-		JWTSecret:       jwtSecret,
-		AccessTokenTTL:  accessTokenTTL,
-		RefreshTokenTTL: refreshTokenTTL,
-		CookieSecure:    cookieSecure,
-		CookieSameSite:  cookieSameSite,
+		DatabaseURL:        databaseURL,
+		Port:               port,
+		BcryptCost:         bcryptCost,
+		JWTSecret:          jwtSecret,
+		AccessTokenTTL:     accessTokenTTL,
+		RefreshTokenTTL:    refreshTokenTTL,
+		CookieSecure:       cookieSecure,
+		CookieSameSite:     cookieSameSite,
+		CorsAllowedOrigins: corsAllowedOrigins,
 	}, nil
+}
+
+// parseOrigins splits a comma-separated list of origins into a trimmed slice.
+// It drops empty entries and returns nil when no origin is provided.
+func parseOrigins(value string) []string {
+	var origins []string
+	for _, origin := range strings.Split(value, ",") {
+		if trimmed := strings.TrimSpace(origin); trimmed != "" {
+			origins = append(origins, trimmed)
+		}
+	}
+	return origins
 }
 
 func parseDurationEnv(key string, fallback time.Duration) (time.Duration, error) {
