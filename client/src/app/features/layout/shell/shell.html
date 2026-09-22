@@ -1,0 +1,127 @@
+<div class="min-h-screen bg-background">
+  @if (sidebarOpen()) {
+    <div class="fixed inset-0 z-30 bg-black/50 lg:hidden" (click)="closeSidebar()"></div>
+  }
+
+  <aside
+    class="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border bg-card transition-transform lg:translate-x-0"
+    [class.-translate-x-full]="!sidebarOpen()"
+  >
+    <div class="flex h-16 items-center border-b border-border px-5">
+      <span class="text-base font-semibold tracking-tight">Pigs</span>
+    </div>
+
+    <nav class="flex-1 space-y-1 p-3">
+      <a
+        routerLink="/"
+        [routerLinkActiveOptions]="{ exact: true }"
+        routerLinkActive="bg-muted font-medium text-foreground"
+        (click)="closeSidebar()"
+        class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-4 w-4"
+        >
+          <rect width="7" height="9" x="3" y="3" rx="1" />
+          <rect width="7" height="5" x="14" y="3" rx="1" />
+          <rect width="7" height="9" x="14" y="12" rx="1" />
+          <rect width="7" height="5" x="3" y="16" rx="1" />
+        </svg>
+        <span>Panel</span>
+      </a>
+
+      @if (isAdmin()) {
+        <a
+          routerLink="/users"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-4 w-4"
+          >
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          <span>Usuarios</span>
+        </a>
+      }
+    </nav>
+
+    <div class="border-t border-border p-3">
+      <div class="mb-2 px-3">
+        <p class="truncate text-sm font-medium">{{ user()?.username }}</p>
+        <p class="text-xs text-muted-foreground">{{ user()?.role }}</p>
+      </div>
+      <button
+        type="button"
+        (click)="logout()"
+        class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-4 w-4"
+        >
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <path d="m16 17 5-5-5-5M21 12H9" />
+        </svg>
+        <span>Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="lg:pl-64">
+    <header
+      class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur"
+    >
+      <button
+        type="button"
+        (click)="toggleSidebar()"
+        aria-label="Abrir menú"
+        class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-foreground transition hover:bg-muted lg:hidden"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-4 w-4"
+        >
+          <path d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      <div class="ml-auto">
+        <app-theme-toggle />
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-5xl px-4 py-8">
+      <router-outlet />
+    </main>
+  </div>
+</div>

@@ -1,0 +1,42 @@
+<div class="space-y-6">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">Usuarios</h1>
+      <p class="mt-1 text-sm text-muted-foreground">Administra los usuarios del sistema.</p>
+    </div>
+
+    <button
+      type="button"
+      (click)="openModal()"
+      class="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="h-4 w-4"
+      >
+        <path d="M5 12h14M12 5v14" />
+      </svg>
+      Crear usuario
+    </button>
+  </div>
+
+  @if (createdUsername()) {
+    <div class="rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">
+      Usuario "{{ createdUsername() }}" creado correctamente.
+    </div>
+  }
+
+  <div class="rounded-xl border border-dashed border-border p-10 text-center">
+    <p class="text-sm text-muted-foreground">
+      Todavía no hay un listado de usuarios. Pronto podrás verlos aquí.
+    </p>
+  </div>
+</div>
+
+<app-create-user-modal [open]="modalOpen()" (closed)="closeModal()" (created)="onCreated($event)" />

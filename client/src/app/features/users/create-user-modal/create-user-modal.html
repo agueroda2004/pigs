@@ -1,0 +1,185 @@
+<app-modal [open]="open()" title="Crear usuario" (closed)="closed.emit()">
+  <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="space-y-1.5">
+      <label for="name" class="block text-sm font-medium">Nombre</label>
+      <input
+        id="name"
+        type="text"
+        formControlName="name"
+        autocomplete="off"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      />
+      @if (form.controls.name.touched && form.controls.name.invalid) {
+        <p class="text-xs text-danger">El nombre es obligatorio (máximo 50 caracteres).</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="username" class="block text-sm font-medium">Usuario</label>
+      <input
+        id="username"
+        type="text"
+        formControlName="username"
+        autocomplete="off"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      />
+      @if (form.controls.username.touched && form.controls.username.invalid) {
+        <p class="text-xs text-danger">El usuario es obligatorio (máximo 50 caracteres).</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="password" class="block text-sm font-medium">Contraseña</label>
+      <div class="relative">
+        <input
+          id="password"
+          [type]="showPassword() ? 'text' : 'password'"
+          formControlName="password"
+          autocomplete="new-password"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 pr-10 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+        />
+        <button
+          type="button"
+          (click)="showPassword.set(!showPassword())"
+          [attr.aria-label]="showPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+          class="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
+        >
+          @if (showPassword()) {
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-4 w-4"
+            >
+              <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+              <path
+                d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"
+              />
+              <path d="M6.61 6.61A13.5 13.5 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+              <path d="m2 2 20 20" />
+            </svg>
+          } @else {
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-4 w-4"
+            >
+              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          }
+        </button>
+      </div>
+
+      @if (form.controls.password.value) {
+        <div class="flex items-center gap-2">
+          <div class="flex h-1.5 flex-1 gap-1">
+            <span class="h-full flex-1 rounded-full" [class]="segmentClass(1)"></span>
+            <span class="h-full flex-1 rounded-full" [class]="segmentClass(2)"></span>
+            <span class="h-full flex-1 rounded-full" [class]="segmentClass(3)"></span>
+          </div>
+          <span class="text-xs font-medium" [class]="strengthTextClass()">{{
+            strengthLabel()
+          }}</span>
+        </div>
+      }
+
+      @if (form.controls.password.touched && form.controls.password.invalid) {
+        <p class="text-xs text-danger">
+          Mínimo {{ minLength }} caracteres, incluyendo números y símbolos.
+        </p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="confirmPassword" class="block text-sm font-medium">Confirmar contraseña</label>
+      <div class="relative">
+        <input
+          id="confirmPassword"
+          [type]="showConfirmPassword() ? 'text' : 'password'"
+          formControlName="confirmPassword"
+          autocomplete="new-password"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 pr-10 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+        />
+        <button
+          type="button"
+          (click)="showConfirmPassword.set(!showConfirmPassword())"
+          [attr.aria-label]="showConfirmPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+          class="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
+        >
+          @if (showConfirmPassword()) {
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-4 w-4"
+            >
+              <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+              <path
+                d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"
+              />
+              <path d="M6.61 6.61A13.5 13.5 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+              <path d="m2 2 20 20" />
+            </svg>
+          } @else {
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-4 w-4"
+            >
+              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          }
+        </button>
+      </div>
+      @if (form.controls.confirmPassword.touched && form.hasError('passwordMismatch')) {
+        <p class="text-xs text-danger">Las contraseñas no coinciden.</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <span class="block text-sm font-medium">Rol</span>
+      <app-dropdown formControlName="role" [options]="roleOptions" placeholder="Seleccionar rol" />
+    </div>
+
+    @if (error()) {
+      <p class="text-sm text-danger">{{ error() }}</p>
+    }
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        [disabled]="loading()"
+        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Creando…' : 'Crear usuario' }}
+      </button>
+    </div>
+  </form>
+</app-modal>
