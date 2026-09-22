@@ -13,6 +13,7 @@ type Module struct {
 	RefreshService  *authapplication.RefreshService
 	LogoutService   *authapplication.LogoutService
 	Handler         *AuthHandler
+	AuthMiddleware  func(http.Handler) http.Handler
 	AdminMiddleware func(http.Handler) http.Handler
 }
 
@@ -58,7 +59,8 @@ func NewModule(
 		LoginService:   login,
 		RefreshService: refresh,
 		LogoutService:  logout,
-		Handler:        NewAuthHandler(login, refresh, logout, accessTTL, refreshTTL, cookieConfig),
+		Handler:        NewAuthHandler(login, refresh, logout, authenticator.Authenticate, accessTTL, refreshTTL, cookieConfig),
+		AuthMiddleware: authenticator.Authenticate,
 		AdminMiddleware: func(next http.Handler) http.Handler {
 			return authenticator.Authenticate(RequireAdmin(next))
 		},

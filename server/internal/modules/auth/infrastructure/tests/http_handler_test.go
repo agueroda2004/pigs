@@ -1,15 +1,20 @@
 package tests
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	authapplication "server/internal/modules/auth/application"
 	authdomain "server/internal/modules/auth/domain"
+	authinfra "server/internal/modules/auth/infrastructure"
 	"server/internal/modules/auth/ports"
+	userdomain "server/internal/modules/user/domain"
 )
 
 func TestAuthHandlerLogin(t *testing.T) {
@@ -146,6 +151,65 @@ func TestAuthHandlerLogout(t *testing.T) {
 
 		if response.Code != http.StatusOK || logout.called {
 			t.Fatalf("status=%d called=%v", response.Code, logout.called)
+		}
+	})
+}
+
+func TestAuthHandlerMe(t *testing.T) {
+	user := &authdomain.AuthenticatedUser{UserID: uuid.New(), Username: "ana", Role: userdomain.RoleAdmin}
+
+	newHandler := func(verifier authinfra.Authenticator) *authinfra.AuthHandler {
+		return authinfra.NewAuthHandler(
+			&fakeLoginUseCase{},
+			&fakeRefreshUseCase{},
+			&fakeLogoutUseCase{},
+			verifier.Authenticate,
+			15*time.Minute,
+			7*24*time.Hour,
+			authinfra.CookieConfig{Secure: false, SameSite: http.SameSiteLaxMode},
+		)
+	}
+
+	t.Run("returns the authenticated user", func(t *testing.T) {
+		handler := newHandler(*authinfra.NewAuthenticator(&fakeAccessTokenVerifier{user: user}))
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+		request.AddCookie(&http.Cookie{Name: "access_token", Value: "token"})
+		response := serveAuth(handler, request)
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("status=%d, want %d", response.Code, http.StatusOK)
+		}
+
+		var body struct {
+			ID       string          `json:"id"`
+			Username string          `json:"username"`
+			Role     userdomain.Role `json:"role"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatalf("unexpected body: %q err=%v", response.Body.String(), err)
+		}
+		if body.ID != user.UserID.String() || body.Username != "ana" || body.Role != userdomain.RoleAdmin {
+			t.Fatalf("unexpected body: %#v", body)
+		}
+	})
+
+	t.Run("returns unauthorized without a token", func(t *testing.T) {
+		handler := newHandler(*authinfra.NewAuthenticator(&fakeAccessTokenVerifier{user: user}))
+		response := serveAuth(handler, httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil))
+
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("status=%d, want %d", response.Code, http.StatusUnauthorized)
+		}
+	})
+
+	t.Run("returns unauthorized for an invalid token", func(t *testing.T) {
+		handler := newHandler(*authinfra.NewAuthenticator(&fakeAccessTokenVerifier{err: authinfra.ErrInvalidAccessToken}))
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+		request.AddCookie(&http.Cookie{Name: "access_token", Value: "bad"})
+		response := serveAuth(handler, request)
+
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("status=%d, want %d", response.Code, http.StatusUnauthorized)
 		}
 	})
 }

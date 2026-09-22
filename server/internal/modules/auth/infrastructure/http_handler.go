@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
+
 	authapplication "server/internal/modules/auth/application"
 	authdomain "server/internal/modules/auth/domain"
 	"server/internal/modules/auth/ports"
+	userdomain "server/internal/modules/user/domain"
 	platformhttp "server/internal/platform/http"
 )
 
@@ -28,17 +31,19 @@ type AuthHandler struct {
 	loginUseCase   LoginUseCase
 	refreshUseCase RefreshUseCase
 	logoutUseCase  LogoutUseCase
+	authMiddleware func(http.Handler) http.Handler
 	accessTTL      time.Duration
 	refreshTTL     time.Duration
 	cookieConfig   CookieConfig
 }
 
-// NewAuthHandler wires the auth use cases, token TTLs and cookie config into a handler.
+// NewAuthHandler wires the auth use cases, auth middleware, token TTLs and cookie config.
 // It returns a handler ready to register its routes.
 func NewAuthHandler(
 	login LoginUseCase,
 	refresh RefreshUseCase,
 	logout LogoutUseCase,
+	authMiddleware func(http.Handler) http.Handler,
 	accessTTL time.Duration,
 	refreshTTL time.Duration,
 	cookieConfig CookieConfig,
@@ -47,23 +52,31 @@ func NewAuthHandler(
 		loginUseCase:   login,
 		refreshUseCase: refresh,
 		logoutUseCase:  logout,
+		authMiddleware: authMiddleware,
 		accessTTL:      accessTTL,
 		refreshTTL:     refreshTTL,
 		cookieConfig:   cookieConfig,
 	}
 }
 
-// RegisterRoutes registers the login, refresh and logout endpoints on the mux.
-// All routes are public and rely on cookies for session state.
+// RegisterRoutes registers the login, refresh, logout and me endpoints on the mux.
+// Only the me endpoint is protected by the auth middleware.
 func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/login", h.login)
 	mux.HandleFunc("POST /api/v1/auth/refresh", h.refresh)
 	mux.HandleFunc("POST /api/v1/auth/logout", h.logout)
+	mux.Handle("GET /api/v1/auth/me", h.authMiddleware(http.HandlerFunc(h.me)))
 }
 
 type loginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+type meResponse struct {
+	ID       uuid.UUID       `json:"id"`
+	Username string          `json:"username"`
+	Role     userdomain.Role `json:"role"`
 }
 
 // login handles POST /api/v1/auth/login and starts a session for valid credentials.
@@ -117,6 +130,22 @@ func (h *AuthHandler) logout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, ClearAccessTokenCookie(h.cookieConfig))
 	http.SetCookie(w, ClearRefreshTokenCookie(h.cookieConfig))
 	writeOK(w)
+}
+
+// me handles GET /api/v1/auth/me and returns the authenticated user from the context.
+// It relies on the auth middleware, so it responds 401 when no user is present.
+func (h *AuthHandler) me(w http.ResponseWriter, r *http.Request) {
+	user, ok := authdomain.AuthenticatedUserFromContext(r.Context())
+	if !ok {
+		platformhttp.WriteError(w, http.StatusUnauthorized, ErrInvalidAccessToken)
+		return
+	}
+
+	platformhttp.WriteJSON(w, http.StatusOK, meResponse{
+		ID:       user.UserID,
+		Username: user.Username,
+		Role:     user.Role,
+	})
 }
 
 // setSessionCookies writes the access and refresh token cookies using the configured TTLs.
