@@ -16,6 +16,8 @@ type Module struct {
 	AdminMiddleware func(http.Handler) http.Handler
 }
 
+// NewModule wires the auth use cases, handler and admin middleware from their ports.
+// It returns a module exposing the assembled services and HTTP handler.
 func NewModule(
 	users ports.UserReader,
 	refreshTokens ports.RefreshTokenRepository,

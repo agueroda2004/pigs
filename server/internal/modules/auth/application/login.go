@@ -12,10 +12,8 @@ import (
 	userports "server/internal/modules/user/ports"
 )
 
-// + === ERRORS ===
 var ErrInvalidCredentials = errors.New("Credenciales invalidas")
 
-// + === TYPES ===
 type LoginCommand struct {
 	Username string
 	Password string
@@ -38,7 +36,8 @@ type LoginService struct {
 	refreshTTL       time.Duration
 }
 
-// + === CONSTRUCTOR ===
+// NewLoginService builds the login use case with its user reader, verifier and token helpers.
+// It returns a service ready to execute LoginCommand values.
 func NewLoginService(
 	users ports.UserReader,
 	passwordVerifier ports.PasswordVerifier,
@@ -61,7 +60,8 @@ func NewLoginService(
 	}
 }
 
-// + === METHODS ===
+// Execute authenticates a user and issues an access token plus a stored refresh token.
+// It returns ErrInvalidCredentials when the user is unknown or the password does not match.
 func (s *LoginService) Execute(ctx context.Context, command LoginCommand) (*LoginResult, error) {
 	user, err := s.users.FindByUsername(ctx, command.Username)
 	if err != nil {

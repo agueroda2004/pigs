@@ -7,7 +7,6 @@ import (
 	"server/internal/modules/auth/ports"
 )
 
-// + === TYPES ===
 type LogoutCommand struct {
 	RefreshToken string
 }
@@ -17,7 +16,8 @@ type LogoutService struct {
 	tokenHasher   ports.TokenHasher
 }
 
-// + === CONSTRUCTOR ===
+// NewLogoutService builds the logout use case with its refresh token repository and hasher.
+// It returns a service ready to execute LogoutCommand values.
 func NewLogoutService(
 	refreshTokens ports.RefreshTokenRepository,
 	tokenHasher ports.TokenHasher,
@@ -28,7 +28,8 @@ func NewLogoutService(
 	}
 }
 
-// + === METHODS ===
+// Execute revokes the whole refresh token family for the given token.
+// It succeeds silently when the token is not found.
 func (s *LogoutService) Execute(ctx context.Context, command LogoutCommand) error {
 	hash, err := s.tokenHasher.Hash(command.RefreshToken)
 	if err != nil {

@@ -12,7 +12,6 @@ import (
 	platformhttp "server/internal/platform/http"
 )
 
-// + === TYPE ===
 type LoginUseCase interface {
 	Execute(context.Context, authapplication.LoginCommand) (*authapplication.LoginResult, error)
 }
@@ -34,7 +33,8 @@ type AuthHandler struct {
 	cookieConfig   CookieConfig
 }
 
-// + === CONSTRUCTOR ===
+// NewAuthHandler wires the auth use cases, token TTLs and cookie config into a handler.
+// It returns a handler ready to register its routes.
 func NewAuthHandler(
 	login LoginUseCase,
 	refresh RefreshUseCase,
@@ -53,20 +53,21 @@ func NewAuthHandler(
 	}
 }
 
-// + === ROUTES ===
+// RegisterRoutes registers the login, refresh and logout endpoints on the mux.
+// All routes are public and rely on cookies for session state.
 func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/login", h.login)
 	mux.HandleFunc("POST /api/v1/auth/refresh", h.refresh)
 	mux.HandleFunc("POST /api/v1/auth/logout", h.logout)
 }
 
-// + === REQUEST ===
 type loginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
-// + === METHODS ===
+// login handles POST /api/v1/auth/login and starts a session for valid credentials.
+// It sets the access and refresh cookies and maps auth errors to HTTP status codes.
 func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	var request loginRequest
 	if err := platformhttp.DecodeJSON(w, r, &request); err != nil {
@@ -87,6 +88,8 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	writeOK(w)
 }
 
+// refresh handles POST /api/v1/auth/refresh and rotates the session tokens.
+// It reads the refresh cookie, executes the use case and sets the new cookies.
 func (h *AuthHandler) refresh(w http.ResponseWriter, r *http.Request) {
 	refreshToken, err := readCookie(r, refreshTokenCookieName)
 	if err != nil {
@@ -104,6 +107,8 @@ func (h *AuthHandler) refresh(w http.ResponseWriter, r *http.Request) {
 	writeOK(w)
 }
 
+// logout handles POST /api/v1/auth/logout and revokes the current token family.
+// It always clears the session cookies, even when no refresh token is present.
 func (h *AuthHandler) logout(w http.ResponseWriter, r *http.Request) {
 	if refreshToken, err := readCookie(r, refreshTokenCookieName); err == nil {
 		_ = h.logoutUseCase.Execute(r.Context(), authapplication.LogoutCommand{RefreshToken: refreshToken})
@@ -114,12 +119,15 @@ func (h *AuthHandler) logout(w http.ResponseWriter, r *http.Request) {
 	writeOK(w)
 }
 
+// setSessionCookies writes the access and refresh token cookies using the configured TTLs.
+// It converts each TTL to seconds for the cookie max age.
 func (h *AuthHandler) setSessionCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 	http.SetCookie(w, BuildAccessTokenCookie(accessToken, int(h.accessTTL.Seconds()), h.cookieConfig))
 	http.SetCookie(w, BuildRefreshTokenCookie(refreshToken, int(h.refreshTTL.Seconds()), h.cookieConfig))
 }
 
-// + === HELPERS ===
+// readCookie returns the value of the named request cookie.
+// It returns the lookup error when the cookie is missing.
 func readCookie(r *http.Request, name string) (string, error) {
 	cookie, err := r.Cookie(name)
 	if err != nil {
@@ -128,6 +136,8 @@ func readCookie(r *http.Request, name string) (string, error) {
 	return cookie.Value, nil
 }
 
+// writeAuthError maps auth domain and port errors to HTTP status codes.
+// It responds with 401 for credential and token errors and 500 otherwise.
 func writeAuthError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
@@ -141,6 +151,8 @@ func writeAuthError(w http.ResponseWriter, err error) {
 	platformhttp.WriteError(w, status, err)
 }
 
+// writeOK writes the standard 200 OK JSON response for auth endpoints.
+// It returns a simple message body to confirm the operation succeeded.
 func writeOK(w http.ResponseWriter) {
 	platformhttp.WriteJSON(w, http.StatusOK, map[string]string{"message": "ok"})
 }

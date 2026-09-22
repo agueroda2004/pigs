@@ -13,17 +13,18 @@ import (
 	"server/internal/modules/auth/ports"
 )
 
-// + === TYPE ===
 type PostgresRefreshTokenRepository struct {
 	pool *pgxpool.Pool
 }
 
-// + === CONSTRUCTOR ===
+// NewPostgresRefreshTokenRepository builds a refresh token repository backed by a pgx pool.
+// It returns a repository ready to persist and query refresh tokens.
 func NewPostgresRefreshTokenRepository(pool *pgxpool.Pool) *PostgresRefreshTokenRepository {
 	return &PostgresRefreshTokenRepository{pool: pool}
 }
 
-// + === METHODS ===
+// Create inserts a new refresh token row into the database.
+// It wraps any storage failure with a descriptive error.
 func (r *PostgresRefreshTokenRepository) Create(ctx context.Context, token *authdomain.RefreshToken) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO refresh_tokens (
@@ -45,6 +46,8 @@ func (r *PostgresRefreshTokenRepository) Create(ctx context.Context, token *auth
 	return nil
 }
 
+// GetByHash loads the refresh token matching the given hash.
+// It returns ports.ErrRefreshTokenNotFound when no row matches.
 func (r *PostgresRefreshTokenRepository) GetByHash(ctx context.Context, hash string) (*authdomain.RefreshToken, error) {
 	token := &authdomain.RefreshToken{}
 	err := r.pool.QueryRow(ctx, `
@@ -70,6 +73,8 @@ func (r *PostgresRefreshTokenRepository) GetByHash(ctx context.Context, hash str
 	return token, nil
 }
 
+// MarkAsUsed marks the token as used only when it is still unused.
+// It returns ports.ErrRefreshTokenAlreadyUsed when no row is updated.
 func (r *PostgresRefreshTokenRepository) MarkAsUsed(ctx context.Context, id uuid.UUID) error {
 	commandTag, err := r.pool.Exec(ctx, `
 		UPDATE refresh_tokens
@@ -85,6 +90,8 @@ func (r *PostgresRefreshTokenRepository) MarkAsUsed(ctx context.Context, id uuid
 	return nil
 }
 
+// RevokeFamily revokes every non-revoked token belonging to the given family.
+// It wraps any storage failure with a descriptive error.
 func (r *PostgresRefreshTokenRepository) RevokeFamily(ctx context.Context, familyID uuid.UUID) error {
 	_, err := r.pool.Exec(ctx, `
 		UPDATE refresh_tokens
@@ -97,6 +104,8 @@ func (r *PostgresRefreshTokenRepository) RevokeFamily(ctx context.Context, famil
 	return nil
 }
 
+// RevokeByHash revokes the non-revoked token matching the given hash.
+// It wraps any storage failure with a descriptive error.
 func (r *PostgresRefreshTokenRepository) RevokeByHash(ctx context.Context, hash string) error {
 	_, err := r.pool.Exec(ctx, `
 		UPDATE refresh_tokens

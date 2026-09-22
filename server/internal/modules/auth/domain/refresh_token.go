@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// + === ERRORS ===
 var (
 	ErrInvalidID        = errors.New("El identificador del token es obligatorio")
 	ErrInvalidUserID    = errors.New("El usuario del token es obligatorio")
@@ -20,7 +19,6 @@ var (
 	ErrTokenAlreadyUsed = errors.New("El token de refresco ya fue utilizado")
 )
 
-// + === TYPE ===
 type RefreshToken struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -32,7 +30,8 @@ type RefreshToken struct {
 	CreatedAt time.Time
 }
 
-// + === CONSTRUCTOR ===
+// NewRefreshToken builds a refresh token after validating the ids, the token hash and the expiry.
+// It requires a non-empty hash and an expiry strictly after now, and sets CreatedAt to now.
 func NewRefreshToken(
 	id uuid.UUID,
 	userID uuid.UUID,
@@ -67,7 +66,8 @@ func NewRefreshToken(
 	}, nil
 }
 
-// + === METHODS ===
+// IsExpiredAt reports whether the token expiry is not after now.
+// A nil receiver is treated as expired.
 func (t *RefreshToken) IsExpiredAt(now time.Time) bool {
 	if t == nil {
 		return true
@@ -75,6 +75,8 @@ func (t *RefreshToken) IsExpiredAt(now time.Time) bool {
 	return !t.ExpiresAt.After(now)
 }
 
+// CanBeRotated checks whether the token may be rotated at now.
+// It returns ErrTokenExpired, ErrTokenRevoked or ErrTokenAlreadyUsed when rotation is not allowed.
 func (t *RefreshToken) CanBeRotated(now time.Time) error {
 	if t == nil {
 		return ErrTokenRevoked
@@ -91,6 +93,8 @@ func (t *RefreshToken) CanBeRotated(now time.Time) error {
 	return nil
 }
 
+// MarkAsUsed flags the token as used so it cannot be rotated again.
+// It returns ErrTokenRevoked or ErrTokenAlreadyUsed and leaves the token unchanged on error.
 func (t *RefreshToken) MarkAsUsed() error {
 	if t == nil {
 		return ErrTokenRevoked
@@ -105,6 +109,8 @@ func (t *RefreshToken) MarkAsUsed() error {
 	return nil
 }
 
+// Revoke marks the token as revoked.
+// A nil receiver is ignored.
 func (t *RefreshToken) Revoke() {
 	if t == nil {
 		return
@@ -112,6 +118,8 @@ func (t *RefreshToken) Revoke() {
 	t.IsRevoked = true
 }
 
+// WasReused reports whether the token was already used or revoked.
+// A nil receiver is treated as reused.
 func (t *RefreshToken) WasReused() bool {
 	if t == nil {
 		return true

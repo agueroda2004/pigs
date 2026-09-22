@@ -11,7 +11,6 @@ import (
 	"server/internal/modules/auth/ports"
 )
 
-// + === TYPE ===
 type RefreshCommand struct {
 	RefreshToken string
 }
@@ -32,7 +31,8 @@ type RefreshService struct {
 	refreshTTL     time.Duration
 }
 
-// + === CONSTRUCTOR ===
+// NewRefreshService builds the refresh use case with its repository, user reader and token helpers.
+// It returns a service ready to execute RefreshCommand values.
 func NewRefreshService(
 	refreshTokens ports.RefreshTokenRepository,
 	users ports.UserReader,
@@ -53,7 +53,8 @@ func NewRefreshService(
 	}
 }
 
-// + === METHODS ===
+// Execute rotates a refresh token and revokes the family when reuse is detected.
+// It returns the matching domain error when the token is expired, revoked or already used.
 func (s *RefreshService) Execute(ctx context.Context, command RefreshCommand) (*RefreshResult, error) {
 	hash, err := s.tokenHasher.Hash(command.RefreshToken)
 	if err != nil {

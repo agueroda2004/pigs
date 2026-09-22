@@ -12,25 +12,25 @@ import (
 	userdomain "server/internal/modules/user/domain"
 )
 
-// + === ERRORS ===
 var (
 	ErrInvalidAccessToken   = errors.New("Token de acceso invalido")
 	ErrInvalidSigningMethod = errors.New("Metodo de firma invalido")
 	ErrForbidden            = errors.New("No tiene permisos para realizar esta accion")
 )
 
-// + === TYPE ===
 type JWTAccessTokenIssuer struct {
 	secret []byte
 	ttl    time.Duration
 }
 
-// + === CONSTRUCTOR ===
+// NewJWTAccessTokenIssuer builds a JWT issuer with the given signing secret and token TTL.
+// It returns an issuer ready to sign access tokens with HS256.
 func NewJWTAccessTokenIssuer(secret string, ttl time.Duration) *JWTAccessTokenIssuer {
 	return &JWTAccessTokenIssuer{secret: []byte(secret), ttl: ttl}
 }
 
-// + === METHODS ===
+// Issue signs an HS256 access token with the user id, username, role and expiry claims.
+// It returns the signed token string or the signing error.
 func (i *JWTAccessTokenIssuer) Issue(user authdomain.AuthenticatedUser) (string, error) {
 	now := time.Now()
 	claims := jwt.MapClaims{
@@ -44,19 +44,18 @@ func (i *JWTAccessTokenIssuer) Issue(user authdomain.AuthenticatedUser) (string,
 	return token.SignedString(i.secret)
 }
 
-// ? ==================================================================================================================
-
-// + === TYPE ===
 type JWTAccessTokenVerifier struct {
 	secret []byte
 }
 
-// + === CONSTRUCTOR ===
+// NewJWTAccessTokenVerifier builds a JWT verifier with the given signing secret.
+// It returns a verifier ready to validate HS256 access tokens.
 func NewJWTAccessTokenVerifier(secret string) *JWTAccessTokenVerifier {
 	return &JWTAccessTokenVerifier{secret: []byte(secret)}
 }
 
-// + === METHODS ===
+// Verify parses and validates an access token, rejecting any non-HMAC signing method.
+// It returns the authenticated user or ErrInvalidAccessToken when the token is invalid.
 func (v *JWTAccessTokenVerifier) Verify(token string) (*authdomain.AuthenticatedUser, error) {
 	parsed, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
