@@ -1,7 +1,6 @@
-package infrastructure
+package tests
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -28,8 +27,8 @@ func TestAuthHandlerLogin(t *testing.T) {
 		}
 
 		cookies := response.Result().Cookies()
-		access := findCookie(cookies, accessTokenCookieName)
-		refresh := findCookie(cookies, refreshTokenCookieName)
+		access := findCookie(cookies, "access_token")
+		refresh := findCookie(cookies, "refresh_token")
 		if access == nil || refresh == nil {
 			t.Fatalf("expected session cookies, got %#v", cookies)
 		}
@@ -72,7 +71,7 @@ func TestAuthHandlerRefresh(t *testing.T) {
 		}
 		handler := newTestAuthHandler(&fakeLoginUseCase{}, refresh, &fakeLogoutUseCase{})
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
-		request.AddCookie(&http.Cookie{Name: refreshTokenCookieName, Value: "old-refresh"})
+		request.AddCookie(&http.Cookie{Name: "refresh_token", Value: "old-refresh"})
 		response := serveAuth(handler, request)
 
 		if response.Code != http.StatusOK || !refresh.called || refresh.command.RefreshToken != "old-refresh" {
@@ -80,7 +79,7 @@ func TestAuthHandlerRefresh(t *testing.T) {
 		}
 
 		cookies := response.Result().Cookies()
-		if findCookie(cookies, accessTokenCookieName) == nil || findCookie(cookies, refreshTokenCookieName) == nil {
+		if findCookie(cookies, "access_token") == nil || findCookie(cookies, "refresh_token") == nil {
 			t.Fatalf("expected session cookies, got %#v", cookies)
 		}
 	})
@@ -109,7 +108,7 @@ func TestAuthHandlerRefresh(t *testing.T) {
 				refresh := &fakeRefreshUseCase{err: tt.err}
 				handler := newTestAuthHandler(&fakeLoginUseCase{}, refresh, &fakeLogoutUseCase{})
 				request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
-				request.AddCookie(&http.Cookie{Name: refreshTokenCookieName, Value: "token"})
+				request.AddCookie(&http.Cookie{Name: "refresh_token", Value: "token"})
 				response := serveAuth(handler, request)
 
 				if response.Code != http.StatusUnauthorized {
@@ -125,7 +124,7 @@ func TestAuthHandlerLogout(t *testing.T) {
 		logout := &fakeLogoutUseCase{}
 		handler := newTestAuthHandler(&fakeLoginUseCase{}, &fakeRefreshUseCase{}, logout)
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
-		request.AddCookie(&http.Cookie{Name: refreshTokenCookieName, Value: "refresh"})
+		request.AddCookie(&http.Cookie{Name: "refresh_token", Value: "refresh"})
 		response := serveAuth(handler, request)
 
 		if response.Code != http.StatusOK || !logout.called || logout.command.RefreshToken != "refresh" {
@@ -133,8 +132,8 @@ func TestAuthHandlerLogout(t *testing.T) {
 		}
 
 		cookies := response.Result().Cookies()
-		access := findCookie(cookies, accessTokenCookieName)
-		refresh := findCookie(cookies, refreshTokenCookieName)
+		access := findCookie(cookies, "access_token")
+		refresh := findCookie(cookies, "refresh_token")
 		if access == nil || refresh == nil || access.MaxAge != -1 || refresh.MaxAge != -1 {
 			t.Fatalf("expected clearing cookies, got %#v", cookies)
 		}
@@ -149,70 +148,4 @@ func TestAuthHandlerLogout(t *testing.T) {
 			t.Fatalf("status=%d called=%v", response.Code, logout.called)
 		}
 	})
-}
-
-func newTestAuthHandler(login LoginUseCase, refresh RefreshUseCase, logout LogoutUseCase) *AuthHandler {
-	return NewAuthHandler(
-		login,
-		refresh,
-		logout,
-		15*time.Minute,
-		7*24*time.Hour,
-		CookieConfig{Secure: false, SameSite: http.SameSiteLaxMode},
-	)
-}
-
-func serveAuth(handler *AuthHandler, request *http.Request) *httptest.ResponseRecorder {
-	mux := http.NewServeMux()
-	handler.RegisterRoutes(mux)
-	response := httptest.NewRecorder()
-	mux.ServeHTTP(response, request)
-	return response
-}
-
-func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
-	for _, cookie := range cookies {
-		if cookie.Name == name {
-			return cookie
-		}
-	}
-	return nil
-}
-
-type fakeLoginUseCase struct {
-	result  *authapplication.LoginResult
-	err     error
-	command authapplication.LoginCommand
-	called  bool
-}
-
-func (f *fakeLoginUseCase) Execute(_ context.Context, command authapplication.LoginCommand) (*authapplication.LoginResult, error) {
-	f.called = true
-	f.command = command
-	return f.result, f.err
-}
-
-type fakeRefreshUseCase struct {
-	result  *authapplication.RefreshResult
-	err     error
-	command authapplication.RefreshCommand
-	called  bool
-}
-
-func (f *fakeRefreshUseCase) Execute(_ context.Context, command authapplication.RefreshCommand) (*authapplication.RefreshResult, error) {
-	f.called = true
-	f.command = command
-	return f.result, f.err
-}
-
-type fakeLogoutUseCase struct {
-	err     error
-	command authapplication.LogoutCommand
-	called  bool
-}
-
-func (f *fakeLogoutUseCase) Execute(_ context.Context, command authapplication.LogoutCommand) error {
-	f.called = true
-	f.command = command
-	return f.err
 }

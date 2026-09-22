@@ -1,12 +1,14 @@
-package infrastructure
+package tests
 
 import (
 	"strings"
 	"testing"
+
+	authinfra "server/internal/modules/auth/infrastructure"
 )
 
 func TestRandomTokenGeneratorGenerate(t *testing.T) {
-	generator := NewRandomTokenGenerator()
+	generator := authinfra.NewRandomTokenGenerator()
 
 	t.Run("produces a base64url token of expected length", func(t *testing.T) {
 		token, err := generator.Generate()
@@ -38,7 +40,7 @@ func TestRandomTokenGeneratorGenerate(t *testing.T) {
 }
 
 func TestSHA256TokenHasherHash(t *testing.T) {
-	hasher := NewSHA256TokenHasher()
+	hasher := authinfra.NewSHA256TokenHasher()
 
 	hash, err := hasher.Hash("token")
 	if err != nil {

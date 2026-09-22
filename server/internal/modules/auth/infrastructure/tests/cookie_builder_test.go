@@ -1,18 +1,20 @@
-package infrastructure
+package tests
 
 import (
 	"net/http"
 	"testing"
+
+	authinfra "server/internal/modules/auth/infrastructure"
 )
 
 func TestCookieBuilder(t *testing.T) {
-	config := CookieConfig{
+	config := authinfra.CookieConfig{
 		Secure:   false,
 		SameSite: http.SameSiteLaxMode,
 	}
 
 	t.Run("builds access token cookie", func(t *testing.T) {
-		cookie := BuildAccessTokenCookie("token", 900, config)
+		cookie := authinfra.BuildAccessTokenCookie("token", 900, config)
 
 		if cookie.Name != "access_token" || cookie.Value != "token" || cookie.Path != "/" || cookie.MaxAge != 900 {
 			t.Fatalf("unexpected cookie: %#v", cookie)
@@ -23,7 +25,7 @@ func TestCookieBuilder(t *testing.T) {
 	})
 
 	t.Run("builds refresh token cookie", func(t *testing.T) {
-		cookie := BuildRefreshTokenCookie("token", 604800, config)
+		cookie := authinfra.BuildRefreshTokenCookie("token", 604800, config)
 
 		if cookie.Name != "refresh_token" || cookie.Value != "token" || cookie.Path != "/" || cookie.MaxAge != 604800 {
 			t.Fatalf("unexpected cookie: %#v", cookie)
@@ -34,10 +36,10 @@ func TestCookieBuilder(t *testing.T) {
 	})
 
 	t.Run("builds secure cookies when configured", func(t *testing.T) {
-		secureConfig := CookieConfig{Secure: true, SameSite: http.SameSiteStrictMode}
+		secureConfig := authinfra.CookieConfig{Secure: true, SameSite: http.SameSiteStrictMode}
 
-		access := BuildAccessTokenCookie("token", 900, secureConfig)
-		refresh := BuildRefreshTokenCookie("token", 604800, secureConfig)
+		access := authinfra.BuildAccessTokenCookie("token", 900, secureConfig)
+		refresh := authinfra.BuildRefreshTokenCookie("token", 604800, secureConfig)
 
 		if !access.Secure || access.SameSite != http.SameSiteStrictMode {
 			t.Fatalf("unexpected access cookie: %#v", access)
@@ -48,8 +50,8 @@ func TestCookieBuilder(t *testing.T) {
 	})
 
 	t.Run("builds clearing cookies", func(t *testing.T) {
-		access := ClearAccessTokenCookie(config)
-		refresh := ClearRefreshTokenCookie(config)
+		access := authinfra.ClearAccessTokenCookie(config)
+		refresh := authinfra.ClearRefreshTokenCookie(config)
 
 		if access.Name != "access_token" || access.MaxAge != -1 || access.Value != "" {
 			t.Fatalf("unexpected access cookie: %#v", access)

@@ -1,4 +1,4 @@
-package application
+package tests
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	userdomain "server/internal/modules/user/domain"
+	authapplication "server/internal/modules/auth/application"
 	userports "server/internal/modules/user/ports"
 )
 
@@ -17,8 +17,8 @@ func TestLoginServiceExecute(t *testing.T) {
 	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
 	refreshTTL := 7 * 24 * time.Hour
 
-	newService := func(users *fakeUserReader, verifier *fakePasswordVerifier, refresh *fakeRefreshTokenRepository) *LoginService {
-		return NewLoginService(
+	newService := func(users *fakeUserReader, verifier *fakePasswordVerifier, refresh *fakeRefreshTokenRepository) *authapplication.LoginService {
+		return authapplication.NewLoginService(
 			users,
 			verifier,
 			&fakeAccessTokenIssuer{token: "access-token"},
@@ -36,7 +36,7 @@ func TestLoginServiceExecute(t *testing.T) {
 		refresh := &fakeRefreshTokenRepository{}
 		service := newService(users, verifier, refresh)
 
-		result, err := service.Execute(context.Background(), LoginCommand{Username: "ana", Password: "secret"})
+		result, err := service.Execute(context.Background(), authapplication.LoginCommand{Username: "ana", Password: "secret"})
 
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
@@ -59,9 +59,9 @@ func TestLoginServiceExecute(t *testing.T) {
 		users := &fakeUserReader{findErr: userports.ErrUserNotFound}
 		service := newService(users, &fakePasswordVerifier{}, &fakeRefreshTokenRepository{})
 
-		_, err := service.Execute(context.Background(), LoginCommand{Username: "ana", Password: "secret"})
+		_, err := service.Execute(context.Background(), authapplication.LoginCommand{Username: "ana", Password: "secret"})
 
-		if !errors.Is(err, ErrInvalidCredentials) {
+		if !errors.Is(err, authapplication.ErrInvalidCredentials) {
 			t.Fatalf("error = %v, want ErrInvalidCredentials", err)
 		}
 	})
@@ -71,9 +71,9 @@ func TestLoginServiceExecute(t *testing.T) {
 		verifier := &fakePasswordVerifier{err: errors.New("bcrypt mismatch")}
 		service := newService(users, verifier, &fakeRefreshTokenRepository{})
 
-		_, err := service.Execute(context.Background(), LoginCommand{Username: "ana", Password: "wrong"})
+		_, err := service.Execute(context.Background(), authapplication.LoginCommand{Username: "ana", Password: "wrong"})
 
-		if !errors.Is(err, ErrInvalidCredentials) {
+		if !errors.Is(err, authapplication.ErrInvalidCredentials) {
 			t.Fatalf("error = %v, want ErrInvalidCredentials", err)
 		}
 	})
@@ -83,7 +83,7 @@ func TestLoginServiceExecute(t *testing.T) {
 		users := &fakeUserReader{findErr: expected}
 		service := newService(users, &fakePasswordVerifier{}, &fakeRefreshTokenRepository{})
 
-		_, err := service.Execute(context.Background(), LoginCommand{Username: "ana", Password: "secret"})
+		_, err := service.Execute(context.Background(), authapplication.LoginCommand{Username: "ana", Password: "secret"})
 
 		if !errors.Is(err, expected) {
 			t.Fatalf("error = %v, want %v", err, expected)
@@ -92,7 +92,7 @@ func TestLoginServiceExecute(t *testing.T) {
 
 	t.Run("propagates issue error", func(t *testing.T) {
 		expected := errors.New("issue failed")
-		service := NewLoginService(
+		service := authapplication.NewLoginService(
 			&fakeUserReader{findUser: testUser(userID)},
 			&fakePasswordVerifier{},
 			&fakeAccessTokenIssuer{err: expected},
@@ -103,7 +103,7 @@ func TestLoginServiceExecute(t *testing.T) {
 			refreshTTL,
 		)
 
-		_, err := service.Execute(context.Background(), LoginCommand{Username: "ana", Password: "secret"})
+		_, err := service.Execute(context.Background(), authapplication.LoginCommand{Username: "ana", Password: "secret"})
 
 		if !errors.Is(err, expected) {
 			t.Fatalf("error = %v, want %v", err, expected)
@@ -112,7 +112,7 @@ func TestLoginServiceExecute(t *testing.T) {
 
 	t.Run("propagates token generator error", func(t *testing.T) {
 		expected := errors.New("generate failed")
-		service := NewLoginService(
+		service := authapplication.NewLoginService(
 			&fakeUserReader{findUser: testUser(userID)},
 			&fakePasswordVerifier{},
 			&fakeAccessTokenIssuer{token: "access"},
@@ -123,17 +123,10 @@ func TestLoginServiceExecute(t *testing.T) {
 			refreshTTL,
 		)
 
-		_, err := service.Execute(context.Background(), LoginCommand{Username: "ana", Password: "secret"})
+		_, err := service.Execute(context.Background(), authapplication.LoginCommand{Username: "ana", Password: "secret"})
 
 		if !errors.Is(err, expected) {
 			t.Fatalf("error = %v, want %v", err, expected)
 		}
 	})
-}
-
-func testUser(id uuid.UUID) *userdomain.User {
-	return &userdomain.User{
-		ID: id, Name: "Ana", Username: "ana", Password: "old-hash",
-		Role: userdomain.RoleUser, CreatedAt: time.Now(), UpdatedAt: time.Now(),
-	}
 }

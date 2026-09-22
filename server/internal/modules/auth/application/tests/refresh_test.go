@@ -1,4 +1,4 @@
-package application
+package tests
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	authapplication "server/internal/modules/auth/application"
 	authdomain "server/internal/modules/auth/domain"
 	"server/internal/modules/auth/ports"
 )
@@ -19,8 +20,8 @@ func TestRefreshServiceExecute(t *testing.T) {
 	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
 	refreshTTL := 7 * 24 * time.Hour
 
-	newService := func(refresh *fakeRefreshTokenRepository, users *fakeUserReader, hasher *fakeTokenHasher) *RefreshService {
-		return NewRefreshService(
+	newService := func(refresh *fakeRefreshTokenRepository, users *fakeUserReader, hasher *fakeTokenHasher) *authapplication.RefreshService {
+		return authapplication.NewRefreshService(
 			refresh,
 			users,
 			hasher,
@@ -44,7 +45,7 @@ func TestRefreshServiceExecute(t *testing.T) {
 		hasher := &fakeTokenHasher{hash: "new-hash"}
 		service := newService(refresh, users, hasher)
 
-		result, err := service.Execute(context.Background(), RefreshCommand{RefreshToken: "old-refresh-token"})
+		result, err := service.Execute(context.Background(), authapplication.RefreshCommand{RefreshToken: "old-refresh-token"})
 
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
@@ -67,7 +68,7 @@ func TestRefreshServiceExecute(t *testing.T) {
 		refresh := &fakeRefreshTokenRepository{getErr: ports.ErrRefreshTokenNotFound}
 		service := newService(refresh, &fakeUserReader{}, &fakeTokenHasher{})
 
-		_, err := service.Execute(context.Background(), RefreshCommand{RefreshToken: "unknown"})
+		_, err := service.Execute(context.Background(), authapplication.RefreshCommand{RefreshToken: "unknown"})
 
 		if !errors.Is(err, ports.ErrRefreshTokenNotFound) {
 			t.Fatalf("error = %v, want ErrRefreshTokenNotFound", err)
@@ -78,7 +79,7 @@ func TestRefreshServiceExecute(t *testing.T) {
 		refresh := &fakeRefreshTokenRepository{get: newToken(false, false, now.Add(-time.Minute))}
 		service := newService(refresh, &fakeUserReader{}, &fakeTokenHasher{})
 
-		_, err := service.Execute(context.Background(), RefreshCommand{RefreshToken: "expired"})
+		_, err := service.Execute(context.Background(), authapplication.RefreshCommand{RefreshToken: "expired"})
 
 		if !errors.Is(err, authdomain.ErrTokenExpired) {
 			t.Fatalf("error = %v, want ErrTokenExpired", err)
@@ -102,7 +103,7 @@ func TestRefreshServiceExecute(t *testing.T) {
 				refresh := &fakeRefreshTokenRepository{get: newToken(tt.isUsed, tt.revoke, now.Add(time.Hour))}
 				service := newService(refresh, &fakeUserReader{}, &fakeTokenHasher{})
 
-				_, err := service.Execute(context.Background(), RefreshCommand{RefreshToken: "reused"})
+				_, err := service.Execute(context.Background(), authapplication.RefreshCommand{RefreshToken: "reused"})
 
 				if !errors.Is(err, tt.want) {
 					t.Fatalf("error = %v, want %v", err, tt.want)
@@ -121,7 +122,7 @@ func TestRefreshServiceExecute(t *testing.T) {
 		}
 		service := newService(refresh, &fakeUserReader{}, &fakeTokenHasher{})
 
-		_, err := service.Execute(context.Background(), RefreshCommand{RefreshToken: "raced"})
+		_, err := service.Execute(context.Background(), authapplication.RefreshCommand{RefreshToken: "raced"})
 
 		if !errors.Is(err, ports.ErrRefreshTokenAlreadyUsed) {
 			t.Fatalf("error = %v, want ErrRefreshTokenAlreadyUsed", err)
@@ -135,13 +136,13 @@ func TestRefreshServiceExecute(t *testing.T) {
 		userErr := errors.New("user failed")
 		refresh := &fakeRefreshTokenRepository{get: newToken(false, false, now.Add(time.Hour))}
 		service := newService(refresh, &fakeUserReader{getErr: userErr}, &fakeTokenHasher{})
-		_, err := service.Execute(context.Background(), RefreshCommand{RefreshToken: "token"})
+		_, err := service.Execute(context.Background(), authapplication.RefreshCommand{RefreshToken: "token"})
 		if !errors.Is(err, userErr) {
 			t.Fatalf("error = %v, want %v", err, userErr)
 		}
 
 		issueErr := errors.New("issue failed")
-		service = NewRefreshService(
+		service = authapplication.NewRefreshService(
 			refresh,
 			&fakeUserReader{getUser: testUser(userID)},
 			&fakeTokenHasher{},
@@ -150,7 +151,7 @@ func TestRefreshServiceExecute(t *testing.T) {
 			func() time.Time { return now },
 			refreshTTL,
 		)
-		_, err = service.Execute(context.Background(), RefreshCommand{RefreshToken: "token"})
+		_, err = service.Execute(context.Background(), authapplication.RefreshCommand{RefreshToken: "token"})
 		if !errors.Is(err, issueErr) {
 			t.Fatalf("error = %v, want %v", err, issueErr)
 		}
@@ -170,9 +171,9 @@ func TestLogoutServiceExecute(t *testing.T) {
 			},
 		}
 		hasher := &fakeTokenHasher{hash: "hash"}
-		service := NewLogoutService(refresh, hasher)
+		service := authapplication.NewLogoutService(refresh, hasher)
 
-		err := service.Execute(context.Background(), LogoutCommand{RefreshToken: "token"})
+		err := service.Execute(context.Background(), authapplication.LogoutCommand{RefreshToken: "token"})
 
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
@@ -184,9 +185,9 @@ func TestLogoutServiceExecute(t *testing.T) {
 
 	t.Run("succeeds when token is not found", func(t *testing.T) {
 		refresh := &fakeRefreshTokenRepository{getErr: ports.ErrRefreshTokenNotFound}
-		service := NewLogoutService(refresh, &fakeTokenHasher{hash: "hash"})
+		service := authapplication.NewLogoutService(refresh, &fakeTokenHasher{hash: "hash"})
 
-		err := service.Execute(context.Background(), LogoutCommand{RefreshToken: "unknown"})
+		err := service.Execute(context.Background(), authapplication.LogoutCommand{RefreshToken: "unknown"})
 
 		if err != nil {
 			t.Fatalf("Execute() error = %v, want nil", err)
@@ -196,9 +197,9 @@ func TestLogoutServiceExecute(t *testing.T) {
 	t.Run("propagates repository error", func(t *testing.T) {
 		expected := errors.New("database unavailable")
 		refresh := &fakeRefreshTokenRepository{getErr: expected}
-		service := NewLogoutService(refresh, &fakeTokenHasher{hash: "hash"})
+		service := authapplication.NewLogoutService(refresh, &fakeTokenHasher{hash: "hash"})
 
-		err := service.Execute(context.Background(), LogoutCommand{RefreshToken: "token"})
+		err := service.Execute(context.Background(), authapplication.LogoutCommand{RefreshToken: "token"})
 
 		if !errors.Is(err, expected) {
 			t.Fatalf("error = %v, want %v", err, expected)

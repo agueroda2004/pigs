@@ -1,4 +1,4 @@
-package infrastructure
+package tests
 
 import (
 	"errors"
@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	authdomain "server/internal/modules/auth/domain"
+	authinfra "server/internal/modules/auth/infrastructure"
 	userdomain "server/internal/modules/user/domain"
 )
 
@@ -20,8 +21,8 @@ func TestJWTAccessToken(t *testing.T) {
 	}
 
 	t.Run("issues and verifies a token", func(t *testing.T) {
-		issuer := NewJWTAccessTokenIssuer(secret, 15*time.Minute)
-		verifier := NewJWTAccessTokenVerifier(secret)
+		issuer := authinfra.NewJWTAccessTokenIssuer(secret, 15*time.Minute)
+		verifier := authinfra.NewJWTAccessTokenVerifier(secret)
 
 		token, err := issuer.Issue(user)
 		if err != nil {
@@ -38,56 +39,53 @@ func TestJWTAccessToken(t *testing.T) {
 	})
 
 	t.Run("rejects expired token", func(t *testing.T) {
-		issuer := NewJWTAccessTokenIssuer(secret, -time.Minute)
-		verifier := NewJWTAccessTokenVerifier(secret)
+		issuer := authinfra.NewJWTAccessTokenIssuer(secret, -time.Minute)
+		verifier := authinfra.NewJWTAccessTokenVerifier(secret)
 
 		token, err := issuer.Issue(user)
 		if err != nil {
 			t.Fatalf("Issue() error = %v", err)
 		}
 
-		if _, err := verifier.Verify(token); !errors.Is(err, ErrInvalidAccessToken) {
+		if _, err := verifier.Verify(token); !errors.Is(err, authinfra.ErrInvalidAccessToken) {
 			t.Fatalf("error = %v, want ErrInvalidAccessToken", err)
 		}
 	})
 
 	t.Run("rejects token with wrong secret", func(t *testing.T) {
-		issuer := NewJWTAccessTokenIssuer(secret, 15*time.Minute)
-		verifier := NewJWTAccessTokenVerifier("other-secret")
+		issuer := authinfra.NewJWTAccessTokenIssuer(secret, 15*time.Minute)
+		verifier := authinfra.NewJWTAccessTokenVerifier("other-secret")
 
 		token, err := issuer.Issue(user)
 		if err != nil {
 			t.Fatalf("Issue() error = %v", err)
 		}
 
-		if _, err := verifier.Verify(token); !errors.Is(err, ErrInvalidAccessToken) {
+		if _, err := verifier.Verify(token); !errors.Is(err, authinfra.ErrInvalidAccessToken) {
 			t.Fatalf("error = %v, want ErrInvalidAccessToken", err)
 		}
 	})
 
 	t.Run("rejects tampered token", func(t *testing.T) {
-		issuer := NewJWTAccessTokenIssuer(secret, 15*time.Minute)
-		verifier := NewJWTAccessTokenVerifier(secret)
+		issuer := authinfra.NewJWTAccessTokenIssuer(secret, 15*time.Minute)
+		verifier := authinfra.NewJWTAccessTokenVerifier(secret)
 
 		token, err := issuer.Issue(user)
 		if err != nil {
 			t.Fatalf("Issue() error = %v", err)
 		}
-		altered := token[:len(token)-1] + flipLastChar(token)
+		middle := len(token) / 2
+		altered := token[:middle] + string(flipChar(token[middle])) + token[middle+1:]
 
-		if _, err := verifier.Verify(altered); !errors.Is(err, ErrInvalidAccessToken) {
+		if _, err := verifier.Verify(altered); !errors.Is(err, authinfra.ErrInvalidAccessToken) {
 			t.Fatalf("error = %v, want ErrInvalidAccessToken", err)
 		}
 	})
 }
 
-func flipLastChar(value string) string {
-	if len(value) == 0 {
-		return "x"
+func flipChar(value byte) byte {
+	if value == 'a' {
+		return 'b'
 	}
-	last := value[len(value)-1]
-	if last == 'a' {
-		return "b"
-	}
-	return "a"
+	return 'a'
 }

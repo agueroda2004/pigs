@@ -1,4 +1,4 @@
-package infrastructure
+package tests
 
 import (
 	"net/http"
@@ -8,21 +8,13 @@ import (
 	"github.com/google/uuid"
 
 	authdomain "server/internal/modules/auth/domain"
+	authinfra "server/internal/modules/auth/infrastructure"
 	userdomain "server/internal/modules/user/domain"
 )
 
-type fakeAccessTokenVerifier struct {
-	user *authdomain.AuthenticatedUser
-	err  error
-}
-
-func (f *fakeAccessTokenVerifier) Verify(_ string) (*authdomain.AuthenticatedUser, error) {
-	return f.user, f.err
-}
-
 func TestAuthenticatorAuthenticate(t *testing.T) {
 	user := &authdomain.AuthenticatedUser{UserID: uuid.New(), Username: "ana", Role: userdomain.RoleAdmin}
-	authenticator := NewAuthenticator(&fakeAccessTokenVerifier{user: user})
+	authenticator := authinfra.NewAuthenticator(&fakeAccessTokenVerifier{user: user})
 
 	t.Run("passes and stores user in context", func(t *testing.T) {
 		var got authdomain.AuthenticatedUser
@@ -32,7 +24,7 @@ func TestAuthenticatorAuthenticate(t *testing.T) {
 		})
 
 		request := httptest.NewRequest(http.MethodGet, "/", nil)
-		request.AddCookie(&http.Cookie{Name: accessTokenCookieName, Value: "token"})
+		request.AddCookie(&http.Cookie{Name: "access_token", Value: "token"})
 		response := httptest.NewRecorder()
 		authenticator.Authenticate(next).ServeHTTP(response, request)
 
@@ -55,12 +47,12 @@ func TestAuthenticatorAuthenticate(t *testing.T) {
 	})
 
 	t.Run("returns unauthorized for invalid token", func(t *testing.T) {
-		bad := NewAuthenticator(&fakeAccessTokenVerifier{err: ErrInvalidAccessToken})
+		bad := authinfra.NewAuthenticator(&fakeAccessTokenVerifier{err: authinfra.ErrInvalidAccessToken})
 		called := false
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true })
 
 		request := httptest.NewRequest(http.MethodGet, "/", nil)
-		request.AddCookie(&http.Cookie{Name: accessTokenCookieName, Value: "bad"})
+		request.AddCookie(&http.Cookie{Name: "access_token", Value: "bad"})
 		response := httptest.NewRecorder()
 		bad.Authenticate(next).ServeHTTP(response, request)
 
@@ -81,7 +73,7 @@ func TestRequireRole(t *testing.T) {
 		request := httptest.NewRequest(http.MethodGet, "/", nil)
 		request = request.WithContext(authdomain.WithAuthenticatedUser(request.Context(), admin))
 		response := httptest.NewRecorder()
-		RequireAdmin(next).ServeHTTP(response, request)
+		authinfra.RequireAdmin(next).ServeHTTP(response, request)
 
 		if response.Code != http.StatusOK || !called {
 			t.Fatalf("status=%d called=%v", response.Code, called)
@@ -95,7 +87,7 @@ func TestRequireRole(t *testing.T) {
 		request := httptest.NewRequest(http.MethodGet, "/", nil)
 		request = request.WithContext(authdomain.WithAuthenticatedUser(request.Context(), regular))
 		response := httptest.NewRecorder()
-		RequireAdmin(next).ServeHTTP(response, request)
+		authinfra.RequireAdmin(next).ServeHTTP(response, request)
 
 		if response.Code != http.StatusForbidden || called {
 			t.Fatalf("status=%d called=%v", response.Code, called)
@@ -108,7 +100,7 @@ func TestRequireRole(t *testing.T) {
 
 		request := httptest.NewRequest(http.MethodGet, "/", nil)
 		response := httptest.NewRecorder()
-		RequireAdmin(next).ServeHTTP(response, request)
+		authinfra.RequireAdmin(next).ServeHTTP(response, request)
 
 		if response.Code != http.StatusUnauthorized || called {
 			t.Fatalf("status=%d called=%v", response.Code, called)
