@@ -18,6 +18,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.Dashboard),
       },
       {
+        path: 'breeds',
+        loadComponent: () =>
+          import('./features/breeds/breeds-page/breeds-page').then((m) => m.BreedsPage),
+      },
+      {
         path: 'users',
         canActivate: [adminGuard],
         loadComponent: () =>

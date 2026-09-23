@@ -1,0 +1,77 @@
+<div class="space-y-6">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">Razas</h1>
+      <p class="mt-1 text-sm text-muted-foreground">Catálogo de razas de la granja.</p>
+    </div>
+
+    @if (isAdmin()) {
+      <button
+        type="button"
+        (click)="openModal()"
+        class="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-4 w-4"
+        >
+          <path d="M5 12h14M12 5v14" />
+        </svg>
+        Crear raza
+      </button>
+    }
+  </div>
+
+  @if (loading()) {
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      @for (placeholder of [1, 2, 3]; track placeholder) {
+        <div class="h-24 animate-pulse rounded-xl border border-border bg-muted/50"></div>
+      }
+    </div>
+  } @else if (error()) {
+    <div class="rounded-xl border border-border p-10 text-center">
+      <p class="text-sm text-muted-foreground">No se pudieron cargar las razas.</p>
+      <button
+        type="button"
+        (click)="loadBreeds()"
+        class="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Reintentar
+      </button>
+    </div>
+  } @else if (breeds().length === 0) {
+    <div class="rounded-xl border border-dashed border-border p-10 text-center">
+      <p class="text-sm text-muted-foreground">
+        Todavía no hay razas registradas.
+        @if (isAdmin()) {
+          Crea la primera para verla aquí.
+        }
+      </p>
+    </div>
+  } @else {
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      @for (breed of breeds(); track breed.id) {
+        <app-breed-card [breed]="breed" [canEdit]="isAdmin()" (editRequested)="openEdit($event)" />
+      }
+    </div>
+  }
+</div>
+
+<app-create-breed-modal
+  [open]="modalOpen()"
+  (closed)="closeModal()"
+  (created)="onCreated($event)"
+/>
+
+<app-edit-breed-modal
+  [open]="editOpen()"
+  [breed]="editingBreed()"
+  (closed)="closeEdit()"
+  (updated)="onUpdated($event)"
+/>
