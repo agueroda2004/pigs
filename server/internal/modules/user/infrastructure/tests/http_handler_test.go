@@ -166,3 +166,40 @@ func TestUserHandlerUpdateByAdmin(t *testing.T) {
 		}
 	})
 }
+
+func TestUserHandlerList(t *testing.T) {
+	t.Run("returns every user without passwords", func(t *testing.T) {
+		list := &fakeListUsersUseCase{users: []*userdomain.User{handlerUser(), handlerUser()}}
+		handler := newTestHandlerWithList(list, &fakeCreateUserUseCase{}, &fakeUpdateUserUseCase{}, &fakeUpdateUserByAdminUseCase{})
+		request := authenticatedRequest(httptest.NewRequest(http.MethodGet, "/api/v1/admin/users", nil), uuid.New())
+		response := serve(handler, request)
+
+		if response.Code != http.StatusOK || !list.called {
+			t.Fatalf("status=%d called=%v", response.Code, list.called)
+		}
+		body := response.Body.String()
+		if strings.Contains(body, "password") || !strings.HasPrefix(strings.TrimSpace(body), "[") {
+			t.Fatalf("unexpected body: %s", body)
+		}
+	})
+
+	t.Run("returns an empty array when there are no users", func(t *testing.T) {
+		list := &fakeListUsersUseCase{users: []*userdomain.User{}}
+		handler := newTestHandlerWithList(list, &fakeCreateUserUseCase{}, &fakeUpdateUserUseCase{}, &fakeUpdateUserByAdminUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/admin/users", nil))
+
+		if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "[]" {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("maps internal errors", func(t *testing.T) {
+		list := &fakeListUsersUseCase{err: errors.New("unexpected")}
+		handler := newTestHandlerWithList(list, &fakeCreateUserUseCase{}, &fakeUpdateUserUseCase{}, &fakeUpdateUserByAdminUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/admin/users", nil))
+
+		if response.Code != http.StatusInternalServerError {
+			t.Fatalf("status=%d, want %d", response.Code, http.StatusInternalServerError)
+		}
+	})
+}

@@ -87,6 +87,51 @@ func (r *PostgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*us
 	return result, nil
 }
 
+// List fetches every user ordered by creation date.
+// It returns an empty slice when no users exist and wraps any query failure.
+func (r *PostgresUserRepository) List(ctx context.Context) ([]*userdomain.User, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, name, username, password, role,
+		       created_at, updated_at, created_by, updated_by
+		FROM users
+		ORDER BY created_at ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar los usuarios: %w", err)
+	}
+	defer rows.Close()
+
+	users := make([]*userdomain.User, 0)
+	for rows.Next() {
+		result := &userdomain.User{}
+		var role string
+		var createdBy, updatedBy *string
+
+		if err := rows.Scan(
+			&result.ID,
+			&result.Name,
+			&result.Username,
+			&result.Password,
+			&role,
+			&result.CreatedAt,
+			&result.UpdatedAt,
+			&createdBy,
+			&updatedBy,
+		); err != nil {
+			return nil, fmt.Errorf("No se pudo consultar los usuarios: %w", err)
+		}
+
+		result.Role = userdomain.Role(role)
+		result.CreatedBy = stringValue(createdBy)
+		result.UpdatedBy = stringValue(updatedBy)
+		users = append(users, result)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudo consultar los usuarios: %w", err)
+	}
+	return users, nil
+}
+
 // FindByUsername fetches a single user by username.
 // It returns ErrUserNotFound when no row matches.
 func (r *PostgresUserRepository) FindByUsername(ctx context.Context, username string) (*userdomain.User, error) {

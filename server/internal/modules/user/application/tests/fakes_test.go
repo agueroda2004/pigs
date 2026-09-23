@@ -13,6 +13,8 @@ type fakeUserRepository struct {
 	existsErr error
 	getUser   *userdomain.User
 	getErr    error
+	listUsers []*userdomain.User
+	listErr   error
 	createErr error
 	updateErr error
 	created   *userdomain.User
@@ -26,6 +28,10 @@ func (f *fakeUserRepository) Create(_ context.Context, user *userdomain.User) er
 
 func (f *fakeUserRepository) GetByID(_ context.Context, _ uuid.UUID) (*userdomain.User, error) {
 	return f.getUser, f.getErr
+}
+
+func (f *fakeUserRepository) List(_ context.Context) ([]*userdomain.User, error) {
+	return f.listUsers, f.listErr
 }
 
 func (f *fakeUserRepository) ExistsByUsername(_ context.Context, _ string) (bool, error) {

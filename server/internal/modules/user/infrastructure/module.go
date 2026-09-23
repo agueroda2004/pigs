@@ -10,6 +10,7 @@ import (
 
 type Module struct {
 	CreateUser        *userapplication.CreateUserService
+	ListUsers         *userapplication.ListUsersService
 	UpdateOwnUser     *userapplication.UpdateOwnUserService
 	UpdateUserByAdmin *userapplication.UpdateUserByAdminService
 	Handler           *UserHandler
@@ -24,13 +25,15 @@ func NewModule(
 	adminMiddleware func(http.Handler) http.Handler,
 ) *Module {
 	createUser := userapplication.NewCreateUserService(repository, hasher, clock)
+	listUsers := userapplication.NewListUsersService(repository)
 	updateOwnUser := userapplication.NewUpdateOwnUserService(repository, hasher, clock)
 	updateUserByAdmin := userapplication.NewUpdateUserByAdminService(repository, hasher, clock)
 
 	return &Module{
 		CreateUser:        createUser,
+		ListUsers:         listUsers,
 		UpdateOwnUser:     updateOwnUser,
 		UpdateUserByAdmin: updateUserByAdmin,
-		Handler:           NewUserHandler(createUser, updateOwnUser, updateUserByAdmin, adminMiddleware),
+		Handler:           NewUserHandler(createUser, listUsers, updateOwnUser, updateUserByAdmin, adminMiddleware),
 	}
 }

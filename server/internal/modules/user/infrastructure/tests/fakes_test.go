@@ -27,6 +27,17 @@ func (f *fakeCreateUserUseCase) Execute(_ context.Context, command userapplicati
 	return f.user, f.err
 }
 
+type fakeListUsersUseCase struct {
+	users  []*userdomain.User
+	err    error
+	called bool
+}
+
+func (f *fakeListUsersUseCase) Execute(_ context.Context) ([]*userdomain.User, error) {
+	f.called = true
+	return f.users, f.err
+}
+
 type fakeUpdateUserUseCase struct {
 	user    *userdomain.User
 	err     error
@@ -58,7 +69,11 @@ func (f *fakeUpdateUserByAdminUseCase) Execute(_ context.Context, userID uuid.UU
 }
 
 func newTestHandler(create userinfra.CreateUserUseCase, update userinfra.UpdateOwnUserUseCase, updateAdmin userinfra.UpdateUserByAdminUseCase) *userinfra.UserHandler {
-	return userinfra.NewUserHandler(create, update, updateAdmin, func(next http.Handler) http.Handler { return next })
+	return newTestHandlerWithList(&fakeListUsersUseCase{}, create, update, updateAdmin)
+}
+
+func newTestHandlerWithList(list userinfra.ListUsersUseCase, create userinfra.CreateUserUseCase, update userinfra.UpdateOwnUserUseCase, updateAdmin userinfra.UpdateUserByAdminUseCase) *userinfra.UserHandler {
+	return userinfra.NewUserHandler(create, list, update, updateAdmin, func(next http.Handler) http.Handler { return next })
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {
