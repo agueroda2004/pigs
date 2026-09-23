@@ -3,6 +3,10 @@ You don't have to document tests files. Avoid them.
 
 ---
 
+Every domain, application, infraestructure method/functions has to have a test file testing its code.
+
+---
+
 Every test file has to be inside its father folder like this:
 
     ./application
