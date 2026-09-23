@@ -7,15 +7,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	authinfrastructure "server/internal/modules/auth/infrastructure"
+	breedinfrastructure "server/internal/modules/breed/infrastructure"
 	userinfrastructure "server/internal/modules/user/infrastructure"
 	"server/internal/platform/config"
 	"server/internal/platform/database"
 )
 
 type Container struct {
-	DB   *pgxpool.Pool
-	User *userinfrastructure.Module
-	Auth *authinfrastructure.Module
+	DB    *pgxpool.Pool
+	User  *userinfrastructure.Module
+	Breed *breedinfrastructure.Module
+	Auth  *authinfrastructure.Module
 }
 
 func New(ctx context.Context, applicationConfig config.Config) (*Container, error) {
@@ -30,6 +32,9 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 
 	// + === USER MODULE ===
 	userRepository := userinfrastructure.NewPostgresUserRepository(db)
+
+	// + === BREED MODULE ===
+	breedRepository := breedinfrastructure.NewPostgresBreedRepository(db)
 
 	// + === AUTH MODULE ===
 	refreshTokenRepository := authinfrastructure.NewPostgresRefreshTokenRepository(db)
@@ -60,9 +65,10 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 	)
 
 	return &Container{
-		DB:   db,
-		User: userinfrastructure.NewModule(userRepository, hasher, clock, authModule.AdminMiddleware),
-		Auth: authModule,
+		DB:    db,
+		User:  userinfrastructure.NewModule(userRepository, hasher, clock, authModule.AdminMiddleware),
+		Breed: breedinfrastructure.NewModule(breedRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Auth:  authModule,
 	}, nil
 }
 
