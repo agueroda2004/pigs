@@ -1,0 +1,121 @@
+<app-modal [open]="open()" title="Editar verraco" (closed)="closed.emit()">
+  <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+      <span class="text-sm font-medium">Estado</span>
+      <span class="rounded-full px-2.5 py-0.5 text-xs font-medium" [class]="stateClass()">
+        {{ stateLabel() }}
+      </span>
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="edit-boar-code" class="block text-sm font-medium">Código</label>
+      <input
+        id="edit-boar-code"
+        type="text"
+        formControlName="code"
+        autocomplete="off"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      />
+      @if (form.controls.code.touched && form.controls.code.invalid) {
+        <p class="text-xs text-danger">El código es obligatorio (máximo 50 caracteres).</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <span class="block text-sm font-medium">Raza</span>
+      <app-dropdown
+        formControlName="breed_id"
+        [options]="breedOptions()"
+        placeholder="Seleccionar raza"
+      />
+      @if (form.controls.breed_id.touched && form.controls.breed_id.invalid) {
+        <p class="text-xs text-danger">La raza es obligatoria.</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <span class="block text-sm font-medium">Origen</span>
+      <app-dropdown
+        formControlName="origin"
+        [options]="originOptions"
+        placeholder="Seleccionar origen"
+      />
+      @if (form.controls.origin.touched && form.controls.origin.invalid) {
+        <p class="text-xs text-danger">El origen es obligatorio.</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="edit-boar-location" class="block text-sm font-medium">Ubicación</label>
+      <input
+        id="edit-boar-location"
+        type="text"
+        formControlName="location"
+        autocomplete="off"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      />
+      @if (form.controls.location.touched && form.controls.location.invalid) {
+        <p class="text-xs text-danger">La ubicación debe tener como máximo 100 caracteres.</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <span class="block text-sm font-medium">Fecha de ingreso</span>
+      <app-date-picker
+        formControlName="entry_date"
+        [maxDate]="today"
+        placeholder="Seleccionar fecha"
+      />
+      @if (form.controls.entry_date.touched && form.controls.entry_date.invalid) {
+        <p class="text-xs text-danger">La fecha de ingreso es obligatoria.</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <span class="block text-sm font-medium">Fecha de nacimiento</span>
+      <app-date-picker
+        formControlName="birth_date"
+        [maxDate]="form.controls.entry_date.value || today"
+        placeholder="Opcional"
+      />
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="edit-boar-note" class="block text-sm font-medium">Nota</label>
+      <textarea
+        id="edit-boar-note"
+        rows="3"
+        formControlName="note"
+        class="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      ></textarea>
+      @if (form.controls.note.touched && form.controls.note.invalid) {
+        <p class="text-xs text-danger">La nota debe tener como máximo 500 caracteres.</p>
+      }
+    </div>
+
+    <label class="flex cursor-pointer items-center justify-between gap-3">
+      <span class="text-sm font-medium">Verraco activo</span>
+      <input type="checkbox" formControlName="active" class="peer sr-only" />
+      <span
+        class="relative h-6 w-11 shrink-0 rounded-full bg-muted transition peer-checked:bg-success after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-background after:transition peer-checked:after:translate-x-5"
+      ></span>
+    </label>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        [disabled]="loading()"
+        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Guardando…' : 'Guardar cambios' }}
+      </button>
+    </div>
+  </form>
+</app-modal>

@@ -23,6 +23,11 @@ export const routes: Routes = [
           import('./features/breeds/breeds-page/breeds-page').then((m) => m.BreedsPage),
       },
       {
+        path: 'boars',
+        loadComponent: () =>
+          import('./features/boars/boars-page/boars-page').then((m) => m.BoarsPage),
+      },
+      {
         path: 'users',
         canActivate: [adminGuard],
         loadComponent: () =>
