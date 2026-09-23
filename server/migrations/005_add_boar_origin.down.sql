@@ -1,0 +1,2 @@
+ALTER TABLE boars DROP COLUMN IF EXISTS origin;
+DROP TYPE IF EXISTS boar_origin;

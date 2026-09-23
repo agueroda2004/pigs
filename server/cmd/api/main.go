@@ -40,6 +40,9 @@ func main() {
 	breedHandler := dependencies.Breed.Handler
 	breedHandler.RegisterRoutes(mux)
 
+	boarHandler := dependencies.Boar.Handler
+	boarHandler.RegisterRoutes(mux)
+
 	server := &http.Server{
 		Addr:    ":" + applicationConfig.Port,
 		Handler: platformhttp.CORS(applicationConfig.CorsAllowedOrigins)(mux),

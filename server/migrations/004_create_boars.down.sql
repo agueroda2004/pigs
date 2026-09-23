@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS boars;
+DROP TYPE IF EXISTS boar_state;
