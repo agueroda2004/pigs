@@ -38,4 +38,44 @@ describe('UsersService', () => {
 
     await expect(promise).resolves.toMatchObject({ username: 'ana' });
   });
+
+  it('lists users from the admin endpoint', async () => {
+    const promise = firstValueFrom(service.listUsers());
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/admin/users') && request.method === 'GET',
+    );
+    call.flush([
+      {
+        id: '1',
+        name: 'Ana',
+        username: 'ana',
+        role: 'User',
+        created_at: '',
+        updated_at: '',
+      },
+    ]);
+
+    await expect(promise).resolves.toHaveLength(1);
+  });
+
+  it('updates a user through the admin endpoint', async () => {
+    const payload = { name: 'Ana Updated', username: 'ana', role: 'Admin' as const };
+    const promise = firstValueFrom(service.updateUser('42', payload));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/admin/users/42') && request.method === 'PATCH',
+    );
+    expect(call.request.body).toEqual(payload);
+    call.flush({
+      id: '42',
+      name: 'Ana Updated',
+      username: 'ana',
+      role: 'Admin',
+      created_at: '',
+      updated_at: '',
+    });
+
+    await expect(promise).resolves.toMatchObject({ name: 'Ana Updated', role: 'Admin' });
+  });
 });

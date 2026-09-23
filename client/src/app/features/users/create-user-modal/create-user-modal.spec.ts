@@ -1,7 +1,9 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
+import { NotificationService } from '../../../core/notifications/notification.service';
 import { UsersService } from '../../../core/users/users.service';
 import { CreateUserModal } from './create-user-modal';
 
@@ -9,14 +11,24 @@ class UsersStub {
   createUser = vi.fn(() => of({}));
 }
 
+class NotificationsStub {
+  success = vi.fn();
+  error = vi.fn();
+}
+
 describe('CreateUserModal', () => {
   let stub: UsersStub;
+  let notifications: NotificationsStub;
 
   beforeEach(async () => {
     stub = new UsersStub();
+    notifications = new NotificationsStub();
     await TestBed.configureTestingModule({
       imports: [CreateUserModal],
-      providers: [{ provide: UsersService, useValue: stub }],
+      providers: [
+        { provide: UsersService, useValue: stub },
+        { provide: NotificationService, useValue: notifications },
+      ],
     }).compileComponents();
   });
 
@@ -64,5 +76,21 @@ describe('CreateUserModal', () => {
       role: 'User',
     });
     expect(created).toHaveBeenCalledWith('ana');
+  });
+
+  it('shows an error toast when the username is taken', async () => {
+    stub.createUser = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 409 })));
+    const component = create();
+    component.form.setValue({
+      name: 'Ana',
+      username: 'ana',
+      password: 'Password1!',
+      confirmPassword: 'Password1!',
+      role: 'User',
+    });
+
+    await component.submit();
+
+    expect(notifications.error).toHaveBeenCalledWith('El nombre de usuario ya está en uso');
   });
 });

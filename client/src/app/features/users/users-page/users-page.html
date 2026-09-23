@@ -26,17 +26,43 @@
     </button>
   </div>
 
-  @if (createdUsername()) {
-    <div class="rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">
-      Usuario "{{ createdUsername() }}" creado correctamente.
+  @if (loading()) {
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      @for (placeholder of [1, 2, 3]; track placeholder) {
+        <div class="h-28 animate-pulse rounded-xl border border-border bg-muted/50"></div>
+      }
+    </div>
+  } @else if (error()) {
+    <div class="rounded-xl border border-border p-10 text-center">
+      <p class="text-sm text-muted-foreground">No se pudieron cargar los usuarios.</p>
+      <button
+        type="button"
+        (click)="loadUsers()"
+        class="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Reintentar
+      </button>
+    </div>
+  } @else if (users().length === 0) {
+    <div class="rounded-xl border border-dashed border-border p-10 text-center">
+      <p class="text-sm text-muted-foreground">
+        Todavía no hay usuarios registrados. Crea el primero para verlo aquí.
+      </p>
+    </div>
+  } @else {
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      @for (user of users(); track user.id) {
+        <app-user-card [user]="user" (editRequested)="openEdit($event)" />
+      }
     </div>
   }
-
-  <div class="rounded-xl border border-dashed border-border p-10 text-center">
-    <p class="text-sm text-muted-foreground">
-      Todavía no hay un listado de usuarios. Pronto podrás verlos aquí.
-    </p>
-  </div>
 </div>
 
 <app-create-user-modal [open]="modalOpen()" (closed)="closeModal()" (created)="onCreated($event)" />
+
+<app-edit-user-modal
+  [open]="editOpen()"
+  [user]="editingUser()"
+  (closed)="closeEdit()"
+  (updated)="onUpdated($event)"
+/>

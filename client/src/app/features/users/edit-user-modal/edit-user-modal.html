@@ -1,9 +1,9 @@
-<app-modal [open]="open()" title="Crear usuario" (closed)="closed.emit()">
+<app-modal [open]="open()" title="Editar usuario" (closed)="closed.emit()">
   <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
     <div class="space-y-1.5">
-      <label for="name" class="block text-sm font-medium">Nombre</label>
+      <label for="edit-name" class="block text-sm font-medium">Nombre</label>
       <input
-        id="name"
+        id="edit-name"
         type="text"
         formControlName="name"
         autocomplete="off"
@@ -15,9 +15,9 @@
     </div>
 
     <div class="space-y-1.5">
-      <label for="username" class="block text-sm font-medium">Usuario</label>
+      <label for="edit-username" class="block text-sm font-medium">Usuario</label>
       <input
-        id="username"
+        id="edit-username"
         type="text"
         formControlName="username"
         autocomplete="off"
@@ -29,10 +29,12 @@
     </div>
 
     <div class="space-y-1.5">
-      <label for="password" class="block text-sm font-medium">Contraseña</label>
+      <label for="edit-password" class="block text-sm font-medium">
+        Nueva contraseña (opcional)
+      </label>
       <div class="relative">
         <input
-          id="password"
+          id="edit-password"
           [type]="showPassword() ? 'text' : 'password'"
           formControlName="password"
           autocomplete="new-password"
@@ -101,10 +103,12 @@
     </div>
 
     <div class="space-y-1.5">
-      <label for="confirmPassword" class="block text-sm font-medium">Confirmar contraseña</label>
+      <label for="edit-confirm-password" class="block text-sm font-medium">
+        Confirmar contraseña
+      </label>
       <div class="relative">
         <input
-          id="confirmPassword"
+          id="edit-confirm-password"
           [type]="showConfirmPassword() ? 'text' : 'password'"
           formControlName="confirmPassword"
           autocomplete="new-password"
@@ -174,7 +178,7 @@
         [disabled]="loading()"
         class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {{ loading() ? 'Creando…' : 'Crear usuario' }}
+        {{ loading() ? 'Guardando…' : 'Guardar cambios' }}
       </button>
     </div>
   </form>
