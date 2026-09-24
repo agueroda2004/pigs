@@ -9,17 +9,21 @@ import (
 	authinfrastructure "server/internal/modules/auth/infrastructure"
 	boarinfrastructure "server/internal/modules/boar/infrastructure"
 	breedinfrastructure "server/internal/modules/breed/infrastructure"
+	operatorinfrastructure "server/internal/modules/operator/infrastructure"
+	sowinfrastructure "server/internal/modules/sow/infrastructure"
 	userinfrastructure "server/internal/modules/user/infrastructure"
 	"server/internal/platform/config"
 	"server/internal/platform/database"
 )
 
 type Container struct {
-	DB    *pgxpool.Pool
-	User  *userinfrastructure.Module
-	Breed *breedinfrastructure.Module
-	Boar  *boarinfrastructure.Module
-	Auth  *authinfrastructure.Module
+	DB       *pgxpool.Pool
+	User     *userinfrastructure.Module
+	Breed    *breedinfrastructure.Module
+	Boar     *boarinfrastructure.Module
+	Sow      *sowinfrastructure.Module
+	Operator *operatorinfrastructure.Module
+	Auth     *authinfrastructure.Module
 }
 
 func New(ctx context.Context, applicationConfig config.Config) (*Container, error) {
@@ -40,6 +44,12 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 
 	// + === BOAR MODULE ===
 	boarRepository := boarinfrastructure.NewPostgresBoarRepository(db)
+
+	// + === SOW MODULE ===
+	sowRepository := sowinfrastructure.NewPostgresSowRepository(db)
+
+	// + === OPERATOR MODULE ===
+	operatorRepository := operatorinfrastructure.NewPostgresOperatorRepository(db)
 
 	// + === AUTH MODULE ===
 	refreshTokenRepository := authinfrastructure.NewPostgresRefreshTokenRepository(db)
@@ -70,11 +80,13 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 	)
 
 	return &Container{
-		DB:    db,
-		User:  userinfrastructure.NewModule(userRepository, hasher, clock, authModule.AdminMiddleware),
-		Breed: breedinfrastructure.NewModule(breedRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
-		Boar:  boarinfrastructure.NewModule(boarRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
-		Auth:  authModule,
+		DB:       db,
+		User:     userinfrastructure.NewModule(userRepository, hasher, clock, authModule.AdminMiddleware),
+		Breed:    breedinfrastructure.NewModule(breedRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Boar:     boarinfrastructure.NewModule(boarRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Sow:      sowinfrastructure.NewModule(sowRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Operator: operatorinfrastructure.NewModule(operatorRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Auth:     authModule,
 	}, nil
 }
 

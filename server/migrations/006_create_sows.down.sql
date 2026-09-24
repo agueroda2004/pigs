@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS sows;
+DROP TYPE IF EXISTS sow_state;
