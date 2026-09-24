@@ -28,6 +28,16 @@ export const routes: Routes = [
           import('./features/boars/boars-page/boars-page').then((m) => m.BoarsPage),
       },
       {
+        path: 'sows',
+        loadComponent: () => import('./features/sows/sows-page/sows-page').then((m) => m.SowsPage),
+      },
+      {
+        path: 'operators',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./features/operators/operators-page/operators-page').then((m) => m.OperatorsPage),
+      },
+      {
         path: 'users',
         canActivate: [adminGuard],
         loadComponent: () =>

@@ -83,7 +83,52 @@
         <span>Verracos</span>
       </a>
 
+      <a
+        routerLink="/sows"
+        routerLinkActive="bg-muted font-medium text-foreground"
+        (click)="closeSidebar()"
+        class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-4 w-4"
+        >
+          <path d="M4 4h16v12a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z" />
+          <path d="M8 8h.01M16 8h.01M9 13a3 3 0 0 0 6 0" />
+        </svg>
+        <span>Cerdas</span>
+      </a>
+
       @if (isAdmin()) {
+        <a
+          routerLink="/operators"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-4 w-4"
+          >
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          <span>Operadores</span>
+        </a>
+
         <a
           routerLink="/users"
           routerLinkActive="bg-muted font-medium text-foreground"

@@ -1,0 +1,42 @@
+<app-modal [open]="open()" title="Editar operador" (closed)="closed.emit()">
+  <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="space-y-1.5">
+      <label for="edit-operator-name" class="block text-sm font-medium">Nombre</label>
+      <input
+        id="edit-operator-name"
+        type="text"
+        formControlName="name"
+        autocomplete="off"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      />
+      @if (form.controls.name.touched && form.controls.name.invalid) {
+        <p class="text-xs text-danger">El nombre es obligatorio (máximo 100 caracteres).</p>
+      }
+    </div>
+
+    <label class="flex cursor-pointer items-center justify-between gap-3">
+      <span class="text-sm font-medium">Operador activo</span>
+      <input type="checkbox" formControlName="active" class="peer sr-only" />
+      <span
+        class="relative h-6 w-11 shrink-0 rounded-full bg-muted transition peer-checked:bg-success after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-background after:transition peer-checked:after:translate-x-5"
+      ></span>
+    </label>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        [disabled]="loading()"
+        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Guardando…' : 'Guardar cambios' }}
+      </button>
+    </div>
+  </form>
+</app-modal>
