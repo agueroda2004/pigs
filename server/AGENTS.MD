@@ -3,6 +3,10 @@ You don't have to document tests files. Avoid them.
 
 ---
 
+When you create a commit, include a little description that we just did.
+
+---
+
 Every domain, application, infraestructure method/functions has to have a test file testing its code.
 
 ---
