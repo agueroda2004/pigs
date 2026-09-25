@@ -52,6 +52,9 @@ func main() {
 	serviceHandler := dependencies.Service.Handler
 	serviceHandler.RegisterRoutes(mux)
 
+	abortionHandler := dependencies.Abortion.Handler
+	abortionHandler.RegisterRoutes(mux)
+
 	server := &http.Server{
 		Addr:    ":" + applicationConfig.Port,
 		Handler: platformhttp.CORS(applicationConfig.CorsAllowedOrigins)(mux),

@@ -193,6 +193,26 @@ func validateNote(note *string) (*string, error) {
 	return &trimmed, nil
 }
 
+// ChangeState validates the target state and applies it to the service.
+// It is reserved for domain event handlers such as the abortion flow and
+// records updatedBy plus the timestamp, never touching the mounts.
+func (s *Service) ChangeState(newState State, updatedBy uuid.UUID, now time.Time) error {
+	if s == nil || s.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if !isValidState(newState) {
+		return ErrInvalidState
+	}
+
+	s.State = newState
+	s.UpdatedAt = now
+	s.UpdatedBy = updatedBy
+	return nil
+}
+
 // isValidState checks whether the state belongs to the service domain.
 // Only the four states defined by the service_state enum are accepted.
 func isValidState(state State) bool {

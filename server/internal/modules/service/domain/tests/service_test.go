@@ -310,3 +310,54 @@ func TestParseState(t *testing.T) {
 		}
 	})
 }
+
+func validService() *servicedomain.Service {
+	now := time.Date(2026, time.February, 1, 0, 0, 0, 0, time.UTC)
+	service, err := servicedomain.NewService(
+		validServiceParams(),
+		[]servicedomain.NewMountParams{mountAt(mountDayOne)},
+		now,
+	)
+	if err != nil {
+		panic(err)
+	}
+	return service
+}
+
+func TestServiceChangeState(t *testing.T) {
+	now := time.Date(2026, time.February, 2, 3, 4, 5, 0, time.UTC)
+
+	t.Run("applies a valid state and records the audit", func(t *testing.T) {
+		service := validService()
+		actor := uuid.New()
+
+		err := service.ChangeState(servicedomain.StateAborted, actor, now)
+
+		if err != nil || service.State != servicedomain.StateAborted {
+			t.Fatalf("unexpected result: err=%v state=%v", err, service.State)
+		}
+		if service.UpdatedBy != actor || !service.UpdatedAt.Equal(now) {
+			t.Fatalf("unexpected audit: %#v", service)
+		}
+	})
+
+	t.Run("rejects an invalid state", func(t *testing.T) {
+		service := validService()
+
+		err := service.ChangeState("Desconocido", uuid.New(), now)
+
+		if !errors.Is(err, servicedomain.ErrInvalidState) {
+			t.Fatalf("error = %v, want ErrInvalidState", err)
+		}
+	})
+
+	t.Run("rejects a nil actor", func(t *testing.T) {
+		service := validService()
+
+		err := service.ChangeState(servicedomain.StateAborted, uuid.Nil, now)
+
+		if !errors.Is(err, servicedomain.ErrInvalidUpdatedBy) {
+			t.Fatalf("error = %v, want ErrInvalidUpdatedBy", err)
+		}
+	})
+}

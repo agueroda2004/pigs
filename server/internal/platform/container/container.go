@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	abortioninfrastructure "server/internal/modules/abortion/infrastructure"
 	authinfrastructure "server/internal/modules/auth/infrastructure"
 	boarinfrastructure "server/internal/modules/boar/infrastructure"
 	breedinfrastructure "server/internal/modules/breed/infrastructure"
@@ -25,6 +26,7 @@ type Container struct {
 	Sow      *sowinfrastructure.Module
 	Operator *operatorinfrastructure.Module
 	Service  *serviceinfrastructure.Module
+	Abortion *abortioninfrastructure.Module
 	Auth     *authinfrastructure.Module
 }
 
@@ -55,6 +57,9 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 
 	// + === SERVICE MODULE ===
 	serviceRepository := serviceinfrastructure.NewPostgresServiceRepository(db)
+
+	// + === ABORTION MODULE ===
+	abortionRepository := abortioninfrastructure.NewPostgresAbortionRepository(db)
 
 	// + === AUTH MODULE ===
 	refreshTokenRepository := authinfrastructure.NewPostgresRefreshTokenRepository(db)
@@ -92,6 +97,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		Sow:      sowinfrastructure.NewModule(sowRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Operator: operatorinfrastructure.NewModule(operatorRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Service:  serviceinfrastructure.NewModule(serviceRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Abortion: abortioninfrastructure.NewModule(abortionRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Auth:     authModule,
 	}, nil
 }
