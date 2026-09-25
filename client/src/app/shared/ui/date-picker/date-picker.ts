@@ -1,5 +1,18 @@
-import { Component, computed, forwardRef, input, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  forwardRef,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+
+import { shouldFlipUp } from '../../utils/overlay';
 
 const MONTHS = [
   'Enero',
@@ -80,10 +93,12 @@ function firstDayOfMonth(year: number, month: number): number {
   host: {
     '(document:click)': 'close()',
     '(document:keydown.escape)': 'close()',
+    '(window:resize)': 'onResize()',
   },
   template: `
     <div class="relative" [class.inline]="inline()" (click)="$event.stopPropagation()">
       <button
+        #trigger
         type="button"
         [disabled]="disabled()"
         (click)="toggle()"
@@ -110,11 +125,17 @@ function firstDayOfMonth(year: number, month: number): number {
 
       @if (open()) {
         <div
-          class="z-30 mt-1 rounded-md border border-border bg-card p-3 shadow-lg"
+          #panel
+          class="z-30 rounded-md border border-border bg-card p-3 shadow-lg"
           [class.relative]="inline()"
           [class.absolute]="!inline()"
           [class.left-0]="!inline()"
           [class.right-0]="!inline()"
+          [class.top-full]="!inline() && !dropUp()"
+          [class.mt-1]="!inline() && !dropUp()"
+          [class.bottom-full]="!inline() && dropUp()"
+          [class.mb-1]="!inline() && dropUp()"
+          [class.invisible]="!inline() && !positioned()"
         >
           @if (viewMode() === 'days') {
             <div class="mb-2 flex items-center justify-between">
@@ -355,10 +376,16 @@ export class DatePicker implements ControlValueAccessor {
   protected readonly value = signal('');
   protected readonly disabled = signal(false);
   protected readonly open = signal(false);
+  protected readonly dropUp = signal(false);
+  protected readonly positioned = signal(false);
   protected readonly viewMode = signal<ViewMode>('days');
   protected readonly yearPage = signal(0);
   protected readonly viewYear = signal(new Date().getFullYear());
   protected readonly viewMonth = signal(new Date().getMonth());
+
+  private readonly triggerRef = viewChild<ElementRef<HTMLButtonElement>>('trigger');
+  private readonly panelRef = viewChild<ElementRef<HTMLElement>>('panel');
+  private readonly injector = inject(Injector);
 
   private readonly selectedDate = computed(() => parseISO(this.value()));
   private readonly effectiveMin = computed(() => parseISO(this.minDate()));
@@ -423,19 +450,52 @@ export class DatePicker implements ControlValueAccessor {
     if (this.disabled()) {
       return;
     }
-    const next = !this.open();
-    if (next) {
-      this.viewMode.set('days');
-      this.yearPage.set(0);
-      const base = this.selectedDate() ?? startOfDay(new Date());
-      this.viewYear.set(base.getFullYear());
-      this.viewMonth.set(base.getMonth());
+    if (this.open()) {
+      this.close();
+      return;
     }
-    this.open.set(next);
+    this.viewMode.set('days');
+    this.yearPage.set(0);
+    const base = this.selectedDate() ?? startOfDay(new Date());
+    this.viewYear.set(base.getFullYear());
+    this.viewMonth.set(base.getMonth());
+    this.openPanel();
+  }
+
+  // openPanel reveals the calendar and schedules its placement after the next render.
+  // It resets the placement so the panel can be measured before it becomes visible.
+  private openPanel(): void {
+    this.dropUp.set(false);
+    this.positioned.set(false);
+    this.open.set(true);
+    afterNextRender(() => this.positionPanel(), { injector: this.injector });
+  }
+
+  // positionPanel measures the trigger and panel to choose the open direction.
+  // Inline panels stay in place and are marked as positioned immediately.
+  private positionPanel(): void {
+    if (this.inline()) {
+      this.positioned.set(true);
+      return;
+    }
+    const trigger = this.triggerRef()?.nativeElement;
+    const panel = this.panelRef()?.nativeElement;
+    if (trigger && panel) {
+      this.dropUp.set(shouldFlipUp(trigger, panel));
+    }
+    this.positioned.set(true);
+  }
+
+  protected onResize(): void {
+    if (this.open()) {
+      this.positionPanel();
+    }
   }
 
   protected close(): void {
     this.open.set(false);
+    this.positioned.set(false);
+    this.dropUp.set(false);
   }
 
   protected prevMonth(): void {

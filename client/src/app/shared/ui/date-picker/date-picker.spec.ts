@@ -1,6 +1,21 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
 
 import { DatePicker } from './date-picker';
+
+function mockRects(triggerTop: number, triggerBottom: number, panelHeight: number, viewport = 768) {
+  vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(viewport);
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.tagName === 'BUTTON') {
+      return {
+        top: triggerTop,
+        bottom: triggerBottom,
+        height: triggerBottom - triggerTop,
+      } as DOMRect;
+    }
+    return { top: 0, bottom: 0, height: panelHeight } as DOMRect;
+  });
+}
 
 describe('DatePicker', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -10,6 +25,8 @@ describe('DatePicker', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({ imports: [DatePicker] }).compileComponents();
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   const create = (): ComponentFixture<DatePicker> => {
     fixture = TestBed.createComponent(DatePicker);
@@ -86,5 +103,33 @@ describe('DatePicker', () => {
     expect(component.value()).toBe('');
     expect(component.displayValue()).toBe('');
     expect(component.open()).toBe(false);
+  });
+
+  it('opens downwards when the calendar fits below the trigger', async () => {
+    mockRects(100, 140, 200);
+    const currentFixture = create();
+    currentFixture.detectChanges();
+    component.toggle();
+    currentFixture.detectChanges();
+    await currentFixture.whenStable();
+    currentFixture.detectChanges();
+
+    const panel = currentFixture.nativeElement.querySelector('div.absolute') as HTMLElement;
+    expect(panel.classList.contains('top-full')).toBe(true);
+    expect(panel.classList.contains('bottom-full')).toBe(false);
+  });
+
+  it('opens upwards when the calendar does not fit below the trigger', async () => {
+    mockRects(700, 740, 340);
+    const currentFixture = create();
+    currentFixture.detectChanges();
+    component.toggle();
+    currentFixture.detectChanges();
+    await currentFixture.whenStable();
+    currentFixture.detectChanges();
+
+    const panel = currentFixture.nativeElement.querySelector('div.absolute') as HTMLElement;
+    expect(panel.classList.contains('bottom-full')).toBe(true);
+    expect(panel.classList.contains('top-full')).toBe(false);
   });
 });

@@ -1,15 +1,19 @@
 import {
   Component,
   ElementRef,
+  Injector,
+  afterNextRender,
   computed,
   effect,
   forwardRef,
+  inject,
   input,
   signal,
   viewChild,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
+import { shouldFlipUp } from '../../utils/overlay';
 import { DropdownOption } from '../dropdown/dropdown';
 
 @Component({
@@ -24,10 +28,12 @@ import { DropdownOption } from '../dropdown/dropdown';
   host: {
     '(document:click)': 'close()',
     '(document:keydown.escape)': 'close()',
+    '(window:resize)': 'onResize()',
   },
   template: `
     <div class="relative" (click)="$event.stopPropagation()">
       <button
+        #trigger
         type="button"
         [attr.aria-expanded]="open()"
         aria-haspopup="listbox"
@@ -54,7 +60,15 @@ import { DropdownOption } from '../dropdown/dropdown';
       </button>
 
       @if (open()) {
-        <div class="absolute z-20 mt-1 w-full rounded-md border border-border bg-card shadow-lg">
+        <div
+          #panel
+          class="absolute z-20 w-full rounded-md border border-border bg-card shadow-lg"
+          [class.top-full]="!dropUp()"
+          [class.mt-1]="!dropUp()"
+          [class.bottom-full]="dropUp()"
+          [class.mb-1]="dropUp()"
+          [class.invisible]="!positioned()"
+        >
           <div class="border-b border-border p-2">
             <input
               #searchInput
@@ -114,10 +128,15 @@ export class SearchDropdown implements ControlValueAccessor {
   protected readonly value = signal('');
   protected readonly open = signal(false);
   protected readonly disabled = signal(false);
+  protected readonly dropUp = signal(false);
+  protected readonly positioned = signal(false);
   protected readonly query = signal('');
   protected readonly highlighted = signal(0);
 
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
+  private readonly triggerRef = viewChild<ElementRef<HTMLButtonElement>>('trigger');
+  private readonly panelRef = viewChild<ElementRef<HTMLElement>>('panel');
+  private readonly injector = inject(Injector);
 
   protected readonly selectedLabel = computed(
     () => this.options().find((option) => option.value === this.value())?.label ?? '',
@@ -170,11 +189,39 @@ export class SearchDropdown implements ControlValueAccessor {
     this.query.set('');
     const index = this.filteredOptions().findIndex((option) => option.value === this.value());
     this.highlighted.set(index >= 0 ? index : 0);
+    this.openPanel();
+  }
+
+  // openPanel reveals the search panel and schedules its placement after render.
+  // It resets the placement so the panel can be measured before it becomes visible.
+  private openPanel(): void {
+    this.dropUp.set(false);
+    this.positioned.set(false);
     this.open.set(true);
+    afterNextRender(() => this.positionPanel(), { injector: this.injector });
+  }
+
+  // positionPanel measures the trigger and panel to choose the open direction.
+  // It is reused when the window is resized while the panel is visible.
+  private positionPanel(): void {
+    const trigger = this.triggerRef()?.nativeElement;
+    const panel = this.panelRef()?.nativeElement;
+    if (trigger && panel) {
+      this.dropUp.set(shouldFlipUp(trigger, panel));
+    }
+    this.positioned.set(true);
+  }
+
+  protected onResize(): void {
+    if (this.open()) {
+      this.positionPanel();
+    }
   }
 
   protected close(): void {
     this.open.set(false);
+    this.positioned.set(false);
+    this.dropUp.set(false);
   }
 
   protected isHighlighted(index: number): boolean {

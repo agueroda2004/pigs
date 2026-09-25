@@ -1,5 +1,18 @@
-import { Component, computed, forwardRef, input, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  forwardRef,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+
+import { shouldFlipUp } from '../../utils/overlay';
 
 export interface DropdownOption {
   value: string;
@@ -18,10 +31,12 @@ export interface DropdownOption {
   host: {
     '(document:click)': 'close()',
     '(document:keydown.escape)': 'close()',
+    '(window:resize)': 'onResize()',
   },
   template: `
     <div class="relative" (click)="$event.stopPropagation()">
       <button
+        #trigger
         type="button"
         [attr.aria-expanded]="open()"
         aria-haspopup="listbox"
@@ -49,8 +64,14 @@ export interface DropdownOption {
 
       @if (open()) {
         <ul
+          #panel
           role="listbox"
-          class="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-card p-1 shadow-lg"
+          class="absolute z-20 max-h-60 w-full overflow-auto rounded-md border border-border bg-card p-1 shadow-lg"
+          [class.top-full]="!dropUp()"
+          [class.mt-1]="!dropUp()"
+          [class.bottom-full]="dropUp()"
+          [class.mb-1]="dropUp()"
+          [class.invisible]="!positioned()"
         >
           @for (option of options(); track option.value) {
             <li role="option" [attr.aria-selected]="option.value === value()">
@@ -90,6 +111,12 @@ export class Dropdown implements ControlValueAccessor {
   protected readonly value = signal('');
   protected readonly open = signal(false);
   protected readonly disabled = signal(false);
+  protected readonly dropUp = signal(false);
+  protected readonly positioned = signal(false);
+
+  private readonly triggerRef = viewChild<ElementRef<HTMLButtonElement>>('trigger');
+  private readonly panelRef = viewChild<ElementRef<HTMLElement>>('panel');
+  private readonly injector = inject(Injector);
 
   protected readonly selectedLabel = computed(
     () => this.options().find((option) => option.value === this.value())?.label ?? '',
@@ -115,13 +142,46 @@ export class Dropdown implements ControlValueAccessor {
   }
 
   protected toggle(): void {
-    if (!this.disabled()) {
-      this.open.update((isOpen) => !isOpen);
+    if (this.disabled()) {
+      return;
+    }
+    if (this.open()) {
+      this.close();
+      return;
+    }
+    this.openPanel();
+  }
+
+  // openPanel reveals the list and schedules its placement after the next render.
+  // It resets the placement so the panel can be measured before it becomes visible.
+  private openPanel(): void {
+    this.dropUp.set(false);
+    this.positioned.set(false);
+    this.open.set(true);
+    afterNextRender(() => this.positionPanel(), { injector: this.injector });
+  }
+
+  // positionPanel measures the trigger and panel to choose the open direction.
+  // It is reused when the window is resized while the panel is visible.
+  private positionPanel(): void {
+    const trigger = this.triggerRef()?.nativeElement;
+    const panel = this.panelRef()?.nativeElement;
+    if (trigger && panel) {
+      this.dropUp.set(shouldFlipUp(trigger, panel));
+    }
+    this.positioned.set(true);
+  }
+
+  protected onResize(): void {
+    if (this.open()) {
+      this.positionPanel();
     }
   }
 
   protected close(): void {
     this.open.set(false);
+    this.positioned.set(false);
+    this.dropUp.set(false);
   }
 
   protected select(option: DropdownOption): void {

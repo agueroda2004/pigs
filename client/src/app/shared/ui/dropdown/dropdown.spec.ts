@@ -1,12 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 
-import { SearchDropdown } from './search-dropdown';
+import { Dropdown } from './dropdown';
 
 const options = [
   { value: '1', label: 'C-001' },
   { value: '2', label: 'C-002' },
-  { value: '3', label: 'V-100' },
 ];
 
 function mockRects(triggerTop: number, triggerBottom: number, panelHeight: number, viewport = 768) {
@@ -23,15 +22,15 @@ function mockRects(triggerTop: number, triggerBottom: number, panelHeight: numbe
   });
 }
 
-describe('SearchDropdown', () => {
+describe('Dropdown', () => {
   beforeEach(async () => {
-    await TestBed.configureTestingModule({ imports: [SearchDropdown] }).compileComponents();
+    await TestBed.configureTestingModule({ imports: [Dropdown] }).compileComponents();
   });
 
   afterEach(() => vi.restoreAllMocks());
 
   const create = () => {
-    const fixture = TestBed.createComponent(SearchDropdown);
+    const fixture = TestBed.createComponent(Dropdown);
     fixture.componentRef.setInput('options', options);
     fixture.componentRef.setInput('placeholder', 'Seleccionar');
     fixture.detectChanges();
@@ -43,19 +42,6 @@ describe('SearchDropdown', () => {
     (fixture.nativeElement.querySelector('button') as HTMLButtonElement).click();
     fixture.detectChanges();
   };
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const search = (fixture: any, term: string) => {
-    const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
-    input.value = term;
-    input.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-    return input;
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const optionCount = (fixture: any) =>
-    fixture.nativeElement.querySelectorAll('li[role="option"]').length;
 
   it('shows the placeholder when there is no value', () => {
     const fixture = create();
@@ -71,31 +57,11 @@ describe('SearchDropdown', () => {
     expect(fixture.nativeElement.textContent).toContain('C-002');
   });
 
-  it('lists every option when opened without a query', () => {
+  it('lists every option when opened', () => {
     const fixture = create();
     toggle(fixture);
 
-    expect(optionCount(fixture)).toBe(3);
-  });
-
-  it('filters the options by the typed term', () => {
-    const fixture = create();
-    toggle(fixture);
-
-    search(fixture, 'C-00');
-
-    expect(optionCount(fixture)).toBe(2);
-  });
-
-  it('shows the empty state when nothing matches', () => {
-    const fixture = create();
-    toggle(fixture);
-
-    search(fixture, 'zzz');
-    fixture.detectChanges();
-
-    expect(optionCount(fixture)).toBe(0);
-    expect(fixture.nativeElement.textContent).toContain('Sin resultados');
+    expect(fixture.nativeElement.querySelectorAll('li[role="option"]')).toHaveLength(2);
   });
 
   it('selects an option on click and closes the list', () => {
@@ -111,31 +77,7 @@ describe('SearchDropdown', () => {
     fixture.detectChanges();
 
     expect(changed).toHaveBeenCalledWith('1');
-    expect(fixture.nativeElement.querySelector('input')).toBeNull();
-  });
-
-  it('selects the highlighted option with the keyboard', () => {
-    const fixture = create();
-    const changed = vi.fn();
-    fixture.componentInstance.registerOnChange(changed);
-    toggle(fixture);
-    const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
-
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    fixture.detectChanges();
-
-    expect(changed).toHaveBeenCalledWith('2');
-  });
-
-  it('closes on escape', () => {
-    const fixture = create();
-    toggle(fixture);
-
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.querySelector('input')).toBeNull();
+    expect(fixture.nativeElement.querySelector('ul')).toBeNull();
   });
 
   it('does not open when disabled', () => {
@@ -145,7 +87,7 @@ describe('SearchDropdown', () => {
 
     toggle(fixture);
 
-    expect(fixture.nativeElement.querySelector('input')).toBeNull();
+    expect(fixture.nativeElement.querySelector('ul')).toBeNull();
   });
 
   it('opens downwards when the panel fits below the trigger', async () => {
@@ -155,19 +97,19 @@ describe('SearchDropdown', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const panel = fixture.nativeElement.querySelector('div.absolute') as HTMLElement;
+    const panel = fixture.nativeElement.querySelector('ul') as HTMLElement;
     expect(panel.classList.contains('top-full')).toBe(true);
     expect(panel.classList.contains('bottom-full')).toBe(false);
   });
 
   it('opens upwards when the panel does not fit below the trigger', async () => {
-    mockRects(700, 740, 320);
+    mockRects(700, 740, 300);
     const fixture = create();
     toggle(fixture);
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const panel = fixture.nativeElement.querySelector('div.absolute') as HTMLElement;
+    const panel = fixture.nativeElement.querySelector('ul') as HTMLElement;
     expect(panel.classList.contains('bottom-full')).toBe(true);
     expect(panel.classList.contains('top-full')).toBe(false);
   });
