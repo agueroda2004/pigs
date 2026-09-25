@@ -75,4 +75,26 @@ describe('AuthService', () => {
     await expect(promise).rejects.toBeTruthy();
     expect(service.isAuthenticated()).toBe(false);
   });
+
+  it('dedupes concurrent refreshes into a single request', async () => {
+    const first = service.refresh();
+    const second = service.refresh();
+
+    const call = http.expectOne((request) => request.url.endsWith('/auth/refresh'));
+    call.flush({});
+
+    await expect(first).resolves.toEqual({});
+    await expect(second).resolves.toEqual({});
+  });
+
+  it('starts a new refresh once the previous one settled', async () => {
+    const first = service.refresh();
+    http.expectOne((request) => request.url.endsWith('/auth/refresh')).flush({});
+    await first;
+
+    const second = service.refresh();
+    http.expectOne((request) => request.url.endsWith('/auth/refresh')).flush({});
+
+    await expect(second).resolves.toEqual({});
+  });
 });

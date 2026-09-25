@@ -5,8 +5,10 @@ import { catchError, from, switchMap, throwError } from 'rxjs';
 
 import { AuthService } from './auth.service';
 
-function isAuthRequest(url: string): boolean {
-  return url.includes('/auth/');
+const SKIP_REFRESH_PATHS = ['/auth/login', '/auth/refresh', '/auth/logout'];
+
+function shouldSkipRefresh(url: string): boolean {
+  return SKIP_REFRESH_PATHS.some((path) => url.includes(path));
 }
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
@@ -15,7 +17,7 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
 
   return next(request).pipe(
     catchError((error: HttpErrorResponse) => {
-      if (error.status !== 401 || isAuthRequest(request.url)) {
+      if (error.status !== 401 || shouldSkipRefresh(request.url)) {
         return throwError(() => error);
       }
 

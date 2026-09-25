@@ -11,6 +11,7 @@ export class AuthService {
   private readonly baseUrl = `${environment.apiBaseUrl}/auth`;
 
   private readonly userSignal = signal<AuthUser | null>(null);
+  private refreshRequest: Promise<void> | null = null;
 
   readonly user = this.userSignal.asReadonly();
   readonly isAuthenticated = computed(() => this.userSignal() !== null);
@@ -30,7 +31,14 @@ export class AuthService {
   }
 
   refresh(): Promise<void> {
-    return firstValueFrom(this.http.post<void>(`${this.baseUrl}/refresh`, {}));
+    if (!this.refreshRequest) {
+      this.refreshRequest = firstValueFrom(
+        this.http.post<void>(`${this.baseUrl}/refresh`, {}),
+      ).finally(() => {
+        this.refreshRequest = null;
+      });
+    }
+    return this.refreshRequest;
   }
 
   async loadCurrentUser(): Promise<AuthUser | null> {
