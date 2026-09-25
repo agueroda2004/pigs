@@ -3,12 +3,13 @@ import { TestBed } from '@angular/core/testing';
 import { User } from '../../../core/users/user.models';
 import { UserCard } from './user-card';
 
-function buildUser(role: User['role']): User {
+function buildUser(role: User['role'], active = true): User {
   return {
     id: '1',
     name: 'Ana',
     username: 'ana',
     role,
+    active,
     created_at: '2026-01-02T12:00:00',
     updated_at: '2026-01-02T12:00:00',
   };
@@ -46,6 +47,22 @@ describe('UserCard', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Usuario');
+  });
+
+  it('shows the active status for active users', () => {
+    const fixture = TestBed.createComponent(UserCard);
+    fixture.componentRef.setInput('user', buildUser('User', true));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Activo');
+  });
+
+  it('shows the inactive status for inactive users', () => {
+    const fixture = TestBed.createComponent(UserCard);
+    fixture.componentRef.setInput('user', buildUser('User', false));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Inactivo');
   });
 
   it('emits the user when the edit button is clicked', () => {

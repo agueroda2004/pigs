@@ -20,4 +20,10 @@ export class UserCard {
   protected readonly roleClass = computed(() =>
     this.user().role === 'Admin' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
   );
+
+  protected readonly statusLabel = computed(() => (this.user().active ? 'Activo' : 'Inactivo'));
+
+  protected readonly statusClass = computed(() =>
+    this.user().active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground',
+  );
 }

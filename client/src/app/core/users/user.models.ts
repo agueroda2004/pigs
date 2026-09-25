@@ -5,6 +5,7 @@ export interface User {
   name: string;
   username: string;
   role: UserRole;
+  active: boolean;
   created_at: string;
   updated_at: string;
   created_by?: string;
@@ -23,4 +24,5 @@ export interface UpdateUserRequest {
   username?: string;
   password?: string;
   role?: UserRole;
+  active?: boolean;
 }

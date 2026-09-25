@@ -14,6 +14,7 @@ function buildUser(): User {
     name: 'Ana',
     username: 'ana',
     role: 'User',
+    active: true,
     created_at: '2026-01-02T12:00:00',
     updated_at: '2026-01-02T12:00:00',
   };
@@ -60,6 +61,7 @@ describe('EditUserModal', () => {
       name: 'Ana',
       username: 'ana',
       role: 'User',
+      active: true,
       password: '',
     });
   });
@@ -86,8 +88,18 @@ describe('EditUserModal', () => {
       name: 'Ana Updated',
       username: 'ana',
       role: 'Admin',
+      active: true,
     });
     expect(updated).toHaveBeenCalled();
+  });
+
+  it('sends the active flag when it is toggled', async () => {
+    const component = create();
+    component.form.controls.active.setValue(false);
+
+    await component.submit();
+
+    expect(stub.updateUser).toHaveBeenCalledWith('42', expect.objectContaining({ active: false }));
   });
 
   it('sends the password when one is provided', async () => {

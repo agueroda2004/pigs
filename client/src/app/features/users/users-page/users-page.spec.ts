@@ -13,6 +13,7 @@ function buildUser(id: string): User {
     name: `User ${id}`,
     username: id,
     role: 'User',
+    active: true,
     created_at: '2026-01-02T03:04:05Z',
     updated_at: '2026-01-02T03:04:05Z',
   };

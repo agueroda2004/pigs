@@ -68,6 +68,7 @@ export class EditUserModal {
       ],
       confirmPassword: [''],
       role: ['User' as UserRole, [Validators.required]],
+      active: [true],
     },
     { validators: passwordsMatch },
   );
@@ -98,6 +99,7 @@ export class EditUserModal {
           password: '',
           confirmPassword: '',
           role: current.role,
+          active: current.active,
         });
         this.showPassword.set(false);
         this.showConfirmPassword.set(false);
@@ -144,8 +146,8 @@ export class EditUserModal {
 
     this.loading.set(true);
 
-    const { name, username, password, role } = this.form.getRawValue();
-    const request: UpdateUserRequest = { name, username, role };
+    const { name, username, password, role, active } = this.form.getRawValue();
+    const request: UpdateUserRequest = { name, username, role, active };
     if (password) {
       request.password = password;
     }
