@@ -12,6 +12,7 @@ import (
 	authdomain "server/internal/modules/auth/domain"
 	"server/internal/modules/auth/ports"
 	userdomain "server/internal/modules/user/domain"
+	userports "server/internal/modules/user/ports"
 	platformhttp "server/internal/platform/http"
 )
 
@@ -171,6 +172,7 @@ func writeAuthError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
 	case errors.Is(err, authapplication.ErrInvalidCredentials),
+		errors.Is(err, userports.ErrUserInactive),
 		errors.Is(err, ports.ErrRefreshTokenNotFound),
 		errors.Is(err, authdomain.ErrTokenExpired),
 		errors.Is(err, authdomain.ErrTokenRevoked),

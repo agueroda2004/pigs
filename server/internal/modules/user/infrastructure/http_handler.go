@@ -82,6 +82,7 @@ type updateUserByAdminRequest struct {
 	Username *string          `json:"username"`
 	Password *string          `json:"password"`
 	Role     *userdomain.Role `json:"role"`
+	Active   *bool            `json:"active"`
 }
 
 type userResponse struct {
@@ -89,6 +90,7 @@ type userResponse struct {
 	Name      string          `json:"name"`
 	Username  string          `json:"username"`
 	Role      userdomain.Role `json:"role"`
+	Active    bool            `json:"active"`
 	CreatedAt string          `json:"created_at"`
 	UpdatedAt string          `json:"updated_at"`
 	CreatedBy string          `json:"created_by,omitempty"`
@@ -190,6 +192,7 @@ func (h *UserHandler) updateByAdmin(w http.ResponseWriter, r *http.Request) {
 		Username:  request.Username,
 		Password:  request.Password,
 		Role:      request.Role,
+		Active:    request.Active,
 		UpdatedBy: actor.UserID.String(),
 	})
 	if err != nil {
@@ -208,6 +211,7 @@ func toUserResponse(user *userdomain.User) userResponse {
 		Name:      user.Name,
 		Username:  user.Username,
 		Role:      user.Role,
+		Active:    user.Active,
 		CreatedAt: user.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
 		UpdatedAt: user.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
 		CreatedBy: user.CreatedBy,

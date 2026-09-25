@@ -15,6 +15,7 @@ type UpdateUserByAdminCommand struct {
 	Username  *string
 	Password  *string
 	Role      *userdomain.Role
+	Active    *bool
 	UpdatedBy string
 }
 
@@ -64,6 +65,7 @@ func (s *UpdateUserByAdminService) Execute(
 		command.Username,
 		passwordHash,
 		command.Role,
+		command.Active,
 		command.UpdatedBy,
 		s.clock(),
 	); err != nil {

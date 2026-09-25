@@ -31,15 +31,16 @@ func NewPostgresUserRepository(pool *pgxpool.Pool) *PostgresUserRepository {
 func (r *PostgresUserRepository) Create(ctx context.Context, user *userdomain.User) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO users (
-			id, name, username, password, role,
+			id, name, username, password, role, active,
 			created_at, updated_at, created_by, updated_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`,
 		user.ID,
 		user.Name,
 		user.Username,
 		user.Password,
 		user.Role,
+		user.Active,
 		user.CreatedAt,
 		user.UpdatedAt,
 		nullableString(user.CreatedBy),
@@ -59,7 +60,7 @@ func (r *PostgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*us
 	var createdBy, updatedBy *string
 
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, name, username, password, role,
+		SELECT id, name, username, password, role, active,
 		       created_at, updated_at, created_by, updated_by
 		FROM users
 		WHERE id = $1
@@ -69,6 +70,7 @@ func (r *PostgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*us
 		&result.Username,
 		&result.Password,
 		&role,
+		&result.Active,
 		&result.CreatedAt,
 		&result.UpdatedAt,
 		&createdBy,
@@ -91,7 +93,7 @@ func (r *PostgresUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*us
 // It returns an empty slice when no users exist and wraps any query failure.
 func (r *PostgresUserRepository) List(ctx context.Context) ([]*userdomain.User, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, name, username, password, role,
+		SELECT id, name, username, password, role, active,
 		       created_at, updated_at, created_by, updated_by
 		FROM users
 		ORDER BY created_at ASC
@@ -113,6 +115,7 @@ func (r *PostgresUserRepository) List(ctx context.Context) ([]*userdomain.User, 
 			&result.Username,
 			&result.Password,
 			&role,
+			&result.Active,
 			&result.CreatedAt,
 			&result.UpdatedAt,
 			&createdBy,
@@ -140,7 +143,7 @@ func (r *PostgresUserRepository) FindByUsername(ctx context.Context, username st
 	var createdBy, updatedBy *string
 
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, name, username, password, role,
+		SELECT id, name, username, password, role, active,
 		       created_at, updated_at, created_by, updated_by
 		FROM users
 		WHERE username = $1
@@ -150,6 +153,7 @@ func (r *PostgresUserRepository) FindByUsername(ctx context.Context, username st
 		&result.Username,
 		&result.Password,
 		&role,
+		&result.Active,
 		&result.CreatedAt,
 		&result.UpdatedAt,
 		&createdBy,
@@ -191,8 +195,9 @@ func (r *PostgresUserRepository) Update(ctx context.Context, user *userdomain.Us
 		    username = $3,
 		    password = $4,
 		    role = $5,
-		    updated_at = $6,
-		    updated_by = $7
+		    active = $6,
+		    updated_at = $7,
+		    updated_by = $8
 		WHERE id = $1
 	`,
 		user.ID,
@@ -200,6 +205,7 @@ func (r *PostgresUserRepository) Update(ctx context.Context, user *userdomain.Us
 		user.Username,
 		user.Password,
 		user.Role,
+		user.Active,
 		user.UpdatedAt,
 		nullableString(user.UpdatedBy),
 	)

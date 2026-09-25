@@ -129,11 +129,11 @@ func TestUserHandlerUpdateByAdmin(t *testing.T) {
 	t.Run("updates all administrative fields and forwards actor", func(t *testing.T) {
 		update := &fakeUpdateUserByAdminUseCase{user: handlerUser()}
 		handler := newTestHandler(&fakeCreateUserUseCase{}, &fakeUpdateUserUseCase{}, update)
-		request := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/users/"+userID.String(), strings.NewReader(`{"name":"New Name","username":"new-user","password":"secret","role":"Admin"}`))
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/users/"+userID.String(), strings.NewReader(`{"name":"New Name","username":"new-user","password":"secret","role":"Admin","active":false}`))
 		request = authenticatedRequest(request, actorID)
 		response := serve(handler, request)
 
-		if response.Code != http.StatusOK || update.userID != userID || update.command.UpdatedBy != actorID.String() || update.command.Name == nil || update.command.Username == nil || update.command.Password == nil || update.command.Role == nil || *update.command.Role != role {
+		if response.Code != http.StatusOK || update.userID != userID || update.command.UpdatedBy != actorID.String() || update.command.Name == nil || update.command.Username == nil || update.command.Password == nil || update.command.Role == nil || *update.command.Role != role || update.command.Active == nil || *update.command.Active {
 			t.Fatalf("status=%d id=%v command=%#v", response.Code, update.userID, update.command)
 		}
 	})

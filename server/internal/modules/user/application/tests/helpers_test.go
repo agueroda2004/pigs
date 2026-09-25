@@ -11,6 +11,6 @@ import (
 func testUser(id uuid.UUID) *userdomain.User {
 	return &userdomain.User{
 		ID: id, Name: "Old Name", Username: "user", Password: "old-hash",
-		Role: userdomain.RoleUser, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Role: userdomain.RoleUser, Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 }

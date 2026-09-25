@@ -75,6 +75,10 @@ func (s *LoginService) Execute(ctx context.Context, command LoginCommand) (*Logi
 		return nil, ErrInvalidCredentials
 	}
 
+	if !user.Active {
+		return nil, userports.ErrUserInactive
+	}
+
 	accessToken, err := s.accessIssuer.Issue(authdomain.AuthenticatedUser{
 		UserID:   user.ID,
 		Username: user.Username,

@@ -36,6 +36,7 @@ type User struct {
 	Username  string
 	Password  string
 	Role      Role
+	Active    bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	CreatedBy string
@@ -43,7 +44,7 @@ type User struct {
 }
 
 // NewUser builds a user after validating id, name, username, password and role.
-// An empty role defaults to RoleUser and sets CreatedAt/UpdatedAt to now.
+// An empty role defaults to RoleUser, Active defaults to true and timestamps to now.
 func NewUser(
 	id uuid.UUID,
 	name string,
@@ -84,6 +85,7 @@ func NewUser(
 		Username:  username,
 		Password:  passwordHash,
 		Role:      role,
+		Active:    true,
 		CreatedAt: now,
 		UpdatedAt: now,
 		CreatedBy: createdBy,
@@ -123,13 +125,14 @@ func (u *User) UpdateOwnProfile(name *string, passwordHash *string, updatedBy st
 	return nil
 }
 
-// UpdateByAdmin updates name, username, password and role of a user.
+// UpdateByAdmin updates name, username, password, role and active of a user.
 // It applies only non-nil fields, validates each value and records updatedBy and now.
 func (u *User) UpdateByAdmin(
 	name *string,
 	username *string,
 	passwordHash *string,
 	role *Role,
+	active *bool,
 	updatedBy string,
 	now time.Time,
 ) error {
@@ -139,7 +142,7 @@ func (u *User) UpdateByAdmin(
 	if strings.TrimSpace(updatedBy) == "" {
 		return ErrInvalidUpdatedBy
 	}
-	if name == nil && username == nil && passwordHash == nil && role == nil {
+	if name == nil && username == nil && passwordHash == nil && role == nil && active == nil {
 		return ErrInvalidUpdate
 	}
 
@@ -177,10 +180,16 @@ func (u *User) UpdateByAdmin(
 		validatedRole = *role
 	}
 
+	validatedActive := u.Active
+	if active != nil {
+		validatedActive = *active
+	}
+
 	u.Name = validatedName
 	u.Username = validatedUsername
 	u.Password = validatedPassword
 	u.Role = validatedRole
+	u.Active = validatedActive
 	u.UpdatedAt = now
 	u.UpdatedBy = updatedBy
 	return nil

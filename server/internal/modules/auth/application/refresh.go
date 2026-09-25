@@ -9,6 +9,7 @@ import (
 
 	authdomain "server/internal/modules/auth/domain"
 	"server/internal/modules/auth/ports"
+	userports "server/internal/modules/user/ports"
 )
 
 type RefreshCommand struct {
@@ -89,6 +90,10 @@ func (s *RefreshService) Execute(ctx context.Context, command RefreshCommand) (*
 	user, err := s.users.GetByID(ctx, token.UserID)
 	if err != nil {
 		return nil, err
+	}
+
+	if !user.Active {
+		return nil, userports.ErrUserInactive
 	}
 
 	accessToken, err := s.accessIssuer.Issue(authdomain.AuthenticatedUser{

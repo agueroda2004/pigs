@@ -20,18 +20,19 @@ func TestUpdateUserByAdminServiceExecute(t *testing.T) {
 	t.Run("updates all fields and hashes password", func(t *testing.T) {
 		user := testUser(userID)
 		name, username, password, role := "New Name", "new-user", "new-secret", userdomain.RoleAdmin
+		active := false
 		repository := &fakeUserRepository{getUser: user}
 		hasher := &fakePasswordHasher{hash: "new-hash"}
 		service := userapplication.NewUpdateUserByAdminService(repository, hasher, func() time.Time { return now })
 
 		updated, err := service.Execute(context.Background(), userID, userapplication.UpdateUserByAdminCommand{
-			Name: &name, Username: &username, Password: &password, Role: &role, UpdatedBy: "admin-1",
+			Name: &name, Username: &username, Password: &password, Role: &role, Active: &active, UpdatedBy: "admin-1",
 		})
 
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
-		if updated != user || user.Name != name || user.Username != username || user.Password != "new-hash" || user.Role != role || user.UpdatedBy != "admin-1" || !user.UpdatedAt.Equal(now) {
+		if updated != user || user.Name != name || user.Username != username || user.Password != "new-hash" || user.Role != role || user.Active || user.UpdatedBy != "admin-1" || !user.UpdatedAt.Equal(now) {
 			t.Fatalf("unexpected user: %#v", user)
 		}
 		if hasher.password != password || repository.updated != user {

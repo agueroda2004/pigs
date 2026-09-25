@@ -66,6 +66,20 @@ func TestLoginServiceExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects inactive user", func(t *testing.T) {
+		inactive := testUser(userID)
+		inactive.Active = false
+		users := &fakeUserReader{findUser: inactive}
+		verifier := &fakePasswordVerifier{}
+		service := newService(users, verifier, &fakeRefreshTokenRepository{})
+
+		_, err := service.Execute(context.Background(), authapplication.LoginCommand{Username: "ana", Password: "secret"})
+
+		if !errors.Is(err, userports.ErrUserInactive) {
+			t.Fatalf("error = %v, want ErrUserInactive", err)
+		}
+	})
+
 	t.Run("rejects wrong password", func(t *testing.T) {
 		users := &fakeUserReader{findUser: testUser(userID)}
 		verifier := &fakePasswordVerifier{err: errors.New("bcrypt mismatch")}

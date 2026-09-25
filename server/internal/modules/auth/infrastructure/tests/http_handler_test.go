@@ -15,6 +15,7 @@ import (
 	authinfra "server/internal/modules/auth/infrastructure"
 	"server/internal/modules/auth/ports"
 	userdomain "server/internal/modules/user/domain"
+	userports "server/internal/modules/user/ports"
 )
 
 func TestAuthHandlerLogin(t *testing.T) {
@@ -58,13 +59,23 @@ func TestAuthHandlerLogin(t *testing.T) {
 		}
 	})
 
-	t.Run("returns unauthorized for invalid credentials", func(t *testing.T) {
-		login := &fakeLoginUseCase{err: authapplication.ErrInvalidCredentials}
-		handler := newTestAuthHandler(login, &fakeRefreshUseCase{}, &fakeLogoutUseCase{})
-		response := serveAuth(handler, httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"username":"ana","password":"wrong"}`)))
+	t.Run("maps credential and inactive errors to unauthorized", func(t *testing.T) {
+		for _, tt := range []struct {
+			name string
+			err  error
+		}{
+			{"invalid credentials", authapplication.ErrInvalidCredentials},
+			{"inactive user", userports.ErrUserInactive},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				login := &fakeLoginUseCase{err: tt.err}
+				handler := newTestAuthHandler(login, &fakeRefreshUseCase{}, &fakeLogoutUseCase{})
+				response := serveAuth(handler, httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"username":"ana","password":"wrong"}`)))
 
-		if response.Code != http.StatusUnauthorized {
-			t.Fatalf("status=%d, want %d", response.Code, http.StatusUnauthorized)
+				if response.Code != http.StatusUnauthorized {
+					t.Fatalf("status=%d, want %d", response.Code, http.StatusUnauthorized)
+				}
+			})
 		}
 	})
 }
@@ -108,6 +119,7 @@ func TestAuthHandlerRefresh(t *testing.T) {
 			{"expired", authdomain.ErrTokenExpired},
 			{"revoked", authdomain.ErrTokenRevoked},
 			{"already used", authdomain.ErrTokenAlreadyUsed},
+			{"inactive user", userports.ErrUserInactive},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				refresh := &fakeRefreshUseCase{err: tt.err}

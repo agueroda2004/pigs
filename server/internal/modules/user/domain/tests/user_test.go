@@ -21,7 +21,7 @@ func TestNewUser(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewUser() error = %v", err)
 		}
-		if user.ID != userID || user.Name != "Ana" || user.Username != "ana" || user.Password != "hash" || user.Role != userdomain.RoleAdmin || user.CreatedBy != "admin-1" {
+		if user.ID != userID || user.Name != "Ana" || user.Username != "ana" || user.Password != "hash" || user.Role != userdomain.RoleAdmin || !user.Active || user.CreatedBy != "admin-1" {
 			t.Fatalf("unexpected user: %#v", user)
 		}
 		if !user.CreatedAt.Equal(now) || !user.UpdatedAt.Equal(now) {
@@ -169,35 +169,48 @@ func TestUserUpdateByAdmin(t *testing.T) {
 		user := &userdomain.User{ID: userID, Name: "Old", Username: "old", Password: "old-hash", Role: userdomain.RoleUser}
 		name, username, password, role := " New Name ", " new-user ", "new-hash", userdomain.RoleAdmin
 
-		err := user.UpdateByAdmin(&name, &username, &password, &role, "admin-1", now)
+		active := false
+
+		err := user.UpdateByAdmin(&name, &username, &password, &role, &active, "admin-1", now)
 
 		if err != nil {
 			t.Fatalf("UpdateByAdmin() error = %v", err)
 		}
-		if user.Name != "New Name" || user.Username != "new-user" || user.Password != password || user.Role != userdomain.RoleAdmin || user.UpdatedBy != "admin-1" || !user.UpdatedAt.Equal(now) {
+		if user.Name != "New Name" || user.Username != "new-user" || user.Password != password || user.Role != userdomain.RoleAdmin || user.Active || user.UpdatedBy != "admin-1" || !user.UpdatedAt.Equal(now) {
 			t.Fatalf("unexpected user: %#v", user)
 		}
 	})
 
+	t.Run("updates only the active flag", func(t *testing.T) {
+		user := &userdomain.User{ID: userID, Name: "Old", Username: "old", Password: "old-hash", Role: userdomain.RoleUser, Active: true}
+		active := false
+
+		err := user.UpdateByAdmin(nil, nil, nil, nil, &active, "admin-1", now)
+
+		if err != nil || user.Active || user.Name != "Old" || user.UpdatedBy != "admin-1" || !user.UpdatedAt.Equal(now) {
+			t.Fatalf("unexpected result: err=%v user=%#v", err, user)
+		}
+	})
+
 	t.Run("keeps omitted fields unchanged", func(t *testing.T) {
-		user := &userdomain.User{ID: userID, Name: "Old", Username: "old", Password: "old-hash", Role: userdomain.RoleAdmin}
+		user := &userdomain.User{ID: userID, Name: "Old", Username: "old", Password: "old-hash", Role: userdomain.RoleAdmin, Active: true}
 		name := "Updated"
 
-		err := user.UpdateByAdmin(&name, nil, nil, nil, "admin-1", now)
+		err := user.UpdateByAdmin(&name, nil, nil, nil, nil, "admin-1", now)
 
-		if err != nil || user.Name != name || user.Username != "old" || user.Password != "old-hash" || user.Role != userdomain.RoleAdmin {
+		if err != nil || user.Name != name || user.Username != "old" || user.Password != "old-hash" || user.Role != userdomain.RoleAdmin || !user.Active {
 			t.Fatalf("unexpected result: err=%v user=%#v", err, user)
 		}
 	})
 
 	t.Run("rejects invalid input without mutating the user", func(t *testing.T) {
-		user := &userdomain.User{ID: userID, Name: "Old", Username: "old", Password: "old-hash", Role: userdomain.RoleUser}
+		user := &userdomain.User{ID: userID, Name: "Old", Username: "old", Password: "old-hash", Role: userdomain.RoleUser, Active: true}
 		name := "Valid"
 		invalidRole := userdomain.Role("Unknown")
 
-		err := user.UpdateByAdmin(&name, nil, nil, &invalidRole, "admin-1", now)
+		err := user.UpdateByAdmin(&name, nil, nil, &invalidRole, nil, "admin-1", now)
 
-		if !errors.Is(err, userdomain.ErrInvalidRole) || user.Name != "Old" || user.Role != userdomain.RoleUser {
+		if !errors.Is(err, userdomain.ErrInvalidRole) || user.Name != "Old" || user.Role != userdomain.RoleUser || !user.Active {
 			t.Fatalf("unexpected result: err=%v user=%#v", err, user)
 		}
 	})
@@ -205,7 +218,7 @@ func TestUserUpdateByAdmin(t *testing.T) {
 	t.Run("rejects empty update", func(t *testing.T) {
 		user := &userdomain.User{ID: userID, Name: "Old", Username: "old", Password: "old-hash", Role: userdomain.RoleUser}
 
-		err := user.UpdateByAdmin(nil, nil, nil, nil, "admin-1", now)
+		err := user.UpdateByAdmin(nil, nil, nil, nil, nil, "admin-1", now)
 
 		if !errors.Is(err, userdomain.ErrInvalidUpdate) {
 			t.Fatalf("error = %v, want ErrInvalidUpdate", err)

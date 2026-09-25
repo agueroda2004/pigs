@@ -11,6 +11,7 @@ import (
 	authapplication "server/internal/modules/auth/application"
 	authdomain "server/internal/modules/auth/domain"
 	"server/internal/modules/auth/ports"
+	userports "server/internal/modules/user/ports"
 )
 
 func TestRefreshServiceExecute(t *testing.T) {
@@ -61,6 +62,19 @@ func TestRefreshServiceExecute(t *testing.T) {
 		}
 		if len(hasher.tokens) != 2 || hasher.tokens[0] != "old-refresh-token" {
 			t.Fatalf("unexpected hashed values: %#v", hasher.tokens)
+		}
+	})
+
+	t.Run("rejects inactive user", func(t *testing.T) {
+		inactive := testUser(userID)
+		inactive.Active = false
+		refresh := &fakeRefreshTokenRepository{get: newToken(false, false, now.Add(time.Hour))}
+		service := newService(refresh, &fakeUserReader{getUser: inactive}, &fakeTokenHasher{})
+
+		_, err := service.Execute(context.Background(), authapplication.RefreshCommand{RefreshToken: "token"})
+
+		if !errors.Is(err, userports.ErrUserInactive) {
+			t.Fatalf("error = %v, want ErrUserInactive", err)
 		}
 	})
 

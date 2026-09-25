@@ -32,7 +32,7 @@ func TestCreateUserServiceExecute(t *testing.T) {
 		if user.Username != "ana" || user.Password != "hashed-password" {
 			t.Fatalf("unexpected user: %#v", user)
 		}
-		if user.Role != userdomain.RoleUser || !user.CreatedAt.Equal(createdAt) {
+		if user.Role != userdomain.RoleUser || !user.Active || !user.CreatedAt.Equal(createdAt) {
 			t.Fatalf("unexpected defaults: %#v", user)
 		}
 		if repository.created != user || hasher.password != "secret" {
