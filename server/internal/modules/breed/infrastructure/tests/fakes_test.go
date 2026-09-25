@@ -39,6 +39,17 @@ func (f *fakeListBreedsUseCase) Execute(_ context.Context) ([]*breeddomain.Breed
 	return f.breeds, f.err
 }
 
+type fakeListBreedOptionsUseCase struct {
+	options []breeddomain.BreedOption
+	err     error
+	called  bool
+}
+
+func (f *fakeListBreedOptionsUseCase) Execute(_ context.Context) ([]breeddomain.BreedOption, error) {
+	f.called = true
+	return f.options, f.err
+}
+
 type fakeUpdateBreedUseCase struct {
 	breed   *breeddomain.Breed
 	err     error
@@ -54,9 +65,9 @@ func (f *fakeUpdateBreedUseCase) Execute(_ context.Context, breedID uuid.UUID, c
 	return f.breed, f.err
 }
 
-func newTestHandler(create breedinfra.CreateBreedUseCase, list breedinfra.ListBreedsUseCase, update breedinfra.UpdateBreedUseCase) *breedinfra.BreedHandler {
+func newTestHandler(create breedinfra.CreateBreedUseCase, list breedinfra.ListBreedsUseCase, options breedinfra.ListBreedOptionsUseCase, update breedinfra.UpdateBreedUseCase) *breedinfra.BreedHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return breedinfra.NewBreedHandler(create, list, update, passThrough, passThrough)
+	return breedinfra.NewBreedHandler(create, list, options, update, passThrough, passThrough)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {

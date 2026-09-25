@@ -9,16 +9,18 @@ import (
 )
 
 type fakeBreedRepository struct {
-	exists     bool
-	existsErr  error
-	getBreed   *breeddomain.Breed
-	getErr     error
-	listBreeds []*breeddomain.Breed
-	listErr    error
-	createErr  error
-	updateErr  error
-	created    *breeddomain.Breed
-	updated    *breeddomain.Breed
+	exists         bool
+	existsErr      error
+	getBreed       *breeddomain.Breed
+	getErr         error
+	listBreeds     []*breeddomain.Breed
+	listErr        error
+	listOptions    []breeddomain.BreedOption
+	listOptionsErr error
+	createErr      error
+	updateErr      error
+	created        *breeddomain.Breed
+	updated        *breeddomain.Breed
 }
 
 func (f *fakeBreedRepository) Create(_ context.Context, breed *breeddomain.Breed) error {
@@ -36,6 +38,10 @@ func (f *fakeBreedRepository) ExistsByName(_ context.Context, _ string) (bool, e
 
 func (f *fakeBreedRepository) List(_ context.Context) ([]*breeddomain.Breed, error) {
 	return f.listBreeds, f.listErr
+}
+
+func (f *fakeBreedRepository) ListActiveOptions(_ context.Context) ([]breeddomain.BreedOption, error) {
+	return f.listOptions, f.listOptionsErr
 }
 
 func (f *fakeBreedRepository) Update(_ context.Context, breed *breeddomain.Breed) error {

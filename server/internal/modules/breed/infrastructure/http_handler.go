@@ -22,16 +22,21 @@ type ListBreedsUseCase interface {
 	Execute(context.Context) ([]*breeddomain.Breed, error)
 }
 
+type ListBreedOptionsUseCase interface {
+	Execute(context.Context) ([]breeddomain.BreedOption, error)
+}
+
 type UpdateBreedUseCase interface {
 	Execute(context.Context, uuid.UUID, breedapplication.UpdateBreedCommand) (*breeddomain.Breed, error)
 }
 
 type BreedHandler struct {
-	createBreed     CreateBreedUseCase
-	listBreeds      ListBreedsUseCase
-	updateBreed     UpdateBreedUseCase
-	authMiddleware  func(http.Handler) http.Handler
-	adminMiddleware func(http.Handler) http.Handler
+	createBreed      CreateBreedUseCase
+	listBreeds       ListBreedsUseCase
+	listBreedOptions ListBreedOptionsUseCase
+	updateBreed      UpdateBreedUseCase
+	authMiddleware   func(http.Handler) http.Handler
+	adminMiddleware  func(http.Handler) http.Handler
 }
 
 // NewBreedHandler wires the breed use cases and middlewares into a handler.
@@ -39,24 +44,27 @@ type BreedHandler struct {
 func NewBreedHandler(
 	createBreed CreateBreedUseCase,
 	listBreeds ListBreedsUseCase,
+	listOptions ListBreedOptionsUseCase,
 	updateBreed UpdateBreedUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *BreedHandler {
 	return &BreedHandler{
-		createBreed:     createBreed,
-		listBreeds:      listBreeds,
-		updateBreed:     updateBreed,
-		authMiddleware:  authMiddleware,
-		adminMiddleware: adminMiddleware,
+		createBreed:      createBreed,
+		listBreeds:       listBreeds,
+		listBreedOptions: listOptions,
+		updateBreed:      updateBreed,
+		authMiddleware:   authMiddleware,
+		adminMiddleware:  adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the breed create, list and update endpoints on the mux.
-// Write routes are admin-only while the list route only requires authentication.
+// RegisterRoutes registers the breed create, list, options and update endpoints on the mux.
+// Write routes are admin-only while the read routes only require authentication.
 func (h *BreedHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/breeds", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/v1/breeds", h.authMiddleware(http.HandlerFunc(h.list)))
+	mux.Handle("GET /api/v1/breeds/options", h.authMiddleware(http.HandlerFunc(h.listOptions)))
 	mux.Handle("PATCH /api/v1/breeds/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
 }
 
@@ -77,6 +85,11 @@ type breedResponse struct {
 	UpdatedAt string    `json:"updated_at"`
 	CreatedBy uuid.UUID `json:"created_by"`
 	UpdatedBy uuid.UUID `json:"updated_by"`
+}
+
+type breedOptionResponse struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
 }
 
 // create handles POST /api/v1/breeds and creates a breed from the request body.
@@ -116,6 +129,18 @@ func (h *BreedHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	platformhttp.WriteJSON(w, http.StatusOK, toBreedResponses(breeds))
+}
+
+// listOptions handles GET /api/v1/breeds/options and returns the active breeds.
+// It maps the read model to a lightweight response with only id and name.
+func (h *BreedHandler) listOptions(w http.ResponseWriter, r *http.Request) {
+	options, err := h.listBreedOptions.Execute(r.Context())
+	if err != nil {
+		writeBreedError(w, err)
+		return
+	}
+
+	platformhttp.WriteJSON(w, http.StatusOK, toBreedOptionResponses(options))
 }
 
 // update handles PATCH /api/v1/breeds/{id} and applies the provided fields.
@@ -172,6 +197,16 @@ func toBreedResponses(breeds []*breeddomain.Breed) []breedResponse {
 	responses := make([]breedResponse, 0, len(breeds))
 	for _, breed := range breeds {
 		responses = append(responses, toBreedResponse(breed))
+	}
+	return responses
+}
+
+// toBreedOptionResponses maps breed options to their HTTP response shape.
+// It returns an empty slice instead of null when there are no options.
+func toBreedOptionResponses(options []breeddomain.BreedOption) []breedOptionResponse {
+	responses := make([]breedOptionResponse, 0, len(options))
+	for _, option := range options {
+		responses = append(responses, breedOptionResponse{ID: option.ID, Name: option.Name})
 	}
 	return responses
 }

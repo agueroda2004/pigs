@@ -28,6 +28,13 @@ type Breed struct {
 	UpdatedBy uuid.UUID
 }
 
+// BreedOption is a lightweight breed read model for selection lists.
+// It only carries the identifier and name of an active breed.
+type BreedOption struct {
+	ID   uuid.UUID
+	Name string
+}
+
 // NewBreed builds a breed after validating id, name and createdBy.
 // It defaults Active to true and sets CreatedBy/UpdatedBy to the creator.
 func NewBreed(id uuid.UUID, name string, createdBy uuid.UUID, now time.Time) (*Breed, error) {

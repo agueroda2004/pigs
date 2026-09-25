@@ -124,6 +124,34 @@ func (r *PostgresBreedRepository) List(ctx context.Context) ([]*breeddomain.Bree
 	return breeds, nil
 }
 
+// ListActiveOptions fetches the id and name of every active breed ordered by name.
+// It returns an empty slice when no active breed exists and wraps any query failure.
+func (r *PostgresBreedRepository) ListActiveOptions(ctx context.Context) ([]breeddomain.BreedOption, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, name
+		FROM breeds
+		WHERE active = TRUE
+		ORDER BY name ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar las razas activas: %w", err)
+	}
+	defer rows.Close()
+
+	options := make([]breeddomain.BreedOption, 0)
+	for rows.Next() {
+		var option breeddomain.BreedOption
+		if err := rows.Scan(&option.ID, &option.Name); err != nil {
+			return nil, fmt.Errorf("No se pudo consultar las razas activas: %w", err)
+		}
+		options = append(options, option)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudo consultar las razas activas: %w", err)
+	}
+	return options, nil
+}
+
 // Update persists the breed's mutable fields by id.
 // It returns ErrBreedNotFound when no row was affected.
 func (r *PostgresBreedRepository) Update(ctx context.Context, breed *breeddomain.Breed) error {

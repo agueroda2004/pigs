@@ -9,10 +9,11 @@ import (
 )
 
 type Module struct {
-	CreateBreed *breedapplication.CreateBreedService
-	ListBreeds  *breedapplication.ListBreedsService
-	UpdateBreed *breedapplication.UpdateBreedService
-	Handler     *BreedHandler
+	CreateBreed      *breedapplication.CreateBreedService
+	ListBreeds       *breedapplication.ListBreedsService
+	ListBreedOptions *breedapplication.ListBreedOptionsService
+	UpdateBreed      *breedapplication.UpdateBreedService
+	Handler          *BreedHandler
 }
 
 // NewModule assembles the breed use cases and HTTP handler from its dependencies.
@@ -25,12 +26,14 @@ func NewModule(
 ) *Module {
 	createBreed := breedapplication.NewCreateBreedService(repository, clock)
 	listBreeds := breedapplication.NewListBreedsService(repository)
+	listBreedOptions := breedapplication.NewListBreedOptionsService(repository)
 	updateBreed := breedapplication.NewUpdateBreedService(repository, clock)
 
 	return &Module{
-		CreateBreed: createBreed,
-		ListBreeds:  listBreeds,
-		UpdateBreed: updateBreed,
-		Handler:     NewBreedHandler(createBreed, listBreeds, updateBreed, authMiddleware, adminMiddleware),
+		CreateBreed:      createBreed,
+		ListBreeds:       listBreeds,
+		ListBreedOptions: listBreedOptions,
+		UpdateBreed:      updateBreed,
+		Handler:          NewBreedHandler(createBreed, listBreeds, listBreedOptions, updateBreed, authMiddleware, adminMiddleware),
 	}
 }

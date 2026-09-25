@@ -13,5 +13,6 @@ type BreedRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*breeddomain.Breed, error)
 	ExistsByName(ctx context.Context, name string) (bool, error)
 	List(ctx context.Context) ([]*breeddomain.Breed, error)
+	ListActiveOptions(ctx context.Context) ([]breeddomain.BreedOption, error)
 	Update(ctx context.Context, breed *breeddomain.Breed) error
 }
