@@ -49,6 +49,9 @@ func main() {
 	operatorHandler := dependencies.Operator.Handler
 	operatorHandler.RegisterRoutes(mux)
 
+	serviceHandler := dependencies.Service.Handler
+	serviceHandler.RegisterRoutes(mux)
+
 	server := &http.Server{
 		Addr:    ":" + applicationConfig.Port,
 		Handler: platformhttp.CORS(applicationConfig.CorsAllowedOrigins)(mux),

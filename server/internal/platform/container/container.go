@@ -10,6 +10,7 @@ import (
 	boarinfrastructure "server/internal/modules/boar/infrastructure"
 	breedinfrastructure "server/internal/modules/breed/infrastructure"
 	operatorinfrastructure "server/internal/modules/operator/infrastructure"
+	serviceinfrastructure "server/internal/modules/service/infrastructure"
 	sowinfrastructure "server/internal/modules/sow/infrastructure"
 	userinfrastructure "server/internal/modules/user/infrastructure"
 	"server/internal/platform/config"
@@ -23,6 +24,7 @@ type Container struct {
 	Boar     *boarinfrastructure.Module
 	Sow      *sowinfrastructure.Module
 	Operator *operatorinfrastructure.Module
+	Service  *serviceinfrastructure.Module
 	Auth     *authinfrastructure.Module
 }
 
@@ -50,6 +52,9 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 
 	// + === OPERATOR MODULE ===
 	operatorRepository := operatorinfrastructure.NewPostgresOperatorRepository(db)
+
+	// + === SERVICE MODULE ===
+	serviceRepository := serviceinfrastructure.NewPostgresServiceRepository(db)
 
 	// + === AUTH MODULE ===
 	refreshTokenRepository := authinfrastructure.NewPostgresRefreshTokenRepository(db)
@@ -86,6 +91,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		Boar:     boarinfrastructure.NewModule(boarRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Sow:      sowinfrastructure.NewModule(sowRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Operator: operatorinfrastructure.NewModule(operatorRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Service:  serviceinfrastructure.NewModule(serviceRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Auth:     authModule,
 	}, nil
 }

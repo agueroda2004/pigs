@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS mounts;
+DROP TABLE IF EXISTS services;
+DROP TYPE IF EXISTS mount_type;
+DROP TYPE IF EXISTS service_state;
