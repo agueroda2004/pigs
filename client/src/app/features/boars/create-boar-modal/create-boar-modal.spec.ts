@@ -13,7 +13,7 @@ class BoarsStub {
 }
 
 class BreedsStub {
-  listBreeds = vi.fn(() => of([]));
+  listBreedOptions = vi.fn(() => of([]));
 }
 
 class NotificationsStub {

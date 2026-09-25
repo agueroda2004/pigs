@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { Breed, CreateBreedRequest, UpdateBreedRequest } from './breed.models';
+import { Breed, BreedOption, CreateBreedRequest, UpdateBreedRequest } from './breed.models';
 
 @Injectable({ providedIn: 'root' })
 export class BreedsService {
@@ -12,6 +12,10 @@ export class BreedsService {
 
   listBreeds(): Observable<Breed[]> {
     return this.http.get<Breed[]>(this.baseUrl);
+  }
+
+  listBreedOptions(): Observable<BreedOption[]> {
+    return this.http.get<BreedOption[]>(`${this.baseUrl}/options`);
   }
 
   createBreed(request: CreateBreedRequest): Observable<Breed> {

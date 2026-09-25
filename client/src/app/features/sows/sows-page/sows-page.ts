@@ -148,11 +148,14 @@ export class SowsPage implements OnInit {
     }
   }
 
-  private async loadBreeds(): Promise<void> {
+  protected async loadBreeds(): Promise<void> {
     try {
-      const breeds = await firstValueFrom(this.breedsService.listBreeds());
+      const [breeds, options] = await Promise.all([
+        firstValueFrom(this.breedsService.listBreeds()),
+        firstValueFrom(this.breedsService.listBreedOptions()),
+      ]);
       this.breedNames.set(new Map(breeds.map((breed) => [breed.id, breed.name])));
-      this.breedOptions.set(breeds.map((breed) => ({ value: breed.id, label: breed.name })));
+      this.breedOptions.set(options.map((option) => ({ value: option.id, label: option.name })));
     } catch {
       this.breedNames.set(new Map());
       this.breedOptions.set([]);

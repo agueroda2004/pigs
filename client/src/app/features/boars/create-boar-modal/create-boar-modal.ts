@@ -93,8 +93,8 @@ export class CreateBoarModal {
 
   private async loadBreeds(): Promise<void> {
     try {
-      const breeds = await firstValueFrom(this.breeds.listBreeds());
-      this.breedOptions.set(breeds.map((breed) => ({ value: breed.id, label: breed.name })));
+      const options = await firstValueFrom(this.breeds.listBreedOptions());
+      this.breedOptions.set(options.map((option) => ({ value: option.id, label: option.name })));
     } catch {
       this.notifications.error('No se pudieron cargar las razas');
     }

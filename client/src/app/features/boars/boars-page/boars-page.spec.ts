@@ -35,6 +35,7 @@ class BoarsStub {
 
 class BreedsStub {
   listBreeds = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc' }]));
+  listBreedOptions = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc' }]));
 }
 
 class NotificationsStub {
@@ -44,18 +45,20 @@ class NotificationsStub {
 
 describe('BoarsPage', () => {
   let stub: BoarsStub;
+  let breeds: BreedsStub;
   let notifications: NotificationsStub;
   let isAdmin: WritableSignal<boolean>;
 
   beforeEach(async () => {
     stub = new BoarsStub();
+    breeds = new BreedsStub();
     notifications = new NotificationsStub();
     isAdmin = signal(true);
     await TestBed.configureTestingModule({
       imports: [BoarsPage],
       providers: [
         { provide: BoarsService, useValue: stub },
-        { provide: BreedsService, useValue: new BreedsStub() },
+        { provide: BreedsService, useValue: breeds },
         { provide: NotificationService, useValue: notifications },
         { provide: AuthService, useValue: { isAdmin } },
       ],
@@ -125,13 +128,27 @@ describe('BoarsPage', () => {
   });
 
   it('loads breed options for the filter dropdown', async () => {
-    const fixture = TestBed.createComponent(BoarsPage);
-    const component = fixture.componentInstance as any;
+    const component = create();
 
-    fixture.detectChanges();
-    await fixture.whenStable();
+    await component.loadBreeds();
 
     expect(component.breedOptions()).toEqual([{ value: 'breed-1', label: 'Duroc' }]);
+  });
+
+  it('uses only active breeds for the filter while keeping names for every breed', async () => {
+    breeds.listBreeds = vi.fn(() =>
+      of([
+        { id: 'breed-1', name: 'Duroc' },
+        { id: 'breed-2', name: 'Retired' },
+      ]),
+    );
+    breeds.listBreedOptions = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc' }]));
+    const component = create();
+
+    await component.loadBreeds();
+
+    expect(component.breedOptions()).toEqual([{ value: 'breed-1', label: 'Duroc' }]);
+    expect(component.breedNames().get('breed-2')).toBe('Retired');
   });
 
   it('applies the filter values when searching', async () => {

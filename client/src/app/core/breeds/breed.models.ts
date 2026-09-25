@@ -8,6 +8,11 @@ export interface Breed {
   updated_by: string;
 }
 
+export interface BreedOption {
+  id: string;
+  name: string;
+}
+
 export interface CreateBreedRequest {
   name: string;
 }

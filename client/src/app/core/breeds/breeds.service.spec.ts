@@ -40,6 +40,17 @@ describe('BreedsService', () => {
     await expect(promise).resolves.toHaveLength(1);
   });
 
+  it('lists the active breed options', async () => {
+    const promise = firstValueFrom(service.listBreedOptions());
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/breeds/options') && request.method === 'GET',
+    );
+    call.flush([{ id: '1', name: 'Duroc' }]);
+
+    await expect(promise).resolves.toEqual([{ id: '1', name: 'Duroc' }]);
+  });
+
   it('creates a breed', async () => {
     const promise = firstValueFrom(service.createBreed({ name: 'Duroc' }));
 
