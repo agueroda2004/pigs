@@ -1,4 +1,13 @@
-import { Component, input, output } from '@angular/core';
+import { Component, computed, input, output } from '@angular/core';
+
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
+
+const SIZE_CLASSES: Record<ModalSize, string> = {
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-2xl',
+};
 
 @Component({
   selector: 'app-modal',
@@ -13,9 +22,10 @@ import { Component, input, output } from '@angular/core';
         <div
           role="dialog"
           aria-modal="true"
-          class="relative z-10 w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-lg"
+          class="relative z-10 flex max-h-[90vh] w-full flex-col rounded-xl border border-border bg-card p-6 shadow-lg"
+          [class]="sizeClass()"
         >
-          <div class="mb-5 flex items-center justify-between gap-4">
+          <div class="mb-5 flex shrink-0 items-center justify-between gap-4">
             <h2 class="text-lg font-semibold tracking-tight">{{ title() }}</h2>
             <button
               type="button"
@@ -38,7 +48,9 @@ import { Component, input, output } from '@angular/core';
             </button>
           </div>
 
-          <ng-content />
+          <div class="min-h-0 flex-1 overflow-y-auto pr-1">
+            <ng-content />
+          </div>
         </div>
       </div>
     }
@@ -47,7 +59,10 @@ import { Component, input, output } from '@angular/core';
 export class Modal {
   readonly open = input(false);
   readonly title = input('');
+  readonly size = input<ModalSize>('md');
   readonly closed = output<void>();
+
+  protected readonly sizeClass = computed(() => SIZE_CLASSES[this.size()]);
 
   protected onEscape(): void {
     if (this.open()) {

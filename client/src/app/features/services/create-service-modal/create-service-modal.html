@@ -1,0 +1,170 @@
+<app-modal [open]="open()" size="xl" title="Crear servicio" (closed)="closed.emit()">
+  <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="space-y-1.5">
+      <span class="block text-sm font-medium">Cerda</span>
+      <app-search-dropdown
+        formControlName="sow_id"
+        [options]="sowOptions()"
+        placeholder="Seleccionar cerda"
+      />
+      @if (form.controls.sow_id.touched && form.controls.sow_id.invalid) {
+        <p class="text-xs text-danger">La cerda es obligatoria.</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="service-location" class="block text-sm font-medium">Ubicación</label>
+      <input
+        id="service-location"
+        type="text"
+        formControlName="location"
+        autocomplete="off"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      />
+      @if (form.controls.location.touched && form.controls.location.invalid) {
+        <p class="text-xs text-danger">La ubicación debe tener como máximo 100 caracteres.</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="service-note" class="block text-sm font-medium">Nota</label>
+      <textarea
+        id="service-note"
+        rows="2"
+        formControlName="note"
+        class="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      ></textarea>
+      @if (form.controls.note.touched && form.controls.note.invalid) {
+        <p class="text-xs text-danger">La nota debe tener como máximo 500 caracteres.</p>
+      }
+    </div>
+
+    <div class="space-y-3">
+      <div class="flex items-center justify-between">
+        <span class="text-sm font-medium">Montas</span>
+        <span class="text-xs text-muted-foreground">{{ mounts.length }} de {{ maxMounts }}</span>
+      </div>
+
+      <div formArrayName="mounts" class="space-y-3">
+        @for (group of mounts.controls; track $index; let i = $index) {
+          <div [formGroupName]="i" class="space-y-3 rounded-lg border border-border p-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-muted-foreground">Monta {{ i + 1 }}</span>
+              @if (mounts.length > 1) {
+                <button
+                  type="button"
+                  (click)="removeMount(i)"
+                  class="text-xs font-medium text-danger transition hover:underline"
+                >
+                  Quitar
+                </button>
+              }
+            </div>
+
+            <div class="space-y-1.5">
+              <span class="block text-xs font-medium text-muted-foreground">Fecha</span>
+              <app-date-picker
+                formControlName="mount_date"
+                [maxDate]="maxDateFor(i)"
+                placeholder="Seleccionar fecha"
+              />
+              @if (
+                mountGroup(i).get('mount_date')?.touched && mountGroup(i).get('mount_date')?.invalid
+              ) {
+                <p class="text-xs text-danger">La fecha de monta es obligatoria.</p>
+              }
+            </div>
+
+            <div class="space-y-1.5">
+              <span class="block text-xs font-medium text-muted-foreground">Verraco</span>
+              <app-search-dropdown
+                formControlName="boar_id"
+                [options]="boarOptions()"
+                placeholder="Seleccionar verraco"
+              />
+              @if (mountGroup(i).get('boar_id')?.touched && mountGroup(i).get('boar_id')?.invalid) {
+                <p class="text-xs text-danger">El verraco es obligatorio.</p>
+              }
+            </div>
+
+            <div class="space-y-1.5">
+              <span class="block text-xs font-medium text-muted-foreground">Operador</span>
+              <app-search-dropdown
+                formControlName="operator_id"
+                [options]="operatorOptions()"
+                placeholder="Seleccionar operador"
+              />
+              @if (
+                mountGroup(i).get('operator_id')?.touched &&
+                mountGroup(i).get('operator_id')?.invalid
+              ) {
+                <p class="text-xs text-danger">El operador es obligatorio.</p>
+              }
+            </div>
+
+            <div class="space-y-1.5">
+              <span class="block text-xs font-medium text-muted-foreground">Tipo</span>
+              <app-dropdown
+                formControlName="type"
+                [options]="typeOptions"
+                placeholder="Seleccionar tipo"
+              />
+            </div>
+
+            <div class="space-y-1.5">
+              <label
+                [attr.for]="'mount-note-' + i"
+                class="block text-xs font-medium text-muted-foreground"
+                >Nota</label
+              >
+              <input
+                [attr.id]="'mount-note-' + i"
+                type="text"
+                formControlName="note"
+                autocomplete="off"
+                class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (scheduleError()) {
+        <p class="text-xs text-danger">{{ scheduleError() }}</p>
+      }
+
+      @if (mounts.length < maxMounts) {
+        <button
+          type="button"
+          (click)="addMount()"
+          class="w-full rounded-md border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Agregar monta
+        </button>
+      }
+    </div>
+
+    @if (previewFarrowing()) {
+      <p class="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+        Parto probable estimado: {{ previewFarrowing() }}
+      </p>
+    }
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        [disabled]="loading()"
+        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Creando…' : 'Crear servicio' }}
+      </button>
+    </div>
+  </form>
+</app-modal>

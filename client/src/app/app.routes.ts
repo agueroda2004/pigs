@@ -32,6 +32,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/sows/sows-page/sows-page').then((m) => m.SowsPage),
       },
       {
+        path: 'services',
+        loadComponent: () =>
+          import('./features/services/services-page/services-page').then((m) => m.ServicesPage),
+      },
+      {
         path: 'operators',
         canActivate: [adminGuard],
         loadComponent: () =>

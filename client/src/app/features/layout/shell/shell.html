@@ -105,6 +105,27 @@
         <span>Cerdas</span>
       </a>
 
+      <a
+        routerLink="/services"
+        routerLinkActive="bg-muted font-medium text-foreground"
+        (click)="closeSidebar()"
+        class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-4 w-4"
+        >
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        </svg>
+        <span>Servicios</span>
+      </a>
+
       @if (isAdmin()) {
         <a
           routerLink="/operators"
@@ -211,7 +232,7 @@
       </div>
     </header>
 
-    <main class="mx-auto max-w-5xl px-4 py-8">
+    <main class="mx-auto max-w-7xl px-4 py-8">
       <router-outlet />
     </main>
   </div>

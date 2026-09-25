@@ -1,0 +1,38 @@
+<article class="rounded-xl border border-border bg-card p-4">
+  <div class="flex items-start justify-between gap-3">
+    <h2 class="truncate font-medium">Cerda {{ sowCode() ?? 'sin identificar' }}</h2>
+    <span class="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium" [class]="stateClass()">
+      {{ stateLabel() }}
+    </span>
+  </div>
+
+  <div class="mt-2 space-y-1 text-sm text-muted-foreground">
+    <p class="truncate">Parto probable: {{ service().expected_farrowing_date ?? 'Sin estimar' }}</p>
+    <p class="truncate">Ubicación: {{ service().location ?? 'Sin ubicación' }}</p>
+    @if (service().note) {
+      <p class="truncate">Nota: {{ service().note }}</p>
+    }
+  </div>
+
+  <div class="mt-3 border-t border-border pt-3">
+    <p class="text-xs font-medium text-muted-foreground">Montas ({{ service().mounts.length }})</p>
+    <ul class="mt-2 space-y-2">
+      @for (mount of service().mounts; track mount.id) {
+        <li class="flex items-start justify-between gap-3 text-sm">
+          <div class="min-w-0">
+            <p class="truncate">Monta {{ mount.mount_number }} · {{ mount.mount_date }}</p>
+            <p class="truncate text-xs text-muted-foreground">
+              {{ boarCode(mount.boar_id) }} · {{ operatorName(mount.operator_id) }}
+            </p>
+          </div>
+          <span
+            class="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
+            [class]="mountTypeClass(mount.type)"
+          >
+            {{ mountTypeLabel(mount.type) }}
+          </span>
+        </li>
+      }
+    </ul>
+  </div>
+</article>
