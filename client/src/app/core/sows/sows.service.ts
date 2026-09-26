@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { CreateSowRequest, Sow, SowFilters, UpdateSowRequest } from './sow.models';
+import { CreateSowRequest, Sow, SowFilters, SowOption, UpdateSowRequest } from './sow.models';
 
 @Injectable({ providedIn: 'root' })
 export class SowsService {
@@ -29,6 +29,15 @@ export class SowsService {
     }
 
     return this.http.get<Sow[]>(this.baseUrl, { params });
+  }
+
+  listSowOptions(active?: boolean): Observable<SowOption[]> {
+    let params = new HttpParams();
+    if (active !== undefined) {
+      params = params.set('active', String(active));
+    }
+
+    return this.http.get<SowOption[]>(`${this.baseUrl}/options`, { params });
   }
 
   createSow(request: CreateSowRequest): Observable<Sow> {

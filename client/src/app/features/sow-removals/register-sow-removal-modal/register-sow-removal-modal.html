@@ -1,0 +1,81 @@
+<app-modal [open]="open()" size="md" title="Remover cerda" (closed)="closed.emit()">
+  <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="space-y-1.5">
+      <span class="block text-sm font-medium">Cerda</span>
+      <app-search-dropdown
+        formControlName="sow_id"
+        [options]="sowOptions()"
+        placeholder="Seleccionar cerda"
+      />
+      @if (form.controls.sow_id.touched && form.controls.sow_id.invalid) {
+        <p class="text-xs text-danger">La cerda es obligatoria.</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <span class="block text-sm font-medium">Fecha de la baja</span>
+      <app-date-picker
+        formControlName="removal_date"
+        [maxDate]="today"
+        placeholder="Seleccionar fecha"
+      />
+      @if (form.controls.removal_date.touched && form.controls.removal_date.invalid) {
+        <p class="text-xs text-danger">La fecha de la baja es obligatoria.</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <span class="block text-sm font-medium">Tipo</span>
+      <app-dropdown
+        formControlName="type"
+        [options]="typeOptions"
+        placeholder="Seleccionar tipo"
+      />
+      @if (form.controls.type.touched && form.controls.type.invalid) {
+        <p class="text-xs text-danger">El tipo es obligatorio.</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <span class="block text-sm font-medium">Motivo</span>
+      <app-dropdown
+        formControlName="reason"
+        [options]="reasonOptions"
+        placeholder="Seleccionar motivo"
+      />
+      @if (form.controls.reason.touched && form.controls.reason.invalid) {
+        <p class="text-xs text-danger">El motivo es obligatorio.</p>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="sow-removal-note" class="block text-sm font-medium">Nota</label>
+      <textarea
+        id="sow-removal-note"
+        rows="2"
+        formControlName="note"
+        class="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      ></textarea>
+      @if (form.controls.note.touched && form.controls.note.invalid) {
+        <p class="text-xs text-danger">La nota debe tener como máximo 500 caracteres.</p>
+      }
+    </div>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        [disabled]="loading()"
+        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Registrando…' : 'Remover cerda' }}
+      </button>
+    </div>
+  </form>
+</app-modal>

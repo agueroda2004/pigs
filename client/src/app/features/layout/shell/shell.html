@@ -126,6 +126,51 @@
         <span>Servicios</span>
       </a>
 
+      <a
+        routerLink="/abortions"
+        routerLinkActive="bg-muted font-medium text-foreground"
+        (click)="closeSidebar()"
+        class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-4 w-4"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="m4.9 4.9 14.2 14.2" />
+        </svg>
+        <span>Abortos</span>
+      </a>
+
+      <a
+        routerLink="/sow-removals"
+        routerLinkActive="bg-muted font-medium text-foreground"
+        (click)="closeSidebar()"
+        class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-4 w-4"
+        >
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 18h-6" />
+        </svg>
+        <span>Remover cerdas</span>
+      </a>
+
       @if (isAdmin()) {
         <a
           routerLink="/operators"

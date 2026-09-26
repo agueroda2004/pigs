@@ -174,6 +174,36 @@ func (r *PostgresSowRepository) List(ctx context.Context, filter ports.SowFilter
 	return sows, nil
 }
 
+// ListOptions fetches the id and code of the sows matching the active filter.
+// A true active restricts the result to serviceable states; nil or false apply
+// no filter and return every state, active or inactive.
+func (r *PostgresSowRepository) ListOptions(ctx context.Context, active *bool) ([]sowdomain.SowOption, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, code
+		FROM sows
+		WHERE ($1::boolean IS NOT TRUE
+		       OR state IN ('Viva', 'Destetada', 'Abortada', 'Gestando'))
+		ORDER BY code ASC
+	`, active)
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar las cerdas: %w", err)
+	}
+	defer rows.Close()
+
+	options := make([]sowdomain.SowOption, 0)
+	for rows.Next() {
+		var option sowdomain.SowOption
+		if err := rows.Scan(&option.ID, &option.Code); err != nil {
+			return nil, fmt.Errorf("No se pudo consultar las cerdas: %w", err)
+		}
+		options = append(options, option)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudo consultar las cerdas: %w", err)
+	}
+	return options, nil
+}
+
 // Update persists the sow's user-mutable fields by id, never its state or parity.
 // It returns ErrSowNotFound when no row was affected.
 func (r *PostgresSowRepository) Update(ctx context.Context, sow *sowdomain.Sow) error {

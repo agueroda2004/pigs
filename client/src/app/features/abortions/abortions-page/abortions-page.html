@@ -1,0 +1,108 @@
+<div class="space-y-6">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">Abortos</h1>
+      <p class="mt-1 text-sm text-muted-foreground">Abortos registrados en la granja.</p>
+    </div>
+
+    @if (isAdmin()) {
+      <button
+        type="button"
+        (click)="openModal()"
+        class="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-4 w-4"
+        >
+          <path d="M5 12h14M12 5v14" />
+        </svg>
+        Registrar aborto
+      </button>
+    }
+  </div>
+
+  <form
+    class="grid gap-4 rounded-xl border border-border bg-card p-4 sm:grid-cols-2"
+    [formGroup]="filterForm"
+    (ngSubmit)="search()"
+  >
+    <div class="space-y-1.5">
+      <span class="block text-xs font-medium text-muted-foreground">Cerda</span>
+      <app-search-dropdown formControlName="sow_id" [options]="sowOptions()" placeholder="Todas" />
+    </div>
+
+    <div class="flex items-end gap-2">
+      <button
+        type="submit"
+        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Buscar
+      </button>
+      <button
+        type="button"
+        (click)="clearFilters()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Limpiar
+      </button>
+    </div>
+  </form>
+
+  @if (loading()) {
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      @for (placeholder of [1, 2, 3]; track placeholder) {
+        <div class="h-32 animate-pulse rounded-xl border border-border bg-muted/50"></div>
+      }
+    </div>
+  } @else if (error()) {
+    <div class="rounded-xl border border-border p-10 text-center">
+      <p class="text-sm text-muted-foreground">No se pudieron cargar los abortos.</p>
+      <button
+        type="button"
+        (click)="loadAbortions()"
+        class="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Reintentar
+      </button>
+    </div>
+  } @else if (abortions().length === 0) {
+    <div class="rounded-xl border border-dashed border-border p-10 text-center">
+      @if (hasFilters()) {
+        <p class="text-sm text-muted-foreground">No hay abortos que coincidan con los filtros.</p>
+        <button
+          type="button"
+          (click)="clearFilters()"
+          class="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Limpiar filtros
+        </button>
+      } @else {
+        <p class="text-sm text-muted-foreground">
+          Todavía no hay abortos registrados.
+          @if (isAdmin()) {
+            Registra el primero para verlo aquí.
+          }
+        </p>
+      }
+    </div>
+  } @else {
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      @for (abortion of abortions(); track abortion.id) {
+        <app-abortion-card [abortion]="abortion" [sowCode]="sowCode(abortion)" />
+      }
+    </div>
+  }
+</div>
+
+<app-register-abortion-modal
+  [open]="modalOpen()"
+  (closed)="closeModal()"
+  (created)="onCreated($event)"
+/>

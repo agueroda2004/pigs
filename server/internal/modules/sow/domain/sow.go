@@ -74,6 +74,13 @@ type Sow struct {
 	UpdatedBy uuid.UUID
 }
 
+// SowOption is a lightweight sow read model for selection lists.
+// It only carries the identifier and code of a sow.
+type SowOption struct {
+	ID   uuid.UUID
+	Code string
+}
+
 // NewSowParams holds the fields required to build a new sow.
 // Optional values are pointers and may be nil; the state is not part of the
 // params because every new sow starts as StateAlive.

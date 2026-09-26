@@ -27,6 +27,10 @@ type ListSowsUseCase interface {
 	Execute(context.Context, ports.SowFilter) ([]*sowdomain.Sow, error)
 }
 
+type ListSowOptionsUseCase interface {
+	Execute(context.Context, *bool) ([]sowdomain.SowOption, error)
+}
+
 type UpdateSowUseCase interface {
 	Execute(context.Context, uuid.UUID, sowapplication.UpdateSowCommand) (*sowdomain.Sow, error)
 }
@@ -34,6 +38,7 @@ type UpdateSowUseCase interface {
 type SowHandler struct {
 	createSow       CreateSowUseCase
 	listSows        ListSowsUseCase
+	listSowOptions  ListSowOptionsUseCase
 	updateSow       UpdateSowUseCase
 	authMiddleware  func(http.Handler) http.Handler
 	adminMiddleware func(http.Handler) http.Handler
@@ -44,6 +49,7 @@ type SowHandler struct {
 func NewSowHandler(
 	createSow CreateSowUseCase,
 	listSows ListSowsUseCase,
+	listSowOptions ListSowOptionsUseCase,
 	updateSow UpdateSowUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
@@ -51,18 +57,20 @@ func NewSowHandler(
 	return &SowHandler{
 		createSow:       createSow,
 		listSows:        listSows,
+		listSowOptions:  listSowOptions,
 		updateSow:       updateSow,
 		authMiddleware:  authMiddleware,
 		adminMiddleware: adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the sow create, list and update endpoints on the mux.
-// Write routes are admin-only while the list route only requires authentication;
+// RegisterRoutes registers the sow create, list, options and update endpoints on the mux.
+// Write routes are admin-only while the read routes only require authentication;
 // no state route is exposed because the state is server-managed.
 func (h *SowHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/sows", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/v1/sows", h.authMiddleware(http.HandlerFunc(h.list)))
+	mux.Handle("GET /api/v1/sows/options", h.authMiddleware(http.HandlerFunc(h.listOptions)))
 	mux.Handle("PATCH /api/v1/sows/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
 }
 
@@ -104,6 +112,11 @@ type sowResponse struct {
 	UpdatedAt string    `json:"updated_at"`
 	CreatedBy uuid.UUID `json:"created_by"`
 	UpdatedBy uuid.UUID `json:"updated_by"`
+}
+
+type sowOptionResponse struct {
+	ID   uuid.UUID `json:"id"`
+	Code string    `json:"code"`
 }
 
 // create handles POST /api/v1/sows and creates a sow from the request body.
@@ -174,6 +187,38 @@ func (h *SowHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	platformhttp.WriteJSON(w, http.StatusOK, toSowResponses(sows))
+}
+
+// listOptions handles GET /api/v1/sows/options and returns the sow options.
+// It forwards the optional active filter so callers may list all sows when empty.
+func (h *SowHandler) listOptions(w http.ResponseWriter, r *http.Request) {
+	active, err := parseSowOptionsActive(r)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	options, err := h.listSowOptions.Execute(r.Context(), active)
+	if err != nil {
+		writeSowError(w, err)
+		return
+	}
+
+	platformhttp.WriteJSON(w, http.StatusOK, toSowOptionResponses(options))
+}
+
+// parseSowOptionsActive reads the optional active query parameter.
+// It returns nil when empty (no filter) and an error for a non-boolean value.
+func parseSowOptionsActive(r *http.Request) (*bool, error) {
+	active := strings.TrimSpace(r.URL.Query().Get("active"))
+	if active == "" {
+		return nil, nil
+	}
+	parsedActive, err := strconv.ParseBool(active)
+	if err != nil {
+		return nil, errors.New("El filtro de activo no es válido")
+	}
+	return &parsedActive, nil
 }
 
 // parseSowFilter reads the optional list filters from the query string.
@@ -336,6 +381,16 @@ func toSowResponses(sows []*sowdomain.Sow) []sowResponse {
 	responses := make([]sowResponse, 0, len(sows))
 	for _, sow := range sows {
 		responses = append(responses, toSowResponse(sow))
+	}
+	return responses
+}
+
+// toSowOptionResponses maps sow options to their HTTP response shape.
+// It returns an empty slice instead of null when there are no options.
+func toSowOptionResponses(options []sowdomain.SowOption) []sowOptionResponse {
+	responses := make([]sowOptionResponse, 0, len(options))
+	for _, option := range options {
+		responses = append(responses, sowOptionResponse{ID: option.ID, Code: option.Code})
 	}
 	return responses
 }

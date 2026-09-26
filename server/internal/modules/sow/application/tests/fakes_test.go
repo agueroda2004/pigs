@@ -17,6 +17,9 @@ type fakeSowRepository struct {
 	listSows       []*sowdomain.Sow
 	listErr        error
 	listFilter     ports.SowFilter
+	listOptions    []sowdomain.SowOption
+	listOptionsErr error
+	listActive     *bool
 	createErr      error
 	updateErr      error
 	updateStateErr error
@@ -41,6 +44,11 @@ func (f *fakeSowRepository) ExistsByCode(_ context.Context, _ string) (bool, err
 func (f *fakeSowRepository) List(_ context.Context, filter ports.SowFilter) ([]*sowdomain.Sow, error) {
 	f.listFilter = filter
 	return f.listSows, f.listErr
+}
+
+func (f *fakeSowRepository) ListOptions(_ context.Context, active *bool) ([]sowdomain.SowOption, error) {
+	f.listActive = active
+	return f.listOptions, f.listOptionsErr
 }
 
 func (f *fakeSowRepository) Update(_ context.Context, sow *sowdomain.Sow) error {

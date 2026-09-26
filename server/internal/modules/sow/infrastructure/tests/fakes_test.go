@@ -42,6 +42,19 @@ func (f *fakeListSowsUseCase) Execute(_ context.Context, filter ports.SowFilter)
 	return f.sows, f.err
 }
 
+type fakeListSowOptionsUseCase struct {
+	options []sowdomain.SowOption
+	err     error
+	active  *bool
+	called  bool
+}
+
+func (f *fakeListSowOptionsUseCase) Execute(_ context.Context, active *bool) ([]sowdomain.SowOption, error) {
+	f.called = true
+	f.active = active
+	return f.options, f.err
+}
+
 type fakeUpdateSowUseCase struct {
 	sow     *sowdomain.Sow
 	err     error
@@ -57,9 +70,9 @@ func (f *fakeUpdateSowUseCase) Execute(_ context.Context, sowID uuid.UUID, comma
 	return f.sow, f.err
 }
 
-func newTestHandler(create sowinfra.CreateSowUseCase, list sowinfra.ListSowsUseCase, update sowinfra.UpdateSowUseCase) *sowinfra.SowHandler {
+func newTestHandler(create sowinfra.CreateSowUseCase, list sowinfra.ListSowsUseCase, options sowinfra.ListSowOptionsUseCase, update sowinfra.UpdateSowUseCase) *sowinfra.SowHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return sowinfra.NewSowHandler(create, list, update, passThrough, passThrough)
+	return sowinfra.NewSowHandler(create, list, options, update, passThrough, passThrough)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {

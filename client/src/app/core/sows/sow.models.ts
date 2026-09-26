@@ -28,6 +28,11 @@ export interface Sow {
   updated_by: string;
 }
 
+export interface SowOption {
+  id: string;
+  code: string;
+}
+
 export interface CreateSowRequest {
   code: string;
   location?: string;

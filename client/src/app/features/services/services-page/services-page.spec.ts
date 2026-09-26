@@ -35,6 +35,7 @@ class ServicesStub {
 
 class SowsStub {
   listSows = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
+  listSowOptions = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
 }
 
 class BoarsStub {

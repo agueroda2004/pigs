@@ -12,15 +12,12 @@ import {
   MountType,
 } from '../../../core/services/service.models';
 import { ServicesService } from '../../../core/services/services.service';
-import { SowState } from '../../../core/sows/sow.models';
 import { SowsService } from '../../../core/sows/sows.service';
 import { DatePicker } from '../../../shared/ui/date-picker/date-picker';
 import { Dropdown, DropdownOption } from '../../../shared/ui/dropdown/dropdown';
 import { Modal } from '../../../shared/ui/modal/modal';
 import { SearchDropdown } from '../../../shared/ui/search-dropdown/search-dropdown';
 import { toISODate } from '../../../shared/utils/date';
-
-const SERVICEABLE_SOW_STATES: SowState[] = ['Viva', 'Destetada', 'Abortada', 'Gestando'];
 
 const GESTATION_DAYS = 114;
 const MAX_MOUNTS = 3;
@@ -219,15 +216,11 @@ export class CreateServiceModal {
   private async loadOptions(): Promise<void> {
     try {
       const [sows, boars, operators] = await Promise.all([
-        firstValueFrom(this.sows.listSows()),
+        firstValueFrom(this.sows.listSowOptions(true)),
         firstValueFrom(this.boars.listBoars()),
         firstValueFrom(this.operators.listOperators()),
       ]);
-      this.sowOptions.set(
-        sows
-          .filter((sow) => SERVICEABLE_SOW_STATES.includes(sow.state))
-          .map((sow) => ({ value: sow.id, label: sow.code })),
-      );
+      this.sowOptions.set(sows.map((sow) => ({ value: sow.id, label: sow.code })));
       this.boarOptions.set(
         boars
           .filter((boar) => boar.active && boar.state === 'Vivo')

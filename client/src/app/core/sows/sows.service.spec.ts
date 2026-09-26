@@ -73,6 +73,42 @@ describe('SowsService', () => {
     await expect(promise).resolves.toHaveLength(1);
   });
 
+  it('lists sow options without a filter', async () => {
+    const promise = firstValueFrom(service.listSowOptions());
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/sows/options') && request.method === 'GET',
+    );
+    expect(call.request.params.keys()).toHaveLength(0);
+    call.flush([{ id: 'sow-1', code: 'C-001' }]);
+
+    await expect(promise).resolves.toEqual([{ id: 'sow-1', code: 'C-001' }]);
+  });
+
+  it('lists sow options filtered by active', async () => {
+    const promise = firstValueFrom(service.listSowOptions(true));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/sows/options') && request.method === 'GET',
+    );
+    expect(call.request.params.get('active')).toBe('true');
+    call.flush([{ id: 'sow-1', code: 'C-001' }]);
+
+    await expect(promise).resolves.toHaveLength(1);
+  });
+
+  it('lists sow options with active false', async () => {
+    const promise = firstValueFrom(service.listSowOptions(false));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/sows/options') && request.method === 'GET',
+    );
+    expect(call.request.params.get('active')).toBe('false');
+    call.flush([]);
+
+    await expect(promise).resolves.toEqual([]);
+  });
+
   it('creates a sow', async () => {
     const payload = {
       code: 'C-001',

@@ -37,6 +37,18 @@ export const routes: Routes = [
           import('./features/services/services-page/services-page').then((m) => m.ServicesPage),
       },
       {
+        path: 'abortions',
+        loadComponent: () =>
+          import('./features/abortions/abortions-page/abortions-page').then((m) => m.AbortionsPage),
+      },
+      {
+        path: 'sow-removals',
+        loadComponent: () =>
+          import('./features/sow-removals/sow-removals-page/sow-removals-page').then(
+            (m) => m.SowRemovalsPage,
+          ),
+      },
+      {
         path: 'operators',
         canActivate: [adminGuard],
         loadComponent: () =>

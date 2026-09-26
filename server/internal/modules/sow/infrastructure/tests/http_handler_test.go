@@ -22,7 +22,7 @@ func TestSowHandlerCreate(t *testing.T) {
 
 	t.Run("creates a sow with actor from context", func(t *testing.T) {
 		create := &fakeCreateSowUseCase{sow: sow}
-		handler := newTestHandler(create, &fakeListSowsUseCase{}, &fakeUpdateSowUseCase{})
+		handler := newTestHandler(create, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, &fakeUpdateSowUseCase{})
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/sows", strings.NewReader(validBody))
 		request = authenticatedRequest(request, actorID)
 		response := serve(handler, request)
@@ -43,7 +43,7 @@ func TestSowHandlerCreate(t *testing.T) {
 
 	t.Run("rejects a state field", func(t *testing.T) {
 		create := &fakeCreateSowUseCase{sow: sow}
-		handler := newTestHandler(create, &fakeListSowsUseCase{}, &fakeUpdateSowUseCase{})
+		handler := newTestHandler(create, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, &fakeUpdateSowUseCase{})
 		body := `{"code":"C-001","entry_date":"2026-01-10","breed_id":"` + breedID.String() + `","state":"Muerta"}`
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/sows", strings.NewReader(body))
 		request = authenticatedRequest(request, actorID)
@@ -56,7 +56,7 @@ func TestSowHandlerCreate(t *testing.T) {
 
 	t.Run("returns unauthorized when actor is missing", func(t *testing.T) {
 		create := &fakeCreateSowUseCase{sow: sow}
-		handler := newTestHandler(create, &fakeListSowsUseCase{}, &fakeUpdateSowUseCase{})
+		handler := newTestHandler(create, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, &fakeUpdateSowUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodPost, "/api/v1/sows", strings.NewReader(validBody)))
 
 		if response.Code != http.StatusUnauthorized || create.called {
@@ -66,7 +66,7 @@ func TestSowHandlerCreate(t *testing.T) {
 
 	t.Run("returns bad request for invalid JSON", func(t *testing.T) {
 		create := &fakeCreateSowUseCase{sow: sow}
-		handler := newTestHandler(create, &fakeListSowsUseCase{}, &fakeUpdateSowUseCase{})
+		handler := newTestHandler(create, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, &fakeUpdateSowUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodPost, "/api/v1/sows", strings.NewReader(`{"code":`)))
 
 		if response.Code != http.StatusBadRequest || create.called {
@@ -76,7 +76,7 @@ func TestSowHandlerCreate(t *testing.T) {
 
 	t.Run("returns bad request for invalid dates and breed", func(t *testing.T) {
 		create := &fakeCreateSowUseCase{sow: sow}
-		handler := newTestHandler(create, &fakeListSowsUseCase{}, &fakeUpdateSowUseCase{})
+		handler := newTestHandler(create, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, &fakeUpdateSowUseCase{})
 
 		for _, body := range []string{
 			`{"code":"C-001","entry_date":"not-a-date","breed_id":"` + breedID.String() + `"}`,
@@ -106,7 +106,7 @@ func TestSowHandlerCreate(t *testing.T) {
 		} {
 			t.Run(test.name, func(t *testing.T) {
 				create := &fakeCreateSowUseCase{err: test.err}
-				handler := newTestHandler(create, &fakeListSowsUseCase{}, &fakeUpdateSowUseCase{})
+				handler := newTestHandler(create, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, &fakeUpdateSowUseCase{})
 				request := httptest.NewRequest(http.MethodPost, "/api/v1/sows", strings.NewReader(validBody))
 				request = authenticatedRequest(request, actorID)
 				response := serve(handler, request)
@@ -121,7 +121,7 @@ func TestSowHandlerCreate(t *testing.T) {
 func TestSowHandlerList(t *testing.T) {
 	t.Run("returns every sow", func(t *testing.T) {
 		list := &fakeListSowsUseCase{sows: []*sowdomain.Sow{handlerSow(), handlerSow()}}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeUpdateSowUseCase{})
+		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeListSowOptionsUseCase{}, &fakeUpdateSowUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows", nil))
 
 		if response.Code != http.StatusOK || !list.called {
@@ -135,7 +135,7 @@ func TestSowHandlerList(t *testing.T) {
 
 	t.Run("returns an empty array when there are no sows", func(t *testing.T) {
 		list := &fakeListSowsUseCase{sows: []*sowdomain.Sow{}}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeUpdateSowUseCase{})
+		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeListSowOptionsUseCase{}, &fakeUpdateSowUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows", nil))
 
 		if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "[]" {
@@ -145,7 +145,7 @@ func TestSowHandlerList(t *testing.T) {
 
 	t.Run("maps internal errors", func(t *testing.T) {
 		list := &fakeListSowsUseCase{err: errors.New("unexpected")}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeUpdateSowUseCase{})
+		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeListSowOptionsUseCase{}, &fakeUpdateSowUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows", nil))
 
 		if response.Code != http.StatusInternalServerError {
@@ -156,7 +156,7 @@ func TestSowHandlerList(t *testing.T) {
 	t.Run("parses the query filters", func(t *testing.T) {
 		breedID := uuid.New()
 		list := &fakeListSowsUseCase{}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeUpdateSowUseCase{})
+		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeListSowOptionsUseCase{}, &fakeUpdateSowUseCase{})
 		target := "/api/v1/sows?code=%20C-001%20&breed_id=" + breedID.String() + "&origin=Externo&active=false&state=Gestando"
 		response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
 
@@ -183,7 +183,7 @@ func TestSowHandlerList(t *testing.T) {
 
 	t.Run("returns an empty filter when no params are given", func(t *testing.T) {
 		list := &fakeListSowsUseCase{}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeUpdateSowUseCase{})
+		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeListSowOptionsUseCase{}, &fakeUpdateSowUseCase{})
 		serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows", nil))
 
 		filter := list.filter
@@ -194,7 +194,7 @@ func TestSowHandlerList(t *testing.T) {
 
 	t.Run("rejects invalid filter values", func(t *testing.T) {
 		list := &fakeListSowsUseCase{}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeUpdateSowUseCase{})
+		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeListSowOptionsUseCase{}, &fakeUpdateSowUseCase{})
 
 		for _, target := range []string{
 			"/api/v1/sows?breed_id=not-a-uuid",
@@ -210,6 +210,84 @@ func TestSowHandlerList(t *testing.T) {
 	})
 }
 
+func TestSowHandlerListOptions(t *testing.T) {
+	t.Run("returns the sow options with id and code", func(t *testing.T) {
+		options := &fakeListSowOptionsUseCase{options: []sowdomain.SowOption{
+			{ID: uuid.New(), Code: "C-001"},
+			{ID: uuid.New(), Code: "C-002"},
+		}}
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, options, &fakeUpdateSowUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/options", nil))
+
+		if response.Code != http.StatusOK || !options.called {
+			t.Fatalf("status=%d called=%v", response.Code, options.called)
+		}
+		body := strings.TrimSpace(response.Body.String())
+		if !strings.HasPrefix(body, "[") || !strings.Contains(body, "C-001") || !strings.Contains(body, "C-002") {
+			t.Fatalf("unexpected body: %s", body)
+		}
+		if strings.Contains(body, "active") || strings.Contains(body, "created_at") {
+			t.Fatalf("options must only include id and code: %s", body)
+		}
+	})
+
+	t.Run("forwards the active filter", func(t *testing.T) {
+		options := &fakeListSowOptionsUseCase{}
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, options, &fakeUpdateSowUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/options?active=false", nil))
+
+		if response.Code != http.StatusOK || !options.called {
+			t.Fatalf("status=%d called=%v", response.Code, options.called)
+		}
+		if options.active == nil || *options.active {
+			t.Fatalf("unexpected active filter: %#v", options.active)
+		}
+	})
+
+	t.Run("sends a nil active filter when the param is empty", func(t *testing.T) {
+		options := &fakeListSowOptionsUseCase{}
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, options, &fakeUpdateSowUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/options", nil))
+
+		if response.Code != http.StatusOK || !options.called {
+			t.Fatalf("status=%d called=%v", response.Code, options.called)
+		}
+		if options.active != nil {
+			t.Fatalf("unexpected active filter: %#v", options.active)
+		}
+	})
+
+	t.Run("returns an empty array when there are no options", func(t *testing.T) {
+		options := &fakeListSowOptionsUseCase{options: []sowdomain.SowOption{}}
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, options, &fakeUpdateSowUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/options", nil))
+
+		if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "[]" {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("rejects an invalid active value", func(t *testing.T) {
+		options := &fakeListSowOptionsUseCase{}
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, options, &fakeUpdateSowUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/options?active=maybe", nil))
+
+		if response.Code != http.StatusBadRequest || options.called {
+			t.Fatalf("status=%d called=%v", response.Code, options.called)
+		}
+	})
+
+	t.Run("maps internal errors", func(t *testing.T) {
+		options := &fakeListSowOptionsUseCase{err: errors.New("unexpected")}
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, options, &fakeUpdateSowUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/options", nil))
+
+		if response.Code != http.StatusInternalServerError {
+			t.Fatalf("status=%d, want %d", response.Code, http.StatusInternalServerError)
+		}
+	})
+}
+
 func TestSowHandlerUpdate(t *testing.T) {
 	sowID := uuid.New()
 	actorID := uuid.New()
@@ -217,7 +295,7 @@ func TestSowHandlerUpdate(t *testing.T) {
 
 	t.Run("updates the provided fields and forwards the actor", func(t *testing.T) {
 		update := &fakeUpdateSowUseCase{sow: handlerSow()}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, update)
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, update)
 		body := `{"code":"C-002","active":false,"entry_date":"2026-02-01","breed_id":"` + breedID.String() + `"}`
 		request := httptest.NewRequest(http.MethodPatch, "/api/v1/sows/"+sowID.String(), strings.NewReader(body))
 		request = authenticatedRequest(request, actorID)
@@ -236,7 +314,7 @@ func TestSowHandlerUpdate(t *testing.T) {
 
 	t.Run("forwards the origin", func(t *testing.T) {
 		update := &fakeUpdateSowUseCase{sow: handlerSow()}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, update)
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, update)
 		request := httptest.NewRequest(http.MethodPatch, "/api/v1/sows/"+sowID.String(), strings.NewReader(`{"origin":"Externo"}`))
 		request = authenticatedRequest(request, actorID)
 		response := serve(handler, request)
@@ -251,7 +329,7 @@ func TestSowHandlerUpdate(t *testing.T) {
 
 	t.Run("forwards empty nullable fields to clear them", func(t *testing.T) {
 		update := &fakeUpdateSowUseCase{sow: handlerSow()}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, update)
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, update)
 		request := httptest.NewRequest(http.MethodPatch, "/api/v1/sows/"+sowID.String(), strings.NewReader(`{"location":"","note":"","birth_date":""}`))
 		request = authenticatedRequest(request, actorID)
 		response := serve(handler, request)
@@ -272,7 +350,7 @@ func TestSowHandlerUpdate(t *testing.T) {
 
 	t.Run("rejects a state field", func(t *testing.T) {
 		update := &fakeUpdateSowUseCase{sow: handlerSow()}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, update)
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, update)
 		request := httptest.NewRequest(http.MethodPatch, "/api/v1/sows/"+sowID.String(), strings.NewReader(`{"state":"Muerta"}`))
 		request = authenticatedRequest(request, actorID)
 		response := serve(handler, request)
@@ -284,7 +362,7 @@ func TestSowHandlerUpdate(t *testing.T) {
 
 	t.Run("rejects a parity field", func(t *testing.T) {
 		update := &fakeUpdateSowUseCase{sow: handlerSow()}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, update)
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, update)
 		request := httptest.NewRequest(http.MethodPatch, "/api/v1/sows/"+sowID.String(), strings.NewReader(`{"parity":5}`))
 		request = authenticatedRequest(request, actorID)
 		response := serve(handler, request)
@@ -296,7 +374,7 @@ func TestSowHandlerUpdate(t *testing.T) {
 
 	t.Run("returns bad request for invalid UUID", func(t *testing.T) {
 		update := &fakeUpdateSowUseCase{}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, update)
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, update)
 		response := serve(handler, httptest.NewRequest(http.MethodPatch, "/api/v1/sows/not-a-uuid", strings.NewReader(`{"code":"C-002"}`)))
 
 		if response.Code != http.StatusBadRequest || update.called {
@@ -306,7 +384,7 @@ func TestSowHandlerUpdate(t *testing.T) {
 
 	t.Run("returns bad request for invalid date and breed", func(t *testing.T) {
 		update := &fakeUpdateSowUseCase{sow: handlerSow()}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, update)
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, update)
 
 		for _, body := range []string{
 			`{"entry_date":"not-a-date"}`,
@@ -324,7 +402,7 @@ func TestSowHandlerUpdate(t *testing.T) {
 
 	t.Run("returns unauthorized when actor is missing", func(t *testing.T) {
 		update := &fakeUpdateSowUseCase{sow: handlerSow()}
-		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, update)
+		handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, update)
 		response := serve(handler, httptest.NewRequest(http.MethodPatch, "/api/v1/sows/"+sowID.String(), strings.NewReader(`{"code":"C-002"}`)))
 
 		if response.Code != http.StatusUnauthorized || update.called {
@@ -345,7 +423,7 @@ func TestSowHandlerUpdate(t *testing.T) {
 		} {
 			t.Run(test.name, func(t *testing.T) {
 				update := &fakeUpdateSowUseCase{err: test.err}
-				handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, update)
+				handler := newTestHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, &fakeListSowOptionsUseCase{}, update)
 				request := httptest.NewRequest(http.MethodPatch, "/api/v1/sows/"+uuid.New().String(), strings.NewReader(`{"code":"C-002"}`))
 				request = authenticatedRequest(request, actorID)
 				response := serve(handler, request)

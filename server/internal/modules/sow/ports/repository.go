@@ -23,6 +23,9 @@ type SowRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*sowdomain.Sow, error)
 	ExistsByCode(ctx context.Context, code string) (bool, error)
 	List(ctx context.Context, filter SowFilter) ([]*sowdomain.Sow, error)
+	// ListOptions returns lightweight sow read models; a true active restricts
+	// to serviceable states while nil or false return every state.
+	ListOptions(ctx context.Context, active *bool) ([]sowdomain.SowOption, error)
 	Update(ctx context.Context, sow *sowdomain.Sow) error
 	UpdateState(ctx context.Context, sow *sowdomain.Sow) error
 }

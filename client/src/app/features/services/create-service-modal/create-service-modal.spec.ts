@@ -15,7 +15,7 @@ class ServicesStub {
 }
 
 class SowsStub {
-  listSows = vi.fn(() => of([]));
+  listSowOptions = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
 }
 
 class BoarsStub {
@@ -33,16 +33,18 @@ class NotificationsStub {
 
 describe('CreateServiceModal', () => {
   let stub: ServicesStub;
+  let sows: SowsStub;
   let notifications: NotificationsStub;
 
   beforeEach(async () => {
     stub = new ServicesStub();
+    sows = new SowsStub();
     notifications = new NotificationsStub();
     await TestBed.configureTestingModule({
       imports: [CreateServiceModal],
       providers: [
         { provide: ServicesService, useValue: stub },
-        { provide: SowsService, useValue: new SowsStub() },
+        { provide: SowsService, useValue: sows },
         { provide: BoarsService, useValue: new BoarsStub() },
         { provide: OperatorsService, useValue: new OperatorsStub() },
         { provide: NotificationService, useValue: notifications },
@@ -63,6 +65,15 @@ describe('CreateServiceModal', () => {
       note: '',
     });
   };
+
+  it('loads the serviceable sow options for selection', async () => {
+    const component = create();
+
+    await component.loadOptions();
+
+    expect(sows.listSowOptions).toHaveBeenCalledWith(true);
+    expect(component.sowOptions()).toEqual([{ value: 'sow-1', label: 'C-001' }]);
+  });
 
   it('does not submit when the form is empty', async () => {
     const component = create();

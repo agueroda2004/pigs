@@ -11,6 +11,7 @@ import (
 type Module struct {
 	CreateSow      *sowapplication.CreateSowService
 	ListSows       *sowapplication.ListSowsService
+	ListSowOptions *sowapplication.ListSowOptionsService
 	UpdateSow      *sowapplication.UpdateSowService
 	ChangeSowState *sowapplication.ChangeSowStateService
 	Handler        *SowHandler
@@ -27,14 +28,16 @@ func NewModule(
 ) *Module {
 	createSow := sowapplication.NewCreateSowService(repository, clock)
 	listSows := sowapplication.NewListSowsService(repository)
+	listSowOptions := sowapplication.NewListSowOptionsService(repository)
 	updateSow := sowapplication.NewUpdateSowService(repository, clock)
 	changeSowState := sowapplication.NewChangeSowStateService(repository, clock)
 
 	return &Module{
 		CreateSow:      createSow,
 		ListSows:       listSows,
+		ListSowOptions: listSowOptions,
 		UpdateSow:      updateSow,
 		ChangeSowState: changeSowState,
-		Handler:        NewSowHandler(createSow, listSows, updateSow, authMiddleware, adminMiddleware),
+		Handler:        NewSowHandler(createSow, listSows, listSowOptions, updateSow, authMiddleware, adminMiddleware),
 	}
 }

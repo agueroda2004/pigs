@@ -10,13 +10,14 @@ import { Service, ServiceFilters, ServiceState } from '../../../core/services/se
 import { ServicesService } from '../../../core/services/services.service';
 import { SowsService } from '../../../core/sows/sows.service';
 import { Dropdown, DropdownOption } from '../../../shared/ui/dropdown/dropdown';
+import { SearchDropdown } from '../../../shared/ui/search-dropdown/search-dropdown';
 import { CreateServiceModal } from '../create-service-modal/create-service-modal';
 import { ServiceCard } from '../service-card/service-card';
 import { SERVICE_STATE_LABELS } from '../service-state';
 
 @Component({
   selector: 'app-services-page',
-  imports: [ReactiveFormsModule, ServiceCard, CreateServiceModal, Dropdown],
+  imports: [ReactiveFormsModule, ServiceCard, CreateServiceModal, Dropdown, SearchDropdown],
   styleUrl: './services-page.css',
   templateUrl: './services-page.html',
 })
@@ -114,15 +115,16 @@ export class ServicesPage implements OnInit {
 
   private async loadLookups(): Promise<void> {
     try {
-      const [sows, boars, operators] = await Promise.all([
+      const [sows, sowOptions, boars, operators] = await Promise.all([
         firstValueFrom(this.sowsService.listSows()),
+        firstValueFrom(this.sowsService.listSowOptions(true)),
         firstValueFrom(this.boarsService.listBoars()),
         firstValueFrom(this.operatorsService.listOperators()),
       ]);
       this.sowCodes.set(new Map(sows.map((sow) => [sow.id, sow.code])));
       this.boarCodes.set(new Map(boars.map((boar) => [boar.id, boar.code])));
       this.operatorNames.set(new Map(operators.map((operator) => [operator.id, operator.name])));
-      this.sowOptions.set(sows.map((sow) => ({ value: sow.id, label: sow.code })));
+      this.sowOptions.set(sowOptions.map((option) => ({ value: option.id, label: option.code })));
     } catch {
       this.sowCodes.set(new Map());
       this.boarCodes.set(new Map());
