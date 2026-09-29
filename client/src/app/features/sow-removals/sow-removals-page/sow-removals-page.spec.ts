@@ -29,6 +29,8 @@ function buildRemoval(id: string): SowRemoval {
 class SowRemovalsStub {
   listSowRemovals = vi.fn(() => of([buildRemoval('1'), buildRemoval('2')]));
   createSowRemoval = vi.fn(() => of(buildRemoval('3')));
+  updateSowRemoval = vi.fn(() => of(buildRemoval('1')));
+  deleteSowRemoval = vi.fn(() => of(void 0));
 }
 
 class SowsStub {
@@ -105,9 +107,7 @@ describe('SowRemovalsPage', () => {
     );
     await component.onCreated('C-001');
 
-    expect(notifications.success).toHaveBeenCalledWith(
-      'Cerda "C-001" removida correctamente',
-    );
+    expect(notifications.success).toHaveBeenCalledWith('Cerda "C-001" removida correctamente');
     expect(component.modalOpen()).toBe(true);
     expect(component.removals()).toHaveLength(3);
   });
@@ -118,6 +118,75 @@ describe('SowRemovalsPage', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Registrar baja');
+  });
+
+  it('opens the edit modal with the selected removal', async () => {
+    const component = create();
+    await component.loadLookups();
+    const removal = buildRemoval('1');
+
+    component.openEdit(removal);
+
+    expect(component.editingRemoval()).toBe(removal);
+    expect(component.editModalOpen()).toBe(true);
+    expect(component.editingSowCode()).toBe('C-001');
+  });
+
+  it('reloads the list and closes the edit modal after updating', async () => {
+    const component = create();
+    await component.loadSowRemovals();
+    component.openEdit(buildRemoval('1'));
+
+    await component.onUpdated(buildRemoval('1'));
+
+    expect(notifications.success).toHaveBeenCalled();
+    expect(component.editModalOpen()).toBe(false);
+  });
+
+  it('hides the edit button for non-admins', async () => {
+    isAdmin.set(false);
+    const fixture = TestBed.createComponent(SowRemovalsPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Editar');
+  });
+
+  it('opens the delete modal with the selected removal', async () => {
+    const component = create();
+    await component.loadLookups();
+    const removal = buildRemoval('1');
+
+    component.openDelete(removal);
+
+    expect(component.deletingRemoval()).toBe(removal);
+    expect(component.deleteModalOpen()).toBe(true);
+    expect(component.deletingSowCode()).toBe('C-001');
+  });
+
+  it('reloads the list and closes the delete modal after deleting', async () => {
+    const component = create();
+    await component.loadSowRemovals();
+    await component.loadLookups();
+    component.openDelete(buildRemoval('1'));
+    stub.listSowRemovals = vi.fn(() => of([buildRemoval('2')]));
+
+    await component.onDeleted();
+
+    expect(notifications.success).toHaveBeenCalled();
+    expect(component.deleteModalOpen()).toBe(false);
+    expect(component.removals()).toHaveLength(1);
+  });
+
+  it('hides the delete button for non-admins', async () => {
+    isAdmin.set(false);
+    const fixture = TestBed.createComponent(SowRemovalsPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
   });
 
   it('applies the sow filter when searching', async () => {

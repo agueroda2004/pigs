@@ -33,6 +33,13 @@ export interface CreateSowRemovalRequest {
   note?: string;
 }
 
+export interface UpdateSowRemovalRequest {
+  removal_date?: string;
+  type?: RemovalType;
+  reason?: RemovalReason;
+  note?: string;
+}
+
 export interface SowRemovalFilters {
   sow_id?: string;
 }

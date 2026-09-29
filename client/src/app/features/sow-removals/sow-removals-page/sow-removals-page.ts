@@ -9,12 +9,21 @@ import { SowRemovalsService } from '../../../core/sow-removals/sow-removals.serv
 import { SowsService } from '../../../core/sows/sows.service';
 import { DropdownOption } from '../../../shared/ui/dropdown/dropdown';
 import { SearchDropdown } from '../../../shared/ui/search-dropdown/search-dropdown';
+import { DeleteSowRemovalModal } from '../delete-sow-removal-modal/delete-sow-removal-modal';
+import { EditSowRemovalModal } from '../edit-sow-removal-modal/edit-sow-removal-modal';
 import { RegisterSowRemovalModal } from '../register-sow-removal-modal/register-sow-removal-modal';
 import { SowRemovalCard } from '../sow-removal-card/sow-removal-card';
 
 @Component({
   selector: 'app-sow-removals-page',
-  imports: [ReactiveFormsModule, SowRemovalCard, RegisterSowRemovalModal, SearchDropdown],
+  imports: [
+    ReactiveFormsModule,
+    SowRemovalCard,
+    RegisterSowRemovalModal,
+    EditSowRemovalModal,
+    DeleteSowRemovalModal,
+    SearchDropdown,
+  ],
   styleUrl: './sow-removals-page.css',
   templateUrl: './sow-removals-page.html',
 })
@@ -33,6 +42,10 @@ export class SowRemovalsPage implements OnInit {
   protected readonly loading = signal(false);
   protected readonly error = signal(false);
   protected readonly modalOpen = signal(false);
+  protected readonly editModalOpen = signal(false);
+  protected readonly editingRemoval = signal<SowRemoval | null>(null);
+  protected readonly deleteModalOpen = signal(false);
+  protected readonly deletingRemoval = signal<SowRemoval | null>(null);
 
   protected readonly hasFilters = computed(() => Object.keys(this.appliedFilters()).length > 0);
 
@@ -55,6 +68,49 @@ export class SowRemovalsPage implements OnInit {
   protected async onCreated(sowCode: string): Promise<void> {
     this.notifications.success(`Cerda "${sowCode}" removida correctamente`);
     await Promise.all([this.loadSowRemovals(), this.loadLookups()]);
+  }
+
+  protected openEdit(removal: SowRemoval): void {
+    this.editingRemoval.set(removal);
+    this.editModalOpen.set(true);
+  }
+
+  protected closeEdit(): void {
+    this.editModalOpen.set(false);
+  }
+
+  protected async onUpdated(removal: SowRemoval): Promise<void> {
+    this.notifications.success(`Baja de "${this.sowCode(removal) ?? 'la cerda'}" actualizada`);
+    await Promise.all([this.loadSowRemovals(), this.loadLookups()]);
+    this.closeEdit();
+  }
+
+  protected editingSowCode(): string | null {
+    const removal = this.editingRemoval();
+    return removal ? this.sowCode(removal) : null;
+  }
+
+  protected openDelete(removal: SowRemoval): void {
+    this.deletingRemoval.set(removal);
+    this.deleteModalOpen.set(true);
+  }
+
+  protected closeDelete(): void {
+    this.deleteModalOpen.set(false);
+  }
+
+  protected async onDeleted(): Promise<void> {
+    const removal = this.deletingRemoval();
+    this.notifications.success(
+      `Baja de "${removal ? (this.sowCode(removal) ?? 'la cerda') : 'la cerda'}" eliminada`,
+    );
+    await Promise.all([this.loadSowRemovals(), this.loadLookups()]);
+    this.closeDelete();
+  }
+
+  protected deletingSowCode(): string | null {
+    const removal = this.deletingRemoval();
+    return removal ? this.sowCode(removal) : null;
   }
 
   protected sowCode(removal: SowRemoval): string | null {

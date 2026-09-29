@@ -95,7 +95,13 @@
   } @else {
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       @for (removal of removals(); track removal.id) {
-        <app-sow-removal-card [removal]="removal" [sowCode]="sowCode(removal)" />
+        <app-sow-removal-card
+          [removal]="removal"
+          [sowCode]="sowCode(removal)"
+          [editable]="isAdmin()"
+          (edit)="openEdit(removal)"
+          (remove)="openDelete(removal)"
+        />
       }
     </div>
   }
@@ -105,4 +111,20 @@
   [open]="modalOpen()"
   (closed)="closeModal()"
   (created)="onCreated($event)"
+/>
+
+<app-edit-sow-removal-modal
+  [open]="editModalOpen()"
+  [removal]="editingRemoval()"
+  [sowCode]="editingSowCode()"
+  (closed)="closeEdit()"
+  (updated)="onUpdated($event)"
+/>
+
+<app-delete-sow-removal-modal
+  [open]="deleteModalOpen()"
+  [removal]="deletingRemoval()"
+  [sowCode]="deletingSowCode()"
+  (closed)="closeDelete()"
+  (deleted)="onDeleted()"
 />

@@ -1,4 +1,4 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, input, output } from '@angular/core';
 
 import { SowRemoval } from '../../../core/sow-removals/sow-removal.models';
 import { SOW_STATE_LABELS } from '../../sows/sow-state';
@@ -13,6 +13,9 @@ import { REMOVAL_TYPE_CLASSES, REMOVAL_TYPE_LABELS } from '../removal-type';
 export class SowRemovalCard {
   readonly removal = input.required<SowRemoval>();
   readonly sowCode = input<string | null>(null);
+  readonly editable = input(false);
+  readonly edit = output<void>();
+  readonly remove = output<void>();
 
   protected readonly typeLabel = computed(() => REMOVAL_TYPE_LABELS[this.removal().type]);
   protected readonly typeClass = computed(() => REMOVAL_TYPE_CLASSES[this.removal().type]);

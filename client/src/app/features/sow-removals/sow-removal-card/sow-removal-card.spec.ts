@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
 
 import { SowRemoval } from '../../../core/sow-removals/sow-removal.models';
 import { SowRemovalCard } from './sow-removal-card';
@@ -54,5 +55,35 @@ describe('SowRemovalCard', () => {
 
     const withNote = render(buildRemoval({ note: 'baja por enfermedad' }), 'C-001');
     expect(withNote.nativeElement.textContent).toContain('baja por enfermedad');
+  });
+
+  it('shows the edit button only when editable', () => {
+    const readOnly = render(buildRemoval(), 'C-001');
+    expect(readOnly.nativeElement.textContent).not.toContain('Editar');
+
+    const fixture = TestBed.createComponent(SowRemovalCard);
+    fixture.componentRef.setInput('removal', buildRemoval());
+    fixture.componentRef.setInput('sowCode', 'C-001');
+    fixture.componentRef.setInput('editable', true);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Editar');
+  });
+
+  it('emits remove when the delete button is clicked', () => {
+    const fixture = TestBed.createComponent(SowRemovalCard);
+    fixture.componentRef.setInput('removal', buildRemoval());
+    fixture.componentRef.setInput('sowCode', 'C-001');
+    fixture.componentRef.setInput('editable', true);
+    fixture.detectChanges();
+    const emitted = vi.fn();
+    fixture.componentInstance.remove.subscribe(emitted);
+
+    const button = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((candidate) => candidate.textContent?.includes('Eliminar'));
+    button?.click();
+
+    expect(emitted).toHaveBeenCalled();
   });
 });

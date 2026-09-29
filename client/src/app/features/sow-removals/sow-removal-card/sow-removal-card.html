@@ -14,4 +14,23 @@
       <p class="truncate">Nota: {{ removal().note }}</p>
     }
   </div>
+
+  @if (editable()) {
+    <div class="mt-3 flex justify-end gap-2">
+      <button
+        type="button"
+        (click)="edit.emit()"
+        class="rounded-md border border-border px-3 py-1.5 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Editar
+      </button>
+      <button
+        type="button"
+        (click)="remove.emit()"
+        class="rounded-md border border-danger px-3 py-1.5 text-sm font-medium text-danger transition hover:bg-danger/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Eliminar
+      </button>
+    </div>
+  }
 </article>

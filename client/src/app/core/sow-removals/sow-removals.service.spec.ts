@@ -74,4 +74,28 @@ describe('SowRemovalsService', () => {
 
     await expect(promise).resolves.toMatchObject({ sow_id: 'sow-1' });
   });
+
+  it('updates a removal', async () => {
+    const payload = { reason: 'Otro' as const, note: '' };
+    const promise = firstValueFrom(service.updateSowRemoval('1', payload));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/sow-removals/1') && request.method === 'PATCH',
+    );
+    expect(call.request.body).toEqual(payload);
+    call.flush(removalPayload);
+
+    await expect(promise).resolves.toMatchObject({ id: '1' });
+  });
+
+  it('deletes a removal', async () => {
+    const promise = firstValueFrom(service.deleteSowRemoval('1'));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/sow-removals/1') && request.method === 'DELETE',
+    );
+    call.flush(null, { status: 204, statusText: 'No Content' });
+
+    await expect(promise).resolves.toBeNull();
+  });
 });

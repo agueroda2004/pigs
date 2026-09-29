@@ -7,6 +7,7 @@ import {
   CreateSowRemovalRequest,
   SowRemoval,
   SowRemovalFilters,
+  UpdateSowRemovalRequest,
 } from './sow-removal.models';
 
 @Injectable({ providedIn: 'root' })
@@ -25,5 +26,13 @@ export class SowRemovalsService {
 
   createSowRemoval(request: CreateSowRemovalRequest): Observable<SowRemoval> {
     return this.http.post<SowRemoval>(this.baseUrl, request);
+  }
+
+  updateSowRemoval(id: string, request: UpdateSowRemovalRequest): Observable<SowRemoval> {
+    return this.http.patch<SowRemoval>(`${this.baseUrl}/${id}`, request);
+  }
+
+  deleteSowRemoval(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
 }
