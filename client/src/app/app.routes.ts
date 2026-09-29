@@ -28,6 +28,13 @@ export const routes: Routes = [
           import('./features/boars/boars-page/boars-page').then((m) => m.BoarsPage),
       },
       {
+        path: 'boar-removals',
+        loadComponent: () =>
+          import('./features/boar-removals/boar-removals-page/boar-removals-page').then(
+            (m) => m.BoarRemovalsPage,
+          ),
+      },
+      {
         path: 'sows',
         loadComponent: () => import('./features/sows/sows-page/sows-page').then((m) => m.SowsPage),
       },

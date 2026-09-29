@@ -46,3 +46,8 @@ export interface BoarFilters {
   origin?: BoarOrigin;
   active?: boolean;
 }
+
+export interface BoarOption {
+  id: string;
+  code: string;
+}

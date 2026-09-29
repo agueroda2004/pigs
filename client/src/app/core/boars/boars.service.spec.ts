@@ -100,4 +100,28 @@ describe('BoarsService', () => {
 
     await expect(promise).resolves.toMatchObject({ code: 'B-002' });
   });
+
+  it('lists boar options with the active filter', async () => {
+    const promise = firstValueFrom(service.listBoarOptions(true));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/boars/options') && request.method === 'GET',
+    );
+    expect(call.request.params.get('active')).toBe('true');
+    call.flush([{ id: '1', code: 'B-001' }]);
+
+    await expect(promise).resolves.toHaveLength(1);
+  });
+
+  it('lists every boar option without the active filter', async () => {
+    const promise = firstValueFrom(service.listBoarOptions());
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/boars/options') && request.method === 'GET',
+    );
+    expect(call.request.params.keys()).toHaveLength(0);
+    call.flush([]);
+
+    await expect(promise).resolves.toHaveLength(0);
+  });
 });

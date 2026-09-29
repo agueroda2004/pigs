@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { Boar, BoarFilters, CreateBoarRequest, UpdateBoarRequest } from './boar.models';
+import { Boar, BoarFilters, BoarOption, CreateBoarRequest, UpdateBoarRequest } from './boar.models';
 
 @Injectable({ providedIn: 'root' })
 export class BoarsService {
@@ -30,6 +30,15 @@ export class BoarsService {
 
   createBoar(request: CreateBoarRequest): Observable<Boar> {
     return this.http.post<Boar>(this.baseUrl, request);
+  }
+
+  listBoarOptions(active?: boolean): Observable<BoarOption[]> {
+    let params = new HttpParams();
+    if (active !== undefined) {
+      params = params.set('active', String(active));
+    }
+
+    return this.http.get<BoarOption[]>(`${this.baseUrl}/options`, { params });
   }
 
   updateBoar(id: string, request: UpdateBoarRequest): Observable<Boar> {
