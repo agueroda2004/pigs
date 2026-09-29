@@ -58,12 +58,12 @@ func (s *CreateSowRemovalService) Execute(ctx context.Context, command CreateSow
 		service = nil
 	}
 
-	lastAbortion, err := s.lastAbortion(ctx, sow.State, command.SowID)
+	lastAbortion, err := lastAbortion(ctx, s.repository, sow.State, command.SowID)
 	if err != nil {
 		return nil, err
 	}
 
-	reference := sowremovaldomain.Reference{}
+	reference := sowremovaldomain.Reference{EntryDate: sow.EntryDate}
 	if service != nil {
 		reference.LastMountDate = latestMountDate(service)
 	}
@@ -115,12 +115,12 @@ func (s *CreateSowRemovalService) Execute(ctx context.Context, command CreateSow
 
 // lastAbortion fetches the last abortion only for states whose date rule needs it.
 // It returns nil when the state does not require the lookup or there is no abortion.
-func (s *CreateSowRemovalService) lastAbortion(ctx context.Context, state sowdomain.State, sowID uuid.UUID) (*abortiondomain.Abortion, error) {
+func lastAbortion(ctx context.Context, repository ports.SowRemovalRepository, state sowdomain.State, sowID uuid.UUID) (*abortiondomain.Abortion, error) {
 	if state != sowdomain.StatePregnant && state != sowdomain.StateAborted {
 		return nil, nil
 	}
 
-	lastAbortion, err := s.repository.GetLastAbortion(ctx, sowID)
+	lastAbortion, err := repository.GetLastAbortion(ctx, sowID)
 	if errors.Is(err, ports.ErrAbortionNotFound) {
 		return nil, nil
 	}

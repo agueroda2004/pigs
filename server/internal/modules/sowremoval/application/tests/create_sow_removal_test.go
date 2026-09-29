@@ -122,6 +122,23 @@ func TestCreateSowRemovalExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects a removal date before the sow entry date", func(t *testing.T) {
+		repository := repositoryWith()
+		useCase := sowremovalapplication.NewCreateSowRemovalService(repository, func() time.Time { return nowReference })
+
+		command := validCommand(sowID, actorID)
+		command.RemovalDate = time.Date(2025, time.November, 30, 0, 0, 0, 0, time.UTC)
+
+		_, err := useCase.Execute(context.Background(), command)
+
+		if !errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeEntry) {
+			t.Fatalf("error = %v, want ErrRemovalDateBeforeEntry", err)
+		}
+		if repository.created != nil {
+			t.Fatalf("removal must not be persisted")
+		}
+	})
+
 	t.Run("validates the removal date against the last mount", func(t *testing.T) {
 		repository := repositoryWith()
 		useCase := sowremovalapplication.NewCreateSowRemovalService(repository, func() time.Time { return nowReference })

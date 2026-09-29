@@ -42,9 +42,53 @@ func (f *fakeListSowRemovalsUseCase) Execute(_ context.Context, filter ports.Sow
 	return f.removals, f.err
 }
 
+type fakeUpdateSowRemovalUseCase struct {
+	removal *sowremovaldomain.SowRemoval
+	err     error
+	id      uuid.UUID
+	command sowremovalapplication.UpdateSowRemovalCommand
+	called  bool
+}
+
+func (f *fakeUpdateSowRemovalUseCase) Execute(_ context.Context, id uuid.UUID, command sowremovalapplication.UpdateSowRemovalCommand) (*sowremovaldomain.SowRemoval, error) {
+	f.called = true
+	f.id = id
+	f.command = command
+	return f.removal, f.err
+}
+
+type fakeDeleteSowRemovalUseCase struct {
+	err     error
+	command sowremovalapplication.DeleteSowRemovalCommand
+	called  bool
+}
+
+func (f *fakeDeleteSowRemovalUseCase) Execute(_ context.Context, command sowremovalapplication.DeleteSowRemovalCommand) error {
+	f.called = true
+	f.command = command
+	return f.err
+}
+
 func newTestHandler(create sowremovalinfra.CreateSowRemovalUseCase, list sowremovalinfra.ListSowRemovalsUseCase) *sowremovalinfra.SowRemovalHandler {
+	return newTestHandlerWithUpdate(create, &fakeUpdateSowRemovalUseCase{}, list)
+}
+
+func newTestHandlerWithUpdate(
+	create sowremovalinfra.CreateSowRemovalUseCase,
+	update sowremovalinfra.UpdateSowRemovalUseCase,
+	list sowremovalinfra.ListSowRemovalsUseCase,
+) *sowremovalinfra.SowRemovalHandler {
+	return newTestHandlerWithDelete(create, update, &fakeDeleteSowRemovalUseCase{}, list)
+}
+
+func newTestHandlerWithDelete(
+	create sowremovalinfra.CreateSowRemovalUseCase,
+	update sowremovalinfra.UpdateSowRemovalUseCase,
+	deleteUseCase sowremovalinfra.DeleteSowRemovalUseCase,
+	list sowremovalinfra.ListSowRemovalsUseCase,
+) *sowremovalinfra.SowRemovalHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return sowremovalinfra.NewSowRemovalHandler(create, list, passThrough, passThrough)
+	return sowremovalinfra.NewSowRemovalHandler(create, update, deleteUseCase, list, passThrough, passThrough)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {

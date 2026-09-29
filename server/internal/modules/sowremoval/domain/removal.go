@@ -49,9 +49,11 @@ var (
 	ErrInvalidType               = errors.New("El tipo de baja no es válido")
 	ErrInvalidReason             = errors.New("El motivo de baja no es válido")
 	ErrInvalidNote               = errors.New("La nota debe tener como máximo 500 caracteres")
+	ErrInvalidUpdate             = errors.New("Debe actualizar al menos un campo de la baja")
 	ErrInvalidCreatedBy          = errors.New("El usuario que crea la baja es obligatorio")
 	ErrInvalidUpdatedBy          = errors.New("El usuario que actualiza la baja es obligatorio")
 	ErrSowNotRemovable           = errors.New("La cerda no está en un estado válido para la baja")
+	ErrRemovalDateBeforeEntry    = errors.New("La fecha de la baja no puede ser anterior a la fecha de ingreso de la cerda")
 	ErrRemovalDateBeforeWeaning  = errors.New("La fecha de la baja debe ser posterior al destete")
 	ErrRemovalDateBeforeService  = errors.New("La fecha de la baja debe ser posterior al último servicio")
 	ErrRemovalDateBeforeAbortion = errors.New("La fecha de la baja debe ser posterior al último aborto")
@@ -88,17 +90,28 @@ type NewSowRemovalParams struct {
 	CreatedBy   uuid.UUID
 }
 
+// UpdateSowRemovalParams holds the mutable fields of a removal for an update.
+// A nil pointer means the field is omitted and stays unchanged; sow_id, last
+// state and the audit fields are not mutable by design.
+type UpdateSowRemovalParams struct {
+	RemovalDate *time.Time
+	Type        *Type
+	Reason      *Reason
+	Note        *string
+}
+
 // Reference groups the dates used to validate a removal by sow state.
 // A zero date means the reference does not exist and its check is skipped.
 type Reference struct {
+	EntryDate        time.Time
 	LastMountDate    time.Time
 	LastAbortionDate time.Time
 	WeaningDate      time.Time
 }
 
 // NewSowRemoval builds a removal after validating its fields and dates.
-// It requires a removable last state, a non-future removal date and, depending
-// on the state, a date after the last mount or the last abortion.
+// It requires a removable last state, a non-future removal date not before the
+// sow entry date and, depending on the state, a date after its references.
 func NewSowRemoval(params NewSowRemovalParams, reference Reference, now time.Time) (*SowRemoval, error) {
 	if params.ID == uuid.Nil {
 		return nil, ErrInvalidID
@@ -146,11 +159,74 @@ func NewSowRemoval(params NewSowRemovalParams, reference Reference, now time.Tim
 	}, nil
 }
 
-// validateRemovalDate checks the removal date against the current day and the
-// reference dates required by the sow state that is being removed.
+// Update applies only the non-nil fields of the params to the removal.
+// It re-validates the given values and, when the date is provided, the date
+// rules against the reference, then records updatedBy plus the timestamp.
+func (r *SowRemoval) Update(params UpdateSowRemovalParams, reference Reference, updatedBy uuid.UUID, now time.Time) error {
+	if r == nil || r.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if params.RemovalDate == nil && params.Type == nil && params.Reason == nil && params.Note == nil {
+		return ErrInvalidUpdate
+	}
+
+	validatedDate := r.RemovalDate
+	if params.RemovalDate != nil {
+		if params.RemovalDate.IsZero() {
+			return ErrInvalidRemovalDate
+		}
+		if err := validateRemovalDate(*params.RemovalDate, r.LastState, reference, now); err != nil {
+			return err
+		}
+		validatedDate = *params.RemovalDate
+	}
+
+	validatedType := r.Type
+	if params.Type != nil {
+		if !isValidType(*params.Type) {
+			return ErrInvalidType
+		}
+		validatedType = *params.Type
+	}
+
+	validatedReason := r.Reason
+	if params.Reason != nil {
+		if !isValidReason(*params.Reason) {
+			return ErrInvalidReason
+		}
+		validatedReason = *params.Reason
+	}
+
+	validatedNote := r.Note
+	if params.Note != nil {
+		var err error
+		validatedNote, err = validateNote(params.Note)
+		if err != nil {
+			return err
+		}
+	}
+
+	r.RemovalDate = validatedDate
+	r.Type = validatedType
+	r.Reason = validatedReason
+	r.Note = validatedNote
+	r.UpdatedAt = now
+	r.UpdatedBy = updatedBy
+	return nil
+}
+
+// validateRemovalDate checks the removal date against the current day, the sow
+// entry date and the reference dates required by the sow state being removed.
 func validateRemovalDate(removalDate time.Time, lastState string, reference Reference, now time.Time) error {
 	if truncateToDay(removalDate).After(truncateToDay(now)) {
 		return ErrRemovalDateInFuture
+	}
+
+	if !reference.EntryDate.IsZero() && truncateToDay(removalDate).Before(truncateToDay(reference.EntryDate)) {
+		return ErrRemovalDateBeforeEntry
 	}
 
 	switch lastState {

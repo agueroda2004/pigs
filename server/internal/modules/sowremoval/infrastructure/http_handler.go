@@ -22,12 +22,22 @@ type CreateSowRemovalUseCase interface {
 	Execute(context.Context, sowremovalapplication.CreateSowRemovalCommand) (*sowremovaldomain.SowRemoval, error)
 }
 
+type UpdateSowRemovalUseCase interface {
+	Execute(context.Context, uuid.UUID, sowremovalapplication.UpdateSowRemovalCommand) (*sowremovaldomain.SowRemoval, error)
+}
+
+type DeleteSowRemovalUseCase interface {
+	Execute(context.Context, sowremovalapplication.DeleteSowRemovalCommand) error
+}
+
 type ListSowRemovalsUseCase interface {
 	Execute(context.Context, ports.SowRemovalFilter) ([]*sowremovaldomain.SowRemoval, error)
 }
 
 type SowRemovalHandler struct {
 	createSowRemoval CreateSowRemovalUseCase
+	updateSowRemoval UpdateSowRemovalUseCase
+	deleteSowRemoval DeleteSowRemovalUseCase
 	listSowRemovals  ListSowRemovalsUseCase
 	authMiddleware   func(http.Handler) http.Handler
 	adminMiddleware  func(http.Handler) http.Handler
@@ -37,23 +47,29 @@ type SowRemovalHandler struct {
 // It returns a handler ready to register its routes.
 func NewSowRemovalHandler(
 	createSowRemoval CreateSowRemovalUseCase,
+	updateSowRemoval UpdateSowRemovalUseCase,
+	deleteSowRemoval DeleteSowRemovalUseCase,
 	listSowRemovals ListSowRemovalsUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *SowRemovalHandler {
 	return &SowRemovalHandler{
 		createSowRemoval: createSowRemoval,
+		updateSowRemoval: updateSowRemoval,
+		deleteSowRemoval: deleteSowRemoval,
 		listSowRemovals:  listSowRemovals,
 		authMiddleware:   authMiddleware,
 		adminMiddleware:  adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the removal create and list endpoints on the mux.
-// Creation is admin-only while the list route only requires authentication.
+// RegisterRoutes registers the removal create, list, update and delete endpoints.
+// Write routes are admin-only while the list route only requires authentication.
 func (h *SowRemovalHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/sow-removals", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/v1/sow-removals", h.authMiddleware(http.HandlerFunc(h.list)))
+	mux.Handle("PATCH /api/v1/sow-removals/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
+	mux.Handle("DELETE /api/v1/sow-removals/{id}", h.adminMiddleware(http.HandlerFunc(h.delete)))
 }
 
 type createSowRemovalRequest struct {
@@ -61,6 +77,13 @@ type createSowRemovalRequest struct {
 	RemovalDate string  `json:"removal_date"`
 	Type        string  `json:"type"`
 	Reason      string  `json:"reason"`
+	Note        *string `json:"note"`
+}
+
+type updateSowRemovalRequest struct {
+	RemovalDate *string `json:"removal_date"`
+	Type        *string `json:"type"`
+	Reason      *string `json:"reason"`
 	Note        *string `json:"note"`
 }
 
@@ -132,6 +155,108 @@ func (h *SowRemovalHandler) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	platformhttp.WriteJSON(w, http.StatusCreated, toSowRemovalResponse(createdRemoval))
+}
+
+// update handles PATCH /api/v1/sow-removals/{id} and applies the provided fields.
+// It parses the id path value, reads the actor and never accepts the sow, which
+// is immutable for an existing removal.
+func (h *SowRemovalHandler) update(w http.ResponseWriter, r *http.Request) {
+	removalID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador de la baja no es válido"))
+		return
+	}
+
+	var request updateSowRemovalRequest
+	if err := platformhttp.DecodeJSON(w, r, &request); err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	removalDate, err := parseSowRemovalDate(request.RemovalDate)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("La fecha de la baja no es válida"))
+		return
+	}
+
+	var removalType *sowremovaldomain.Type
+	if request.Type != nil {
+		parsedType, err := sowremovaldomain.ParseType(*request.Type)
+		if err != nil {
+			platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El tipo de baja no es válido"))
+			return
+		}
+		removalType = &parsedType
+	}
+
+	var reason *sowremovaldomain.Reason
+	if request.Reason != nil {
+		parsedReason, err := sowremovaldomain.ParseReason(*request.Reason)
+		if err != nil {
+			platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El motivo de baja no es válido"))
+			return
+		}
+		reason = &parsedReason
+	}
+
+	actor, ok := authdomain.AuthenticatedUserFromContext(r.Context())
+	if !ok {
+		platformhttp.WriteError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
+		return
+	}
+
+	updatedRemoval, err := h.updateSowRemoval.Execute(r.Context(), removalID, sowremovalapplication.UpdateSowRemovalCommand{
+		RemovalDate: removalDate,
+		Type:        removalType,
+		Reason:      reason,
+		Note:        request.Note,
+		UpdatedBy:   actor.UserID,
+	})
+	if err != nil {
+		writeSowRemovalError(w, err)
+		return
+	}
+
+	platformhttp.WriteJSON(w, http.StatusOK, toSowRemovalResponse(updatedRemoval))
+}
+
+// parseSowRemovalDate parses an optional removal date using the shared layout.
+// It returns nil when value is nil and an error for an unparseable date.
+func parseSowRemovalDate(value *string) (*time.Time, error) {
+	if value == nil {
+		return nil, nil
+	}
+	parsed, err := time.Parse(dateLayout, *value)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
+}
+
+// delete handles DELETE /api/v1/sow-removals/{id} and undoes the removal.
+// It parses the id path value, reads the actor and returns no content.
+func (h *SowRemovalHandler) delete(w http.ResponseWriter, r *http.Request) {
+	removalID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador de la baja no es válido"))
+		return
+	}
+
+	actor, ok := authdomain.AuthenticatedUserFromContext(r.Context())
+	if !ok {
+		platformhttp.WriteError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
+		return
+	}
+
+	if err := h.deleteSowRemoval.Execute(r.Context(), sowremovalapplication.DeleteSowRemovalCommand{
+		ID:        removalID,
+		DeletedBy: actor.UserID,
+	}); err != nil {
+		writeSowRemovalError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // list handles GET /api/v1/sow-removals and returns the removals matching the filter.
@@ -208,7 +333,8 @@ func writeSowRemovalError(w http.ResponseWriter, err error) {
 		errors.Is(err, ports.ErrAbortionNotFound):
 		status = http.StatusNotFound
 	case errors.Is(err, ports.ErrSowAlreadyRemoved),
-		errors.Is(err, sowremovalapplication.ErrSowNotRemovable):
+		errors.Is(err, sowremovalapplication.ErrSowNotRemovable),
+		errors.Is(err, sowremovalapplication.ErrSowStateMismatch):
 		status = http.StatusConflict
 	case errors.Is(err, sowremovaldomain.ErrInvalidID),
 		errors.Is(err, sowremovaldomain.ErrInvalidSow),
@@ -217,9 +343,11 @@ func writeSowRemovalError(w http.ResponseWriter, err error) {
 		errors.Is(err, sowremovaldomain.ErrInvalidType),
 		errors.Is(err, sowremovaldomain.ErrInvalidReason),
 		errors.Is(err, sowremovaldomain.ErrInvalidNote),
+		errors.Is(err, sowremovaldomain.ErrInvalidUpdate),
 		errors.Is(err, sowremovaldomain.ErrInvalidCreatedBy),
 		errors.Is(err, sowremovaldomain.ErrInvalidUpdatedBy),
 		errors.Is(err, sowremovaldomain.ErrSowNotRemovable),
+		errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeEntry),
 		errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeWeaning),
 		errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeService),
 		errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeAbortion):

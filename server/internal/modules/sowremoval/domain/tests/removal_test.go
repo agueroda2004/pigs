@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	entryDay        = time.Date(2025, time.December, 1, 0, 0, 0, 0, time.UTC)
 	lastMountDay    = time.Date(2026, time.January, 10, 0, 0, 0, 0, time.UTC)
 	lastAbortionDay = time.Date(2026, time.January, 5, 0, 0, 0, 0, time.UTC)
 	weaningDay      = time.Date(2026, time.January, 8, 0, 0, 0, 0, time.UTC)
@@ -35,6 +36,7 @@ func validRemovalParams() sowremovaldomain.NewSowRemovalParams {
 
 func validReference() sowremovaldomain.Reference {
 	return sowremovaldomain.Reference{
+		EntryDate:        entryDay,
 		LastMountDate:    lastMountDay,
 		LastAbortionDate: lastAbortionDay,
 		WeaningDate:      weaningDay,
@@ -195,6 +197,25 @@ func TestNewSowRemoval(t *testing.T) {
 }
 
 func TestNewSowRemovalDatesByState(t *testing.T) {
+	t.Run("rejects a removal before the sow entry date", func(t *testing.T) {
+		params := validRemovalParams()
+		params.RemovalDate = entryDay.AddDate(0, 0, -1)
+
+		if _, err := sowremovaldomain.NewSowRemoval(params, validReference(), nowReference); !errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeEntry) {
+			t.Fatalf("expected ErrRemovalDateBeforeEntry, got %v", err)
+		}
+	})
+
+	t.Run("accepts a removal on the sow entry date", func(t *testing.T) {
+		params := validRemovalParams()
+		params.LastState = "Viva"
+		params.RemovalDate = entryDay
+
+		if _, err := sowremovaldomain.NewSowRemoval(params, validReference(), nowReference); err != nil {
+			t.Fatalf("NewSowRemoval() error = %v", err)
+		}
+	})
+
 	t.Run("alive does not require references", func(t *testing.T) {
 		params := validRemovalParams()
 		params.LastState = "Viva"
@@ -251,6 +272,136 @@ func TestNewSowRemovalDatesByState(t *testing.T) {
 
 		if _, err := sowremovaldomain.NewSowRemoval(params, validReference(), nowReference); !errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeWeaning) {
 			t.Fatalf("expected ErrRemovalDateBeforeWeaning, got %v", err)
+		}
+	})
+}
+
+func TestSowRemovalUpdate(t *testing.T) {
+	updatedBy := uuid.New()
+	updatedAt := nowReference.Add(time.Hour)
+
+	newRemoval := func(t *testing.T) *sowremovaldomain.SowRemoval {
+		t.Helper()
+		removal, err := sowremovaldomain.NewSowRemoval(validRemovalParams(), validReference(), nowReference)
+		if err != nil {
+			t.Fatalf("NewSowRemoval() error = %v", err)
+		}
+		return removal
+	}
+
+	t.Run("updates the provided fields and records the auditor", func(t *testing.T) {
+		removal := newRemoval(t)
+		newDate := time.Date(2026, time.January, 20, 0, 0, 0, 0, time.UTC)
+		newType := sowremovaldomain.TypeSacrifice
+		newReason := sowremovaldomain.ReasonOther
+		note := "  actualizada  "
+
+		err := removal.Update(sowremovaldomain.UpdateSowRemovalParams{
+			RemovalDate: &newDate,
+			Type:        &newType,
+			Reason:      &newReason,
+			Note:        &note,
+		}, validReference(), updatedBy, updatedAt)
+
+		if err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if !removal.RemovalDate.Equal(newDate) || removal.Type != newType || removal.Reason != newReason {
+			t.Fatalf("unexpected removal: %#v", removal)
+		}
+		if removal.Note == nil || *removal.Note != "actualizada" {
+			t.Fatalf("unexpected note: %#v", removal.Note)
+		}
+		if !removal.UpdatedAt.Equal(updatedAt) || removal.UpdatedBy != updatedBy {
+			t.Fatalf("unexpected audit: %#v", removal)
+		}
+	})
+
+	t.Run("clears the note with an empty string", func(t *testing.T) {
+		removal := newRemoval(t)
+		empty := "   "
+
+		if err := removal.Update(sowremovaldomain.UpdateSowRemovalParams{Note: &empty}, validReference(), updatedBy, updatedAt); err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if removal.Note != nil {
+			t.Fatalf("expected nil note, got %#v", removal.Note)
+		}
+	})
+
+	t.Run("rejects an empty update", func(t *testing.T) {
+		removal := newRemoval(t)
+
+		if err := removal.Update(sowremovaldomain.UpdateSowRemovalParams{}, validReference(), updatedBy, updatedAt); !errors.Is(err, sowremovaldomain.ErrInvalidUpdate) {
+			t.Fatalf("expected ErrInvalidUpdate, got %v", err)
+		}
+	})
+
+	t.Run("rejects an invalid auditor", func(t *testing.T) {
+		removal := newRemoval(t)
+		reason := sowremovaldomain.ReasonOther
+
+		if err := removal.Update(sowremovaldomain.UpdateSowRemovalParams{Reason: &reason}, validReference(), uuid.Nil, updatedAt); !errors.Is(err, sowremovaldomain.ErrInvalidUpdatedBy) {
+			t.Fatalf("expected ErrInvalidUpdatedBy, got %v", err)
+		}
+	})
+
+	t.Run("rejects a zero date", func(t *testing.T) {
+		removal := newRemoval(t)
+		zero := time.Time{}
+
+		if err := removal.Update(sowremovaldomain.UpdateSowRemovalParams{RemovalDate: &zero}, validReference(), updatedBy, updatedAt); !errors.Is(err, sowremovaldomain.ErrInvalidRemovalDate) {
+			t.Fatalf("expected ErrInvalidRemovalDate, got %v", err)
+		}
+	})
+
+	t.Run("rejects a date before the entry date", func(t *testing.T) {
+		removal := newRemoval(t)
+		beforeEntry := entryDay.AddDate(0, 0, -1)
+
+		if err := removal.Update(sowremovaldomain.UpdateSowRemovalParams{RemovalDate: &beforeEntry}, validReference(), updatedBy, updatedAt); !errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeEntry) {
+			t.Fatalf("expected ErrRemovalDateBeforeEntry, got %v", err)
+		}
+	})
+
+	t.Run("rejects a date before the last mount", func(t *testing.T) {
+		params := validRemovalParams()
+		params.LastState = "Gestando"
+		removal, err := sowremovaldomain.NewSowRemoval(params, validReference(), nowReference)
+		if err != nil {
+			t.Fatalf("NewSowRemoval() error = %v", err)
+		}
+		date := lastMountDay
+
+		if err := removal.Update(sowremovaldomain.UpdateSowRemovalParams{RemovalDate: &date}, validReference(), updatedBy, updatedAt); !errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeService) {
+			t.Fatalf("expected ErrRemovalDateBeforeService, got %v", err)
+		}
+	})
+
+	t.Run("rejects an invalid type", func(t *testing.T) {
+		removal := newRemoval(t)
+		invalid := sowremovaldomain.Type("Otro")
+
+		if err := removal.Update(sowremovaldomain.UpdateSowRemovalParams{Type: &invalid}, validReference(), updatedBy, updatedAt); !errors.Is(err, sowremovaldomain.ErrInvalidType) {
+			t.Fatalf("expected ErrInvalidType, got %v", err)
+		}
+	})
+
+	t.Run("rejects an invalid reason", func(t *testing.T) {
+		removal := newRemoval(t)
+		invalid := sowremovaldomain.Reason("Invalido")
+
+		if err := removal.Update(sowremovaldomain.UpdateSowRemovalParams{Reason: &invalid}, validReference(), updatedBy, updatedAt); !errors.Is(err, sowremovaldomain.ErrInvalidReason) {
+			t.Fatalf("expected ErrInvalidReason, got %v", err)
+		}
+	})
+
+	t.Run("rejects a too long note", func(t *testing.T) {
+		removal := newRemoval(t)
+		note := strings.Repeat("a", 501)
+
+		if err := removal.Update(sowremovaldomain.UpdateSowRemovalParams{Note: &note}, validReference(), updatedBy, updatedAt); !errors.Is(err, sowremovaldomain.ErrInvalidNote) {
+			t.Fatalf("expected ErrInvalidNote, got %v", err)
 		}
 	})
 }

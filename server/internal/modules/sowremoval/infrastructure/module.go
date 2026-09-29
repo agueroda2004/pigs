@@ -10,6 +10,8 @@ import (
 
 type Module struct {
 	CreateSowRemoval *sowremovalapplication.CreateSowRemovalService
+	UpdateSowRemoval *sowremovalapplication.UpdateSowRemovalService
+	DeleteSowRemoval *sowremovalapplication.DeleteSowRemovalService
 	ListSowRemovals  *sowremovalapplication.ListSowRemovalsService
 	Handler          *SowRemovalHandler
 }
@@ -23,11 +25,15 @@ func NewModule(
 	adminMiddleware func(http.Handler) http.Handler,
 ) *Module {
 	createSowRemoval := sowremovalapplication.NewCreateSowRemovalService(repository, clock)
+	updateSowRemoval := sowremovalapplication.NewUpdateSowRemovalService(repository, clock)
+	deleteSowRemoval := sowremovalapplication.NewDeleteSowRemovalService(repository, clock)
 	listSowRemovals := sowremovalapplication.NewListSowRemovalsService(repository)
 
 	return &Module{
 		CreateSowRemoval: createSowRemoval,
+		UpdateSowRemoval: updateSowRemoval,
+		DeleteSowRemoval: deleteSowRemoval,
 		ListSowRemovals:  listSowRemovals,
-		Handler:          NewSowRemovalHandler(createSowRemoval, listSowRemovals, authMiddleware, adminMiddleware),
+		Handler:          NewSowRemovalHandler(createSowRemoval, updateSowRemoval, deleteSowRemoval, listSowRemovals, authMiddleware, adminMiddleware),
 	}
 }

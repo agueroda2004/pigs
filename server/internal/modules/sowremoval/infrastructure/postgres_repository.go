@@ -29,6 +29,38 @@ func NewPostgresSowRemovalRepository(pool *pgxpool.Pool) *PostgresSowRemovalRepo
 	return &PostgresSowRemovalRepository{pool: pool}
 }
 
+// GetByID fetches the removal referenced by its identifier.
+// It returns ports.ErrSowRemovalNotFound when no row matches.
+func (r *PostgresSowRemovalRepository) GetByID(ctx context.Context, id uuid.UUID) (*sowremovaldomain.SowRemoval, error) {
+	result := &sowremovaldomain.SowRemoval{}
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, sow_id, removal_date, type, reason, note, last_state,
+		       created_at, updated_at, created_by, updated_by
+		FROM sow_removals
+		WHERE id = $1
+	`, id).Scan(
+		&result.ID,
+		&result.SowID,
+		&result.RemovalDate,
+		&result.Type,
+		&result.Reason,
+		&result.Note,
+		&result.LastState,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.CreatedBy,
+		&result.UpdatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrSowRemovalNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar la baja: %w", err)
+	}
+	return result, nil
+}
+
 // GetSow fetches the sow referenced by a removal by its identifier.
 // It returns ports.ErrSowNotFound when no row matches.
 func (r *PostgresSowRemovalRepository) GetSow(ctx context.Context, id uuid.UUID) (*sowdomain.Sow, error) {
@@ -258,6 +290,146 @@ func (r *PostgresSowRemovalRepository) Create(
 
 	if err := transaction.Commit(ctx); err != nil {
 		return fmt.Errorf("No se pudo guardar la baja: %w", err)
+	}
+	return nil
+}
+
+// Update persists the removal fields and, when provided, the sow state change.
+// Both writes run in a single transaction so the rows always change together;
+// the sow may be nil when the removal type did not change.
+func (r *PostgresSowRemovalRepository) Update(
+	ctx context.Context,
+	removal *sowremovaldomain.SowRemoval,
+	sow *sowdomain.Sow,
+) error {
+	transaction, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("No se pudo actualizar la baja: %w", err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	commandTag, err := transaction.Exec(ctx, `
+		UPDATE sow_removals
+		SET removal_date = $2,
+		    type = $3,
+		    reason = $4,
+		    note = $5,
+		    updated_at = $6,
+		    updated_by = $7
+		WHERE id = $1
+	`,
+		removal.ID,
+		removal.RemovalDate,
+		removal.Type,
+		removal.Reason,
+		removal.Note,
+		removal.UpdatedAt,
+		removal.UpdatedBy,
+	)
+	if err != nil {
+		return mapPostgresError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrSowRemovalNotFound
+	}
+
+	if sow != nil {
+		commandTag, err = transaction.Exec(ctx, `
+			UPDATE sows
+			SET state = $2,
+			    updated_at = $3,
+			    updated_by = $4
+			WHERE id = $1
+		`,
+			sow.ID,
+			sow.State,
+			sow.UpdatedAt,
+			sow.UpdatedBy,
+		)
+		if err != nil {
+			return mapPostgresError(err)
+		}
+		if commandTag.RowsAffected() == 0 {
+			return ports.ErrSowNotFound
+		}
+	}
+
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("No se pudo actualizar la baja: %w", err)
+	}
+	return nil
+}
+
+// Delete removes the removal and undoes its effects on the sow and its service.
+// All writes run in a single transaction so the rows always change together; the
+// service may be nil when it does not need to be restored.
+func (r *PostgresSowRemovalRepository) Delete(
+	ctx context.Context,
+	removal *sowremovaldomain.SowRemoval,
+	sow *sowdomain.Sow,
+	service *servicedomain.Service,
+) error {
+	transaction, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar la baja: %w", err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	commandTag, err := transaction.Exec(ctx, `
+		DELETE FROM sow_removals
+		WHERE id = $1
+	`, removal.ID)
+	if err != nil {
+		return mapPostgresError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrSowRemovalNotFound
+	}
+
+	commandTag, err = transaction.Exec(ctx, `
+		UPDATE sows
+		SET state = $2,
+		    active = $3,
+		    updated_at = $4,
+		    updated_by = $5
+		WHERE id = $1
+	`,
+		sow.ID,
+		sow.State,
+		sow.Active,
+		sow.UpdatedAt,
+		sow.UpdatedBy,
+	)
+	if err != nil {
+		return mapPostgresError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrSowNotFound
+	}
+
+	if service != nil {
+		commandTag, err = transaction.Exec(ctx, `
+			UPDATE services
+			SET state = $2,
+			    updated_at = $3,
+			    updated_by = $4
+			WHERE id = $1
+		`,
+			service.ID,
+			service.State,
+			service.UpdatedAt,
+			service.UpdatedBy,
+		)
+		if err != nil {
+			return mapPostgresError(err)
+		}
+		if commandTag.RowsAffected() == 0 {
+			return ports.ErrServiceNotFound
+		}
+	}
+
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("No se pudo eliminar la baja: %w", err)
 	}
 	return nil
 }
