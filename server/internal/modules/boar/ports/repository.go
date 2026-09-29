@@ -22,6 +22,7 @@ type BoarRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*boardomain.Boar, error)
 	ExistsByCode(ctx context.Context, code string) (bool, error)
 	List(ctx context.Context, filter BoarFilter) ([]*boardomain.Boar, error)
+	ListOptions(ctx context.Context, active *bool) ([]boardomain.BoarOption, error)
 	Update(ctx context.Context, boar *boardomain.Boar) error
 	UpdateState(ctx context.Context, boar *boardomain.Boar) error
 }

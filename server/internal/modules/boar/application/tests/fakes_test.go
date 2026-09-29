@@ -10,19 +10,22 @@ import (
 )
 
 type fakeBoarRepository struct {
-	exists         bool
-	existsErr      error
-	getBoar        *boardomain.Boar
-	getErr         error
-	listBoars      []*boardomain.Boar
-	listErr        error
-	listFilter     ports.BoarFilter
-	createErr      error
-	updateErr      error
-	updateStateErr error
-	created        *boardomain.Boar
-	updated        *boardomain.Boar
-	updatedState   *boardomain.Boar
+	exists            bool
+	existsErr         error
+	getBoar           *boardomain.Boar
+	getErr            error
+	listBoars         []*boardomain.Boar
+	listErr           error
+	listFilter        ports.BoarFilter
+	listOptions       []boardomain.BoarOption
+	listOptionsErr    error
+	listOptionsActive *bool
+	createErr         error
+	updateErr         error
+	updateStateErr    error
+	created           *boardomain.Boar
+	updated           *boardomain.Boar
+	updatedState      *boardomain.Boar
 }
 
 func (f *fakeBoarRepository) Create(_ context.Context, boar *boardomain.Boar) error {
@@ -41,6 +44,11 @@ func (f *fakeBoarRepository) ExistsByCode(_ context.Context, _ string) (bool, er
 func (f *fakeBoarRepository) List(_ context.Context, filter ports.BoarFilter) ([]*boardomain.Boar, error) {
 	f.listFilter = filter
 	return f.listBoars, f.listErr
+}
+
+func (f *fakeBoarRepository) ListOptions(_ context.Context, active *bool) ([]boardomain.BoarOption, error) {
+	f.listOptionsActive = active
+	return f.listOptions, f.listOptionsErr
 }
 
 func (f *fakeBoarRepository) Update(_ context.Context, boar *boardomain.Boar) error {

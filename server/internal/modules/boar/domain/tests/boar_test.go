@@ -500,3 +500,17 @@ func TestBoarChangeState(t *testing.T) {
 		}
 	})
 }
+
+func TestParseState(t *testing.T) {
+	state, err := boardomain.ParseState("  Vivo  ")
+	if err != nil {
+		t.Fatalf("ParseState() error = %v", err)
+	}
+	if state != boardomain.StateAlive {
+		t.Fatalf("ParseState() = %q", state)
+	}
+
+	if _, err := boardomain.ParseState("Invalido"); !errors.Is(err, boardomain.ErrInvalidState) {
+		t.Fatalf("expected ErrInvalidState, got %v", err)
+	}
+}

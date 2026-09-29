@@ -31,9 +31,14 @@ type UpdateBoarUseCase interface {
 	Execute(context.Context, uuid.UUID, boarapplication.UpdateBoarCommand) (*boardomain.Boar, error)
 }
 
+type ListBoarOptionsUseCase interface {
+	Execute(context.Context, *bool) ([]boardomain.BoarOption, error)
+}
+
 type BoarHandler struct {
 	createBoar      CreateBoarUseCase
 	listBoars       ListBoarsUseCase
+	listBoarOptions ListBoarOptionsUseCase
 	updateBoar      UpdateBoarUseCase
 	authMiddleware  func(http.Handler) http.Handler
 	adminMiddleware func(http.Handler) http.Handler
@@ -44,6 +49,7 @@ type BoarHandler struct {
 func NewBoarHandler(
 	createBoar CreateBoarUseCase,
 	listBoars ListBoarsUseCase,
+	listBoarOptions ListBoarOptionsUseCase,
 	updateBoar UpdateBoarUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
@@ -51,17 +57,19 @@ func NewBoarHandler(
 	return &BoarHandler{
 		createBoar:      createBoar,
 		listBoars:       listBoars,
+		listBoarOptions: listBoarOptions,
 		updateBoar:      updateBoar,
 		authMiddleware:  authMiddleware,
 		adminMiddleware: adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the boar create, list and update endpoints on the mux.
-// Write routes are admin-only while the list route only requires authentication.
+// RegisterRoutes registers the boar create, list, options and update endpoints.
+// Write routes are admin-only while the read routes only require authentication.
 func (h *BoarHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/boars", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/v1/boars", h.authMiddleware(http.HandlerFunc(h.list)))
+	mux.Handle("GET /api/v1/boars/options", h.authMiddleware(http.HandlerFunc(h.listOptions)))
 	mux.Handle("PATCH /api/v1/boars/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
 }
 
@@ -101,6 +109,11 @@ type boarResponse struct {
 	UpdatedAt string    `json:"updated_at"`
 	CreatedBy uuid.UUID `json:"created_by"`
 	UpdatedBy uuid.UUID `json:"updated_by"`
+}
+
+type boarOptionResponse struct {
+	ID   uuid.UUID `json:"id"`
+	Code string    `json:"code"`
 }
 
 // create handles POST /api/v1/boars and creates a boar from the request body.
@@ -170,6 +183,38 @@ func (h *BoarHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	platformhttp.WriteJSON(w, http.StatusOK, toBoarResponses(boars))
+}
+
+// listOptions handles GET /api/v1/boars/options and returns the boar options.
+// It forwards the optional active filter so callers may list all boars when empty.
+func (h *BoarHandler) listOptions(w http.ResponseWriter, r *http.Request) {
+	active, err := parseBoarOptionsActive(r)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	options, err := h.listBoarOptions.Execute(r.Context(), active)
+	if err != nil {
+		writeBoarError(w, err)
+		return
+	}
+
+	platformhttp.WriteJSON(w, http.StatusOK, toBoarOptionResponses(options))
+}
+
+// parseBoarOptionsActive reads the optional active query parameter.
+// It returns nil when empty (no filter) and an error for a non-boolean value.
+func parseBoarOptionsActive(r *http.Request) (*bool, error) {
+	active := strings.TrimSpace(r.URL.Query().Get("active"))
+	if active == "" {
+		return nil, nil
+	}
+	parsedActive, err := strconv.ParseBool(active)
+	if err != nil {
+		return nil, errors.New("El filtro de activo no es válido")
+	}
+	return &parsedActive, nil
 }
 
 // parseBoarFilter reads the optional list filters from the query string.
@@ -323,6 +368,16 @@ func toBoarResponses(boars []*boardomain.Boar) []boarResponse {
 	responses := make([]boarResponse, 0, len(boars))
 	for _, boar := range boars {
 		responses = append(responses, toBoarResponse(boar))
+	}
+	return responses
+}
+
+// toBoarOptionResponses maps boar options to their HTTP response shape.
+// It returns an empty slice instead of null when there are no options.
+func toBoarOptionResponses(options []boardomain.BoarOption) []boarOptionResponse {
+	responses := make([]boarOptionResponse, 0, len(options))
+	for _, option := range options {
+		responses = append(responses, boarOptionResponse{ID: option.ID, Code: option.Code})
 	}
 	return responses
 }

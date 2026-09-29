@@ -43,6 +43,9 @@ func main() {
 	boarHandler := dependencies.Boar.Handler
 	boarHandler.RegisterRoutes(mux)
 
+	boarRemovalHandler := dependencies.BoarRemoval.Handler
+	boarRemovalHandler.RegisterRoutes(mux)
+
 	sowHandler := dependencies.Sow.Handler
 	sowHandler.RegisterRoutes(mux)
 

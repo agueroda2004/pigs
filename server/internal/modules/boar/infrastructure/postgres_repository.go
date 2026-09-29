@@ -163,6 +163,35 @@ func (r *PostgresBoarRepository) List(ctx context.Context, filter ports.BoarFilt
 	return boars, nil
 }
 
+// ListOptions fetches the id and code of the boars matching the active filter.
+// A true active restricts the result to alive boars; nil or false apply no
+// filter and return every state, active or inactive.
+func (r *PostgresBoarRepository) ListOptions(ctx context.Context, active *bool) ([]boardomain.BoarOption, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, code
+		FROM boars
+		WHERE ($1::boolean IS NOT TRUE OR state = 'Vivo')
+		ORDER BY code ASC
+	`, active)
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar los verracos: %w", err)
+	}
+	defer rows.Close()
+
+	options := make([]boardomain.BoarOption, 0)
+	for rows.Next() {
+		var option boardomain.BoarOption
+		if err := rows.Scan(&option.ID, &option.Code); err != nil {
+			return nil, fmt.Errorf("No se pudo consultar los verracos: %w", err)
+		}
+		options = append(options, option)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudo consultar los verracos: %w", err)
+	}
+	return options, nil
+}
+
 // Update persists the boar's user-mutable fields by id, never its state.
 // It returns ErrBoarNotFound when no row was affected.
 func (r *PostgresBoarRepository) Update(ctx context.Context, boar *boardomain.Boar) error {

@@ -11,6 +11,7 @@ import (
 type Module struct {
 	CreateBoar      *boarapplication.CreateBoarService
 	ListBoars       *boarapplication.ListBoarsService
+	ListBoarOptions *boarapplication.ListBoarOptionsService
 	UpdateBoar      *boarapplication.UpdateBoarService
 	ChangeBoarState *boarapplication.ChangeBoarStateService
 	Handler         *BoarHandler
@@ -27,14 +28,16 @@ func NewModule(
 ) *Module {
 	createBoar := boarapplication.NewCreateBoarService(repository, clock)
 	listBoars := boarapplication.NewListBoarsService(repository)
+	listBoarOptions := boarapplication.NewListBoarOptionsService(repository)
 	updateBoar := boarapplication.NewUpdateBoarService(repository, clock)
 	changeBoarState := boarapplication.NewChangeBoarStateService(repository, clock)
 
 	return &Module{
 		CreateBoar:      createBoar,
 		ListBoars:       listBoars,
+		ListBoarOptions: listBoarOptions,
 		UpdateBoar:      updateBoar,
 		ChangeBoarState: changeBoarState,
-		Handler:         NewBoarHandler(createBoar, listBoars, updateBoar, authMiddleware, adminMiddleware),
+		Handler:         NewBoarHandler(createBoar, listBoars, listBoarOptions, updateBoar, authMiddleware, adminMiddleware),
 	}
 }

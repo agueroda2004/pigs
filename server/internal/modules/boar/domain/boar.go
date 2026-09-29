@@ -68,6 +68,13 @@ type Boar struct {
 	UpdatedBy uuid.UUID
 }
 
+// BoarOption is a lightweight boar read model for selection lists.
+// It only carries the identifier and code of a boar.
+type BoarOption struct {
+	ID   uuid.UUID
+	Code string
+}
+
 // NewBoarParams holds the fields required to build a new boar.
 // Optional values are represented as pointers and may be nil; the state is not
 // part of the params because every new boar starts as StateAlive.
@@ -365,4 +372,14 @@ func ParseOrigin(value string) (Origin, error) {
 		return "", ErrInvalidOrigin
 	}
 	return origin, nil
+}
+
+// ParseState trims and validates a raw state value.
+// It returns ErrInvalidState when the value is empty or unknown.
+func ParseState(value string) (State, error) {
+	state := State(strings.TrimSpace(value))
+	if !isValidState(state) {
+		return "", ErrInvalidState
+	}
+	return state, nil
 }

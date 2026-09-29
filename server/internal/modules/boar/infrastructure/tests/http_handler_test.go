@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	boardomain "server/internal/modules/boar/domain"
+	boarinfra "server/internal/modules/boar/infrastructure"
 	"server/internal/modules/boar/ports"
 )
 
@@ -336,6 +337,79 @@ func TestBoarHandlerUpdate(t *testing.T) {
 					t.Fatalf("status=%d, want %d", response.Code, test.status)
 				}
 			})
+		}
+	})
+}
+
+func TestBoarHandlerListOptions(t *testing.T) {
+	newOptionsHandler := func(options *fakeListBoarOptionsUseCase) *boarinfra.BoarHandler {
+		return newTestHandlerWithOptions(
+			&fakeCreateBoarUseCase{},
+			&fakeListBoarsUseCase{},
+			options,
+			&fakeUpdateBoarUseCase{},
+		)
+	}
+
+	t.Run("returns the boar options", func(t *testing.T) {
+		options := &fakeListBoarOptionsUseCase{
+			options: []boardomain.BoarOption{
+				{ID: uuid.New(), Code: "B-001"},
+				{ID: uuid.New(), Code: "B-002"},
+			},
+		}
+		handler := newOptionsHandler(options)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/options", nil))
+
+		if response.Code != http.StatusOK || !options.called {
+			t.Fatalf("status=%d called=%v", response.Code, options.called)
+		}
+		if options.active != nil {
+			t.Fatalf("unexpected active filter: %#v", options.active)
+		}
+		body := response.Body.String()
+		if !strings.Contains(body, "B-001") || !strings.Contains(body, "B-002") {
+			t.Fatalf("unexpected body: %s", body)
+		}
+	})
+
+	t.Run("forwards the active filter", func(t *testing.T) {
+		options := &fakeListBoarOptionsUseCase{options: []boardomain.BoarOption{}}
+		handler := newOptionsHandler(options)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/options?active=true", nil))
+
+		if response.Code != http.StatusOK || options.active == nil || !*options.active {
+			t.Fatalf("status=%d active=%#v", response.Code, options.active)
+		}
+	})
+
+	t.Run("returns an empty array when there are no options", func(t *testing.T) {
+		options := &fakeListBoarOptionsUseCase{options: []boardomain.BoarOption{}}
+		handler := newOptionsHandler(options)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/options", nil))
+
+		if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "[]" {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("rejects an invalid active value", func(t *testing.T) {
+		options := &fakeListBoarOptionsUseCase{}
+		handler := newOptionsHandler(options)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/options?active=not-bool", nil))
+
+		if response.Code != http.StatusBadRequest || options.called {
+			t.Fatalf("status=%d called=%v", response.Code, options.called)
+		}
+	})
+
+	t.Run("maps internal errors", func(t *testing.T) {
+		options := &fakeListBoarOptionsUseCase{err: errors.New("unexpected")}
+		handler := newOptionsHandler(options)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/options", nil))
+
+		if response.Code != http.StatusInternalServerError {
+			t.Fatalf("status=%d, want %d", response.Code, http.StatusInternalServerError)
 		}
 	})
 }

@@ -57,9 +57,31 @@ func (f *fakeUpdateBoarUseCase) Execute(_ context.Context, boarID uuid.UUID, com
 	return f.boar, f.err
 }
 
+type fakeListBoarOptionsUseCase struct {
+	options []boardomain.BoarOption
+	err     error
+	active  *bool
+	called  bool
+}
+
+func (f *fakeListBoarOptionsUseCase) Execute(_ context.Context, active *bool) ([]boardomain.BoarOption, error) {
+	f.called = true
+	f.active = active
+	return f.options, f.err
+}
+
 func newTestHandler(create boarinfra.CreateBoarUseCase, list boarinfra.ListBoarsUseCase, update boarinfra.UpdateBoarUseCase) *boarinfra.BoarHandler {
+	return newTestHandlerWithOptions(create, list, &fakeListBoarOptionsUseCase{}, update)
+}
+
+func newTestHandlerWithOptions(
+	create boarinfra.CreateBoarUseCase,
+	list boarinfra.ListBoarsUseCase,
+	options boarinfra.ListBoarOptionsUseCase,
+	update boarinfra.UpdateBoarUseCase,
+) *boarinfra.BoarHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return boarinfra.NewBoarHandler(create, list, update, passThrough, passThrough)
+	return boarinfra.NewBoarHandler(create, list, options, update, passThrough, passThrough)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {
