@@ -11,6 +11,7 @@ import (
 	boarinfrastructure "server/internal/modules/boar/infrastructure"
 	boarremovalinfrastructure "server/internal/modules/boarremoval/infrastructure"
 	breedinfrastructure "server/internal/modules/breed/infrastructure"
+	medicationinfrastructure "server/internal/modules/medication/infrastructure"
 	operatorinfrastructure "server/internal/modules/operator/infrastructure"
 	serviceinfrastructure "server/internal/modules/service/infrastructure"
 	sowinfrastructure "server/internal/modules/sow/infrastructure"
@@ -28,6 +29,7 @@ type Container struct {
 	BoarRemoval *boarremovalinfrastructure.Module
 	Sow         *sowinfrastructure.Module
 	Operator    *operatorinfrastructure.Module
+	Medication  *medicationinfrastructure.Module
 	Service     *serviceinfrastructure.Module
 	Abortion    *abortioninfrastructure.Module
 	SowRemoval  *sowremovalinfrastructure.Module
@@ -61,6 +63,9 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 
 	// + === OPERATOR MODULE ===
 	operatorRepository := operatorinfrastructure.NewPostgresOperatorRepository(db)
+
+	// + === MEDICATION MODULE ===
+	medicationRepository := medicationinfrastructure.NewPostgresMedicationRepository(db)
 
 	// + === SERVICE MODULE ===
 	serviceRepository := serviceinfrastructure.NewPostgresServiceRepository(db)
@@ -107,6 +112,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		BoarRemoval: boarremovalinfrastructure.NewModule(boarRemovalRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Sow:         sowinfrastructure.NewModule(sowRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Operator:    operatorinfrastructure.NewModule(operatorRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Medication:  medicationinfrastructure.NewModule(medicationRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Service:     serviceinfrastructure.NewModule(serviceRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Abortion:    abortioninfrastructure.NewModule(abortionRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		SowRemoval:  sowremovalinfrastructure.NewModule(sowRemovalRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),

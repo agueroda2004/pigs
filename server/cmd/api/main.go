@@ -52,6 +52,9 @@ func main() {
 	operatorHandler := dependencies.Operator.Handler
 	operatorHandler.RegisterRoutes(mux)
 
+	medicationHandler := dependencies.Medication.Handler
+	medicationHandler.RegisterRoutes(mux)
+
 	serviceHandler := dependencies.Service.Handler
 	serviceHandler.RegisterRoutes(mux)
 

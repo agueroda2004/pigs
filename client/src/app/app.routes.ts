@@ -56,6 +56,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'medications',
+        loadComponent: () =>
+          import('./features/medications/medications-page/medications-page').then(
+            (m) => m.MedicationsPage,
+          ),
+      },
+      {
         path: 'operators',
         canActivate: [adminGuard],
         loadComponent: () =>
