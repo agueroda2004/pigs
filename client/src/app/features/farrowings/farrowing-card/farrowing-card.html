@@ -1,0 +1,62 @@
+<article class="rounded-xl border border-border bg-card p-4">
+  <div class="flex items-start justify-between gap-3">
+    <h2 class="truncate font-medium">Cerda {{ sowCode() ?? 'sin identificar' }}</h2>
+    @if (farrowing().is_manipulated) {
+      <span class="shrink-0 rounded-full bg-warning/10 px-2.5 py-0.5 text-xs font-medium text-warning">
+        Manipulado
+      </span>
+    }
+  </div>
+
+  <div class="mt-2 space-y-1 text-sm text-muted-foreground">
+    <p class="truncate">Fecha: {{ farrowing().farrow_date }}</p>
+    @if (timeRange()) {
+      <p class="truncate">Horario: {{ timeRange() }}</p>
+    }
+    @if (duration()) {
+      <p class="truncate">Duración: {{ duration() }}</p>
+    }
+    @if (farrowing().location) {
+      <p class="truncate">Ubicación: {{ farrowing().location }}</p>
+    }
+  </div>
+
+  <div class="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-center">
+    <div>
+      <p class="text-xs text-muted-foreground">Vivos</p>
+      <p class="text-lg font-semibold">{{ farrowing().live_born }}</p>
+    </div>
+    <div>
+      <p class="text-xs text-muted-foreground">Muertos</p>
+      <p class="text-lg font-semibold">{{ farrowing().stillborn }}</p>
+    </div>
+    <div>
+      <p class="text-xs text-muted-foreground">Momificados</p>
+      <p class="text-lg font-semibold">{{ farrowing().mummified }}</p>
+    </div>
+  </div>
+
+  <div class="mt-2 space-y-1 text-sm text-muted-foreground">
+    <p class="truncate">Total nacidos: {{ totalBorn() }}</p>
+    @if (farrowing().litter_weight !== null) {
+      <p class="truncate">Peso camada: {{ farrowing().litter_weight }} kg</p>
+    }
+    @if (farrowing().stillborn_weight !== null) {
+      <p class="truncate">Peso nacidos muertos: {{ farrowing().stillborn_weight }} kg</p>
+    }
+    @if (farrowing().note) {
+      <p class="truncate">Nota: {{ farrowing().note }}</p>
+    }
+  </div>
+
+  @if (farrowing().operators.length > 0 || farrowing().medications.length > 0) {
+    <div class="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+      @if (farrowing().operators.length > 0) {
+        <p class="truncate">Operadores: {{ farrowing().operators.length }}</p>
+      }
+      @if (farrowing().medications.length > 0) {
+        <p class="truncate">Medicamentos: {{ farrowing().medications.length }}</p>
+      }
+    </div>
+  }
+</article>

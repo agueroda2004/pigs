@@ -172,6 +172,28 @@
       </a>
 
       <a
+        routerLink="/farrowings"
+        routerLinkActive="bg-muted font-medium text-foreground"
+        (click)="closeSidebar()"
+        class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-4 w-4"
+        >
+          <path d="M12 3v6M9 6h6" />
+          <circle cx="12" cy="15" r="5" />
+        </svg>
+        <span>Partos</span>
+      </a>
+
+      <a
         routerLink="/sow-removals"
         routerLinkActive="bg-muted font-medium text-foreground"
         (click)="closeSidebar()"

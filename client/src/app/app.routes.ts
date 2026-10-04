@@ -49,6 +49,13 @@ export const routes: Routes = [
           import('./features/abortions/abortions-page/abortions-page').then((m) => m.AbortionsPage),
       },
       {
+        path: 'farrowings',
+        loadComponent: () =>
+          import('./features/farrowings/farrowings-page/farrowings-page').then(
+            (m) => m.FarrowingsPage,
+          ),
+      },
+      {
         path: 'sow-removals',
         loadComponent: () =>
           import('./features/sow-removals/sow-removals-page/sow-removals-page').then(

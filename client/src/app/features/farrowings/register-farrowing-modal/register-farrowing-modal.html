@@ -1,0 +1,317 @@
+<app-modal [open]="open()" size="xl" title="Registrar parto" (closed)="closed.emit()">
+  <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Cerda</span>
+        <app-search-dropdown
+          formControlName="sow_id"
+          [options]="sowOptions()"
+          placeholder="Seleccionar cerda"
+        />
+        @if (form.controls.sow_id.touched && form.controls.sow_id.invalid) {
+          <p class="text-xs text-danger">La cerda es obligatoria.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Fecha del parto</span>
+        <app-date-picker
+          formControlName="farrow_date"
+          [maxDate]="today"
+          placeholder="Seleccionar fecha"
+        />
+        @if (form.controls.farrow_date.touched && form.controls.farrow_date.invalid) {
+          <p class="text-xs text-danger">La fecha del parto es obligatoria.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Hora de inicio</span>
+        <app-time-picker formControlName="start_time" placeholder="Opcional" />
+      </div>
+
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Hora de fin</span>
+        <app-time-picker formControlName="end_time" placeholder="Opcional" />
+      </div>
+
+      <div class="space-y-1.5">
+        <label for="farrowing-live-born" class="block text-sm font-medium">Nacidos vivos</label>
+        <input
+          id="farrowing-live-born"
+          type="number"
+          min="0"
+          formControlName="live_born"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+        />
+        @if (form.controls.live_born.touched && form.controls.live_born.invalid) {
+          <p class="text-xs text-danger">La cantidad no puede ser negativa.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <label for="farrowing-stillborn" class="block text-sm font-medium">Nacidos muertos</label>
+        <input
+          id="farrowing-stillborn"
+          type="number"
+          min="0"
+          formControlName="stillborn"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+        />
+        @if (form.controls.stillborn.touched && form.controls.stillborn.invalid) {
+          <p class="text-xs text-danger">La cantidad no puede ser negativa.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <label for="farrowing-mummified" class="block text-sm font-medium">Momificados</label>
+        <input
+          id="farrowing-mummified"
+          type="number"
+          min="0"
+          formControlName="mummified"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+        />
+        @if (form.controls.mummified.touched && form.controls.mummified.invalid) {
+          <p class="text-xs text-danger">La cantidad no puede ser negativa.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <label for="farrowing-litter-weight" class="block text-sm font-medium">
+          Peso de la camada (kg)
+        </label>
+        <input
+          id="farrowing-litter-weight"
+          type="number"
+          min="0"
+          step="0.01"
+          formControlName="litter_weight"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+        />
+        @if (form.controls.litter_weight.touched && form.controls.litter_weight.invalid) {
+          <p class="text-xs text-danger">El peso no puede ser negativo.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <label for="farrowing-stillborn-weight" class="block text-sm font-medium">
+          Peso nacidos muertos (kg)
+        </label>
+        <input
+          id="farrowing-stillborn-weight"
+          type="number"
+          min="0"
+          step="0.01"
+          formControlName="stillborn_weight"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+        />
+        @if (form.controls.stillborn_weight.touched && form.controls.stillborn_weight.invalid) {
+          <p class="text-xs text-danger">El peso no puede ser negativo.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <label for="farrowing-location" class="block text-sm font-medium">Ubicación</label>
+        <input
+          id="farrowing-location"
+          type="text"
+          autocomplete="off"
+          formControlName="location"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+        />
+        @if (form.controls.location.touched && form.controls.location.invalid) {
+          <p class="text-xs text-danger">La ubicación debe tener como máximo 100 caracteres.</p>
+        }
+      </div>
+
+      <label class="flex cursor-pointer items-center justify-between gap-3 sm:col-span-2">
+        <span class="text-sm font-medium">Parto manipulado</span>
+        <input type="checkbox" formControlName="is_manipulated" class="peer sr-only" />
+        <span
+          class="relative h-6 w-11 shrink-0 rounded-full bg-muted transition peer-checked:bg-success after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-background after:transition peer-checked:after:translate-x-5"
+        ></span>
+      </label>
+    </div>
+
+    <div class="space-y-2 border-t border-border pt-4" formArrayName="operators">
+      <div class="flex items-center justify-between">
+        <span class="text-sm font-medium">Operadores</span>
+        <button
+          type="button"
+          (click)="addOperator()"
+          class="rounded-md border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Añadir operador
+        </button>
+      </div>
+
+      @if (operatorsArray.length === 0) {
+        <p class="text-xs text-muted-foreground">Sin operadores añadidos.</p>
+      }
+
+      @for (group of operatorsArray.controls; track $index; let index = $index) {
+        <div class="flex items-end gap-2" [formGroupName]="index">
+          <div class="flex-1 space-y-1.5">
+            <app-search-dropdown
+              formControlName="operator_id"
+              [options]="operatorOptions()"
+              placeholder="Seleccionar operador"
+            />
+            @if (
+              operatorGroup(index).controls.operator_id.touched &&
+              operatorGroup(index).controls.operator_id.invalid
+            ) {
+              <p class="text-xs text-danger">El operador es obligatorio.</p>
+            }
+          </div>
+          <button
+            type="button"
+            (click)="removeOperator(index)"
+            aria-label="Quitar operador"
+            class="mb-0.5 inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:bg-muted hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-4 w-4"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      }
+    </div>
+
+    <div class="space-y-2 border-t border-border pt-4" formArrayName="medications">
+      <div class="flex items-center justify-between">
+        <span class="text-sm font-medium">Medicamentos</span>
+        <button
+          type="button"
+          (click)="addMedication()"
+          class="rounded-md border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Añadir medicamento
+        </button>
+      </div>
+
+      @if (medicationsArray.length === 0) {
+        <p class="text-xs text-muted-foreground">Sin medicamentos añadidos.</p>
+      } @else {
+        <div
+          class="hidden gap-2 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[1fr_5rem_1fr_2.25rem]"
+        >
+          <span>Medicamento</span>
+          <span>Dosis</span>
+          <span>Operador</span>
+          <span></span>
+        </div>
+      }
+
+      @for (group of medicationsArray.controls; track $index; let index = $index) {
+        <div class="grid items-end gap-2 sm:grid-cols-[1fr_5rem_1fr_2.25rem]" [formGroupName]="index">
+          <div class="space-y-1.5">
+            <app-dropdown
+              formControlName="medication_id"
+              [options]="medicationOptions()"
+              placeholder="Medicamento"
+            />
+            @if (
+              medicationGroup(index).controls.medication_id.touched &&
+              medicationGroup(index).controls.medication_id.invalid
+            ) {
+              <p class="text-xs text-danger">El medicamento es obligatorio.</p>
+            }
+          </div>
+
+          <div class="space-y-1.5">
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              formControlName="dose"
+              aria-label="Dosis"
+              placeholder="Dosis"
+              class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+            />
+            @if (
+              medicationGroup(index).controls.dose.touched &&
+              medicationGroup(index).controls.dose.invalid
+            ) {
+              <p class="text-xs text-danger">La dosis debe ser mayor que cero.</p>
+            }
+          </div>
+
+          <div class="space-y-1.5">
+            <app-dropdown
+              formControlName="applied_by"
+              [options]="operatorOptions()"
+              placeholder="Aplicado por"
+            />
+            @if (
+              medicationGroup(index).controls.applied_by.touched &&
+              medicationGroup(index).controls.applied_by.invalid
+            ) {
+              <p class="text-xs text-danger">El operador es obligatorio.</p>
+            }
+          </div>
+
+          <button
+            type="button"
+            (click)="removeMedication(index)"
+            aria-label="Quitar medicamento"
+            class="mb-0.5 inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:bg-muted hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-4 w-4"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      }
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="farrowing-note" class="block text-sm font-medium">Nota</label>
+      <textarea
+        id="farrowing-note"
+        rows="2"
+        formControlName="note"
+        class="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      ></textarea>
+      @if (form.controls.note.touched && form.controls.note.invalid) {
+        <p class="text-xs text-danger">La nota debe tener como máximo 500 caracteres.</p>
+      }
+    </div>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        [disabled]="loading()"
+        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Registrando…' : 'Registrar parto' }}
+      </button>
+    </div>
+  </form>
+</app-modal>

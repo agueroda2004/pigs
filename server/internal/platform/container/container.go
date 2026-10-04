@@ -11,6 +11,7 @@ import (
 	boarinfrastructure "server/internal/modules/boar/infrastructure"
 	boarremovalinfrastructure "server/internal/modules/boarremoval/infrastructure"
 	breedinfrastructure "server/internal/modules/breed/infrastructure"
+	farrowinginfrastructure "server/internal/modules/farrowing/infrastructure"
 	medicationinfrastructure "server/internal/modules/medication/infrastructure"
 	operatorinfrastructure "server/internal/modules/operator/infrastructure"
 	serviceinfrastructure "server/internal/modules/service/infrastructure"
@@ -33,6 +34,7 @@ type Container struct {
 	Service     *serviceinfrastructure.Module
 	Abortion    *abortioninfrastructure.Module
 	SowRemoval  *sowremovalinfrastructure.Module
+	Farrowing   *farrowinginfrastructure.Module
 	Auth        *authinfrastructure.Module
 }
 
@@ -76,6 +78,9 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 	// + === SOW REMOVAL MODULE ===
 	sowRemovalRepository := sowremovalinfrastructure.NewPostgresSowRemovalRepository(db)
 
+	// + === FARROWING MODULE ===
+	farrowingRepository := farrowinginfrastructure.NewPostgresFarrowingRepository(db)
+
 	// + === AUTH MODULE ===
 	refreshTokenRepository := authinfrastructure.NewPostgresRefreshTokenRepository(db)
 	tokenGenerator := authinfrastructure.NewRandomTokenGenerator()
@@ -116,6 +121,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		Service:     serviceinfrastructure.NewModule(serviceRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Abortion:    abortioninfrastructure.NewModule(abortionRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		SowRemoval:  sowremovalinfrastructure.NewModule(sowRemovalRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Farrowing:   farrowinginfrastructure.NewModule(farrowingRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Auth:        authModule,
 	}, nil
 }

@@ -64,6 +64,9 @@ func main() {
 	sowRemovalHandler := dependencies.SowRemoval.Handler
 	sowRemovalHandler.RegisterRoutes(mux)
 
+	farrowingHandler := dependencies.Farrowing.Handler
+	farrowingHandler.RegisterRoutes(mux)
+
 	server := &http.Server{
 		Addr:    ":" + applicationConfig.Port,
 		Handler: platformhttp.CORS(applicationConfig.CorsAllowedOrigins)(mux),
