@@ -33,11 +33,28 @@ func TestNewFarrowing(t *testing.T) {
 		if farrowing.LiveBorn != 0 || farrowing.Stillborn != 0 || farrowing.Mummified != 0 {
 			t.Fatalf("unexpected counts: %#v", farrowing)
 		}
+		if farrowing.CurrentPiglets != 0 {
+			t.Fatalf("current piglets = %d, want 0", farrowing.CurrentPiglets)
+		}
 		if farrowing.IsManipulated {
 			t.Fatalf("expected IsManipulated false")
 		}
 		if !farrowing.CreatedAt.Equal(now) || farrowing.CreatedBy != farrowing.UpdatedBy {
 			t.Fatalf("unexpected audit fields: %#v", farrowing)
+		}
+	})
+
+	t.Run("initializes current piglets from live born", func(t *testing.T) {
+		params := validParams()
+		params.LiveBorn = 10
+
+		farrowing, err := farrowingdomain.NewFarrowing(params, nil, nil, lastMount, now)
+
+		if err != nil {
+			t.Fatalf("NewFarrowing() error = %v", err)
+		}
+		if farrowing.CurrentPiglets != 10 {
+			t.Fatalf("current piglets = %d, want 10", farrowing.CurrentPiglets)
 		}
 	})
 
@@ -274,6 +291,84 @@ func TestNewFarrowingOperator(t *testing.T) {
 
 		if !errors.Is(err, farrowingdomain.ErrInvalidFarrowingOperatorOperator) {
 			t.Fatalf("error = %v, want ErrInvalidFarrowingOperatorOperator", err)
+		}
+	})
+}
+
+func TestFarrowingReduceCurrentPiglets(t *testing.T) {
+	now := time.Date(2026, time.February, 2, 3, 4, 5, 0, time.UTC)
+	actor := uuid.New()
+
+	t.Run("reduces the current piglets balance", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New(), CurrentPiglets: 10}
+
+		if err := farrowing.ReduceCurrentPiglets(4, actor, now); err != nil {
+			t.Fatalf("ReduceCurrentPiglets() error = %v", err)
+		}
+		if farrowing.CurrentPiglets != 6 {
+			t.Fatalf("current piglets = %d, want 6", farrowing.CurrentPiglets)
+		}
+		if !farrowing.UpdatedAt.Equal(now) || farrowing.UpdatedBy != actor {
+			t.Fatalf("unexpected audit fields: %#v", farrowing)
+		}
+	})
+
+	t.Run("rejects a non-positive quantity", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New(), CurrentPiglets: 10}
+
+		if err := farrowing.ReduceCurrentPiglets(0, actor, now); !errors.Is(err, farrowingdomain.ErrInvalidPigletQuantity) {
+			t.Fatalf("error = %v, want ErrInvalidPigletQuantity", err)
+		}
+	})
+
+	t.Run("rejects a quantity greater than the balance", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New(), CurrentPiglets: 3}
+
+		if err := farrowing.ReduceCurrentPiglets(4, actor, now); !errors.Is(err, farrowingdomain.ErrInsufficientPiglets) {
+			t.Fatalf("error = %v, want ErrInsufficientPiglets", err)
+		}
+	})
+
+	t.Run("rejects a nil updated by", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New(), CurrentPiglets: 3}
+
+		if err := farrowing.ReduceCurrentPiglets(1, uuid.Nil, now); !errors.Is(err, farrowingdomain.ErrInvalidUpdatedBy) {
+			t.Fatalf("error = %v, want ErrInvalidUpdatedBy", err)
+		}
+	})
+}
+
+func TestFarrowingAddCurrentPiglets(t *testing.T) {
+	now := time.Date(2026, time.February, 2, 3, 4, 5, 0, time.UTC)
+	actor := uuid.New()
+
+	t.Run("increases the current piglets balance", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New(), CurrentPiglets: 10}
+
+		if err := farrowing.AddCurrentPiglets(4, actor, now); err != nil {
+			t.Fatalf("AddCurrentPiglets() error = %v", err)
+		}
+		if farrowing.CurrentPiglets != 14 {
+			t.Fatalf("current piglets = %d, want 14", farrowing.CurrentPiglets)
+		}
+		if !farrowing.UpdatedAt.Equal(now) || farrowing.UpdatedBy != actor {
+			t.Fatalf("unexpected audit fields: %#v", farrowing)
+		}
+	})
+
+	t.Run("rejects a non-positive quantity", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New(), CurrentPiglets: 10}
+
+		if err := farrowing.AddCurrentPiglets(0, actor, now); !errors.Is(err, farrowingdomain.ErrInvalidPigletQuantity) {
+			t.Fatalf("error = %v, want ErrInvalidPigletQuantity", err)
+		}
+	})
+
+	t.Run("rejects a nil updated by", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New(), CurrentPiglets: 10}
+
+		if err := farrowing.AddCurrentPiglets(1, uuid.Nil, now); !errors.Is(err, farrowingdomain.ErrInvalidUpdatedBy) {
+			t.Fatalf("error = %v, want ErrInvalidUpdatedBy", err)
 		}
 	})
 }

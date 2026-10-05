@@ -1,0 +1,91 @@
+<app-modal [open]="open()" size="xl" title="Registrar traslado" (closed)="closed.emit()">
+  <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Cerda donante</span>
+        <app-search-dropdown
+          formControlName="donor_sow_id"
+          [options]="sowOptions()"
+          placeholder="Seleccionar cerda"
+        />
+        @if (form.controls.donor_sow_id.touched && form.controls.donor_sow_id.invalid) {
+          <p class="text-xs text-danger">La cerda donante es obligatoria.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Cerda receptora</span>
+        <app-search-dropdown
+          formControlName="receiver_sow_id"
+          [options]="sowOptions()"
+          placeholder="Seleccionar cerda"
+        />
+        @if (form.controls.receiver_sow_id.touched && form.controls.receiver_sow_id.invalid) {
+          <p class="text-xs text-danger">La cerda receptora es obligatoria.</p>
+        }
+      </div>
+    </div>
+
+    @if (form.hasError('sameSow') && form.controls.receiver_sow_id.touched) {
+      <p class="text-xs text-danger">Las cerdas donante y receptora no pueden ser la misma.</p>
+    }
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Fecha del traslado</span>
+        <app-date-picker
+          formControlName="movement_date"
+          [maxDate]="today"
+          placeholder="Seleccionar fecha"
+        />
+        @if (form.controls.movement_date.touched && form.controls.movement_date.invalid) {
+          <p class="text-xs text-danger">La fecha del traslado es obligatoria.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <label for="piglet-fostering-quantity" class="block text-sm font-medium">Cantidad</label>
+        <input
+          id="piglet-fostering-quantity"
+          type="number"
+          min="1"
+          formControlName="quantity"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+        />
+        @if (form.controls.quantity.touched && form.controls.quantity.invalid) {
+          <p class="text-xs text-danger">La cantidad debe ser mayor a cero.</p>
+        }
+      </div>
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="piglet-fostering-note" class="block text-sm font-medium">Nota</label>
+      <textarea
+        id="piglet-fostering-note"
+        rows="2"
+        formControlName="note"
+        class="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      ></textarea>
+      @if (form.controls.note.touched && form.controls.note.invalid) {
+        <p class="text-xs text-danger">La nota debe tener como máximo 500 caracteres.</p>
+      }
+    </div>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        [disabled]="loading()"
+        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Registrando…' : 'Registrar traslado' }}
+      </button>
+    </div>
+  </form>
+</app-modal>

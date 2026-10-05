@@ -22,6 +22,7 @@ function buildFarrowing(id: string): Farrowing {
     live_born: 10,
     stillborn: 1,
     mummified: 0,
+    current_piglets: 10,
     litter_weight: null,
     stillborn_weight: null,
     is_manipulated: false,

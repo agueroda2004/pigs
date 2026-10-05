@@ -185,7 +185,7 @@ func TestFarrowingHandlerList(t *testing.T) {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)
 		}
 		body := response.Body.String()
-		for _, want := range []string{"2026-04-20", "Corral 3", "operators", "medications"} {
+		for _, want := range []string{"2026-04-20", "Corral 3", "operators", "medications", "current_piglets"} {
 			if !strings.Contains(body, want) {
 				t.Fatalf("body missing %q: %s", want, body)
 			}

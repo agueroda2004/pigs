@@ -56,6 +56,20 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'piglet-deaths',
+        loadComponent: () =>
+          import('./features/piglet-deaths/piglet-deaths-page/piglet-deaths-page').then(
+            (m) => m.PigletDeathsPage,
+          ),
+      },
+      {
+        path: 'piglet-fosterings',
+        loadComponent: () =>
+          import('./features/piglet-fosterings/piglet-fosterings-page/piglet-fosterings-page').then(
+            (m) => m.PigletFosteringsPage,
+          ),
+      },
+      {
         path: 'sow-removals',
         loadComponent: () =>
           import('./features/sow-removals/sow-removals-page/sow-removals-page').then(

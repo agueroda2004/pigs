@@ -16,6 +16,7 @@ const farrowingPayload = {
   live_born: 10,
   stillborn: 1,
   mummified: 0,
+  current_piglets: 10,
   litter_weight: 15.5,
   stillborn_weight: null,
   is_manipulated: false,

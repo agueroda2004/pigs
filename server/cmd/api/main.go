@@ -67,6 +67,12 @@ func main() {
 	farrowingHandler := dependencies.Farrowing.Handler
 	farrowingHandler.RegisterRoutes(mux)
 
+	pigletDeathHandler := dependencies.PigletDeath.Handler
+	pigletDeathHandler.RegisterRoutes(mux)
+
+	pigletFosteringHandler := dependencies.PigletFostering.Handler
+	pigletFosteringHandler.RegisterRoutes(mux)
+
 	server := &http.Server{
 		Addr:    ":" + applicationConfig.Port,
 		Handler: platformhttp.CORS(applicationConfig.CorsAllowedOrigins)(mux),

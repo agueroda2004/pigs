@@ -38,6 +38,8 @@ var (
 	ErrFarrowDateBeforeMount  = errors.New("La fecha del parto debe ser posterior a la última monta")
 	ErrDuplicateOperator      = errors.New("No se puede repetir un operador en el parto")
 	ErrDuplicateMedication    = errors.New("No se puede repetir un medicamento en el parto")
+	ErrInvalidPigletQuantity  = errors.New("La cantidad de lechones debe ser mayor a cero")
+	ErrInsufficientPiglets    = errors.New("La cantidad supera los lechones actuales")
 )
 
 // Farrowing is the aggregate root that represents a sow farrowing (parto).
@@ -54,6 +56,7 @@ type Farrowing struct {
 	LiveBorn        int
 	Stillborn       int
 	Mummified       int
+	CurrentPiglets  int
 	LitterWeight    *float64
 	StillbornWeight *float64
 	IsManipulated   bool
@@ -92,6 +95,7 @@ type NewFarrowingParams struct {
 // than the last mount date, validates time formats without comparing them (so
 // overnight farrowings are allowed) and rejects duplicate operators or
 // medications. It sets the audit fields to the creator and both timestamps to now.
+// The current piglets balance starts at the live born count.
 func NewFarrowing(
 	params NewFarrowingParams,
 	operators []NewFarrowingOperatorParams,
@@ -196,6 +200,7 @@ func NewFarrowing(
 		LiveBorn:        params.LiveBorn,
 		Stillborn:       params.Stillborn,
 		Mummified:       params.Mummified,
+		CurrentPiglets:  params.LiveBorn,
 		LitterWeight:    params.LitterWeight,
 		StillbornWeight: params.StillbornWeight,
 		IsManipulated:   params.IsManipulated,
@@ -225,6 +230,48 @@ func (f *Farrowing) CrossesMidnight() bool {
 		return false
 	}
 	return end.Before(start)
+}
+
+// ReduceCurrentPiglets subtracts the given quantity from the current balance.
+// It rejects non-positive quantities and quantities greater than the current
+// balance, then records updatedBy plus the timestamp.
+func (f *Farrowing) ReduceCurrentPiglets(quantity int, updatedBy uuid.UUID, now time.Time) error {
+	if f == nil || f.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if quantity <= 0 {
+		return ErrInvalidPigletQuantity
+	}
+	if quantity > f.CurrentPiglets {
+		return ErrInsufficientPiglets
+	}
+
+	f.CurrentPiglets -= quantity
+	f.UpdatedAt = now
+	f.UpdatedBy = updatedBy
+	return nil
+}
+
+// AddCurrentPiglets adds the given quantity to the current balance.
+// It rejects non-positive quantities, then records updatedBy plus the timestamp.
+func (f *Farrowing) AddCurrentPiglets(quantity int, updatedBy uuid.UUID, now time.Time) error {
+	if f == nil || f.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if quantity <= 0 {
+		return ErrInvalidPigletQuantity
+	}
+
+	f.CurrentPiglets += quantity
+	f.UpdatedAt = now
+	f.UpdatedBy = updatedBy
+	return nil
 }
 
 // validateFarrowDate checks the farrow date bounds against the last mount.

@@ -15,6 +15,7 @@ function buildFarrowing(overrides: Partial<Farrowing> = {}): Farrowing {
     live_born: 10,
     stillborn: 1,
     mummified: 2,
+    current_piglets: 8,
     litter_weight: 15.5,
     stillborn_weight: null,
     is_manipulated: false,
@@ -50,6 +51,14 @@ describe('FarrowingCard', () => {
     expect(text).toContain('1');
     expect(text).toContain('2');
     expect(text).toContain('13');
+  });
+
+  it('renders the current piglets balance', () => {
+    const fixture = render(buildFarrowing({ current_piglets: 7 }), 'C-001');
+    const text = fixture.nativeElement.textContent;
+
+    expect(text).toContain('Actuales');
+    expect(text).toContain('7');
   });
 
   it('renders the time range and location', () => {

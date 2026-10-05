@@ -1,0 +1,21 @@
+<article class="rounded-xl border border-border bg-card p-4">
+  <div class="flex items-start justify-between gap-3">
+    <h2 class="truncate font-medium">Cerda {{ sowCode() ?? 'sin identificar' }}</h2>
+    <span class="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium" [class]="causeClass()">
+      {{ causeLabel() }}
+    </span>
+  </div>
+
+  <div class="mt-2 space-y-1 text-sm text-muted-foreground">
+    <p class="truncate">Fecha: {{ death().death_date }}</p>
+    <p class="truncate">Cantidad: {{ death().quantity }}</p>
+    @if (death().weight !== null) {
+      <p class="truncate">Peso: {{ death().weight }} kg</p>
+    }
+    <p class="truncate">Turno: {{ turnLabel() }}</p>
+    <p class="truncate">Operador: {{ death().operator_name }}</p>
+    @if (death().note) {
+      <p class="truncate">Nota: {{ death().note }}</p>
+    }
+  </div>
+</article>

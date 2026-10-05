@@ -21,7 +21,7 @@
     }
   </div>
 
-  <div class="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-center">
+  <div class="mt-3 grid grid-cols-4 gap-2 border-t border-border pt-3 text-center">
     <div>
       <p class="text-xs text-muted-foreground">Vivos</p>
       <p class="text-lg font-semibold">{{ farrowing().live_born }}</p>
@@ -33,6 +33,10 @@
     <div>
       <p class="text-xs text-muted-foreground">Momificados</p>
       <p class="text-lg font-semibold">{{ farrowing().mummified }}</p>
+    </div>
+    <div>
+      <p class="text-xs text-muted-foreground">Actuales</p>
+      <p class="text-lg font-semibold">{{ farrowing().current_piglets }}</p>
     </div>
   </div>
 

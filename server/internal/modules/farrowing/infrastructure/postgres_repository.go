@@ -216,12 +216,12 @@ func (r *PostgresFarrowingRepository) Create(
 	if _, err := transaction.Exec(ctx, `
 		INSERT INTO farrowings (
 			id, service_id, sow_id, farrow_date, start_time, end_time, location,
-			live_born, stillborn, mummified, litter_weight, stillborn_weight,
+			live_born, stillborn, mummified, current_piglets, litter_weight, stillborn_weight,
 			is_manipulated, note, created_at, updated_at, created_by, updated_by
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7,
-			$8, $9, $10, $11, $12,
-			$13, $14, $15, $16, $17, $18
+			$8, $9, $10, $11, $12, $13,
+			$14, $15, $16, $17, $18, $19
 		)
 	`,
 		farrowing.ID,
@@ -234,6 +234,7 @@ func (r *PostgresFarrowingRepository) Create(
 		farrowing.LiveBorn,
 		farrowing.Stillborn,
 		farrowing.Mummified,
+		farrowing.CurrentPiglets,
 		farrowing.LitterWeight,
 		farrowing.StillbornWeight,
 		farrowing.IsManipulated,
@@ -322,7 +323,7 @@ func (r *PostgresFarrowingRepository) Create(
 func (r *PostgresFarrowingRepository) List(ctx context.Context, filter ports.FarrowingFilter) ([]*farrowingdomain.Farrowing, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, service_id, sow_id, farrow_date, start_time, end_time, location,
-		       live_born, stillborn, mummified, litter_weight, stillborn_weight,
+		       live_born, stillborn, mummified, current_piglets, litter_weight, stillborn_weight,
 		       is_manipulated, note, created_at, updated_at, created_by, updated_by
 		FROM farrowings
 		WHERE ($1::uuid IS NULL OR sow_id = $1)
@@ -350,6 +351,7 @@ func (r *PostgresFarrowingRepository) List(ctx context.Context, filter ports.Far
 			&result.LiveBorn,
 			&result.Stillborn,
 			&result.Mummified,
+			&result.CurrentPiglets,
 			&result.LitterWeight,
 			&result.StillbornWeight,
 			&result.IsManipulated,

@@ -14,6 +14,8 @@ import (
 	farrowinginfrastructure "server/internal/modules/farrowing/infrastructure"
 	medicationinfrastructure "server/internal/modules/medication/infrastructure"
 	operatorinfrastructure "server/internal/modules/operator/infrastructure"
+	pigletdeathinfrastructure "server/internal/modules/pigletdeath/infrastructure"
+	pigletfosteringinfrastructure "server/internal/modules/pigletfostering/infrastructure"
 	serviceinfrastructure "server/internal/modules/service/infrastructure"
 	sowinfrastructure "server/internal/modules/sow/infrastructure"
 	sowremovalinfrastructure "server/internal/modules/sowremoval/infrastructure"
@@ -23,19 +25,21 @@ import (
 )
 
 type Container struct {
-	DB          *pgxpool.Pool
-	User        *userinfrastructure.Module
-	Breed       *breedinfrastructure.Module
-	Boar        *boarinfrastructure.Module
-	BoarRemoval *boarremovalinfrastructure.Module
-	Sow         *sowinfrastructure.Module
-	Operator    *operatorinfrastructure.Module
-	Medication  *medicationinfrastructure.Module
-	Service     *serviceinfrastructure.Module
-	Abortion    *abortioninfrastructure.Module
-	SowRemoval  *sowremovalinfrastructure.Module
-	Farrowing   *farrowinginfrastructure.Module
-	Auth        *authinfrastructure.Module
+	DB              *pgxpool.Pool
+	User            *userinfrastructure.Module
+	Breed           *breedinfrastructure.Module
+	Boar            *boarinfrastructure.Module
+	BoarRemoval     *boarremovalinfrastructure.Module
+	Sow             *sowinfrastructure.Module
+	Operator        *operatorinfrastructure.Module
+	Medication      *medicationinfrastructure.Module
+	Service         *serviceinfrastructure.Module
+	Abortion        *abortioninfrastructure.Module
+	SowRemoval      *sowremovalinfrastructure.Module
+	Farrowing       *farrowinginfrastructure.Module
+	PigletDeath     *pigletdeathinfrastructure.Module
+	PigletFostering *pigletfosteringinfrastructure.Module
+	Auth            *authinfrastructure.Module
 }
 
 func New(ctx context.Context, applicationConfig config.Config) (*Container, error) {
@@ -81,6 +85,12 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 	// + === FARROWING MODULE ===
 	farrowingRepository := farrowinginfrastructure.NewPostgresFarrowingRepository(db)
 
+	// + === PIGLET DEATH MODULE ===
+	pigletDeathRepository := pigletdeathinfrastructure.NewPostgresPigletDeathRepository(db)
+
+	// + === PIGLET FOSTERING MODULE ===
+	pigletFosteringRepository := pigletfosteringinfrastructure.NewPostgresPigletFosteringRepository(db)
+
 	// + === AUTH MODULE ===
 	refreshTokenRepository := authinfrastructure.NewPostgresRefreshTokenRepository(db)
 	tokenGenerator := authinfrastructure.NewRandomTokenGenerator()
@@ -110,19 +120,21 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 	)
 
 	return &Container{
-		DB:          db,
-		User:        userinfrastructure.NewModule(userRepository, hasher, clock, authModule.AdminMiddleware),
-		Breed:       breedinfrastructure.NewModule(breedRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
-		Boar:        boarinfrastructure.NewModule(boarRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
-		BoarRemoval: boarremovalinfrastructure.NewModule(boarRemovalRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
-		Sow:         sowinfrastructure.NewModule(sowRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
-		Operator:    operatorinfrastructure.NewModule(operatorRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
-		Medication:  medicationinfrastructure.NewModule(medicationRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
-		Service:     serviceinfrastructure.NewModule(serviceRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
-		Abortion:    abortioninfrastructure.NewModule(abortionRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
-		SowRemoval:  sowremovalinfrastructure.NewModule(sowRemovalRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
-		Farrowing:   farrowinginfrastructure.NewModule(farrowingRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
-		Auth:        authModule,
+		DB:              db,
+		User:            userinfrastructure.NewModule(userRepository, hasher, clock, authModule.AdminMiddleware),
+		Breed:           breedinfrastructure.NewModule(breedRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Boar:            boarinfrastructure.NewModule(boarRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		BoarRemoval:     boarremovalinfrastructure.NewModule(boarRemovalRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Sow:             sowinfrastructure.NewModule(sowRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Operator:        operatorinfrastructure.NewModule(operatorRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Medication:      medicationinfrastructure.NewModule(medicationRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Service:         serviceinfrastructure.NewModule(serviceRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Abortion:        abortioninfrastructure.NewModule(abortionRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		SowRemoval:      sowremovalinfrastructure.NewModule(sowRemovalRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Farrowing:       farrowinginfrastructure.NewModule(farrowingRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		PigletDeath:     pigletdeathinfrastructure.NewModule(pigletDeathRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		PigletFostering: pigletfosteringinfrastructure.NewModule(pigletFosteringRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Auth:            authModule,
 	}, nil
 }
 

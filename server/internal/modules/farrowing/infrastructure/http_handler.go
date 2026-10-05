@@ -108,6 +108,7 @@ type farrowingResponse struct {
 	LiveBorn        int                           `json:"live_born"`
 	Stillborn       int                           `json:"stillborn"`
 	Mummified       int                           `json:"mummified"`
+	CurrentPiglets  int                           `json:"current_piglets"`
 	LitterWeight    *float64                      `json:"litter_weight"`
 	StillbornWeight *float64                      `json:"stillborn_weight"`
 	IsManipulated   bool                          `json:"is_manipulated"`
@@ -300,6 +301,7 @@ func toFarrowingResponse(farrowing *farrowingdomain.Farrowing) farrowingResponse
 		LiveBorn:        farrowing.LiveBorn,
 		Stillborn:       farrowing.Stillborn,
 		Mummified:       farrowing.Mummified,
+		CurrentPiglets:  farrowing.CurrentPiglets,
 		LitterWeight:    farrowing.LitterWeight,
 		StillbornWeight: farrowing.StillbornWeight,
 		IsManipulated:   farrowing.IsManipulated,

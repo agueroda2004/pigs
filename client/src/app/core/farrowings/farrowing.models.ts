@@ -23,6 +23,7 @@ export interface Farrowing {
   live_born: number;
   stillborn: number;
   mummified: number;
+  current_piglets: number;
   litter_weight: number | null;
   stillborn_weight: number | null;
   is_manipulated: boolean;

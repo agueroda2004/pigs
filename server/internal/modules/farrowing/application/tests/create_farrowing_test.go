@@ -46,6 +46,9 @@ func TestCreateFarrowingExecute(t *testing.T) {
 		if farrowing.LiveBorn != 10 || farrowing.Stillborn != 1 {
 			t.Fatalf("unexpected counts: %#v", farrowing)
 		}
+		if farrowing.CurrentPiglets != 10 {
+			t.Fatalf("current piglets = %d, want 10", farrowing.CurrentPiglets)
+		}
 		if farrowing.CreatedBy != actorID || !farrowing.CreatedAt.Equal(nowReference) {
 			t.Fatalf("unexpected audit: %#v", farrowing)
 		}
