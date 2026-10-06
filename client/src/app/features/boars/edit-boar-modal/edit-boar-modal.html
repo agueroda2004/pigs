@@ -80,6 +80,12 @@
       />
     </div>
 
+    @if (!canEditDates()) {
+      <p class="text-xs text-muted-foreground">
+        Solo se pueden editar las fechas mientras el verraco está vivo.
+      </p>
+    }
+
     <div class="space-y-1.5">
       <label for="edit-boar-note" class="block text-sm font-medium">Nota</label>
       <textarea
@@ -92,14 +98,6 @@
         <p class="text-xs text-danger">La nota debe tener como máximo 500 caracteres.</p>
       }
     </div>
-
-    <label class="flex cursor-pointer items-center justify-between gap-3">
-      <span class="text-sm font-medium">Verraco activo</span>
-      <input type="checkbox" formControlName="active" class="peer sr-only" />
-      <span
-        class="relative h-6 w-11 shrink-0 rounded-full bg-muted transition peer-checked:bg-success after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-background after:transition peer-checked:after:translate-x-5"
-      ></span>
-    </label>
 
     <div class="flex justify-end gap-2 pt-2">
       <button

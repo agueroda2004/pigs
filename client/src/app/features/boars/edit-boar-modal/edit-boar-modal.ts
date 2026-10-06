@@ -48,12 +48,13 @@ export class EditBoarModal {
     return current ? BOAR_STATE_CLASSES[current.state] : '';
   });
 
+  protected readonly canEditDates = computed(() => this.boar()?.state === 'Vivo');
+
   protected readonly form = this.formBuilder.nonNullable.group({
     code: ['', [Validators.required, Validators.maxLength(50)]],
     breed_id: ['', [Validators.required]],
     origin: ['', [Validators.required]],
     location: ['', [Validators.maxLength(100)]],
-    active: [true],
     entry_date: ['', [Validators.required]],
     birth_date: [''],
     note: ['', [Validators.maxLength(500)]],
@@ -68,11 +69,19 @@ export class EditBoarModal {
           breed_id: current.breed_id,
           origin: current.origin,
           location: current.location ?? '',
-          active: current.active,
           entry_date: current.entry_date,
           birth_date: current.birth_date ?? '',
           note: current.note ?? '',
         });
+
+        if (current.state === 'Vivo') {
+          this.form.controls.entry_date.enable();
+          this.form.controls.birth_date.enable();
+        } else {
+          this.form.controls.entry_date.disable();
+          this.form.controls.birth_date.disable();
+        }
+
         void this.loadBreeds();
       }
     });
@@ -89,7 +98,7 @@ export class EditBoarModal {
       return;
     }
 
-    const { code, breed_id, origin, location, active, entry_date, birth_date, note } =
+    const { code, breed_id, origin, location, entry_date, birth_date, note } =
       this.form.getRawValue();
     const request: UpdateBoarRequest = {};
 
@@ -104,9 +113,6 @@ export class EditBoarModal {
     }
     if (entry_date !== current.entry_date) {
       request.entry_date = entry_date;
-    }
-    if (active !== current.active) {
-      request.active = active;
     }
     if (location !== (current.location ?? '')) {
       request.location = location;

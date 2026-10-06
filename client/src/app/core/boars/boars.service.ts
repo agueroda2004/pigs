@@ -39,8 +39,11 @@ export class BoarsService {
     return this.http.post<void>(this.baseUrl, request);
   }
 
-  listBoarDropdown(active: boolean, state?: BoarState): Observable<BoarDropdown[]> {
-    let params = new HttpParams().set('active', String(active));
+  listBoarDropdown(active?: boolean, state?: BoarState): Observable<BoarDropdown[]> {
+    let params = new HttpParams();
+    if (active !== undefined) {
+      params = params.set('active', String(active));
+    }
     if (state) {
       params = params.set('state', state);
     }

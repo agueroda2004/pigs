@@ -94,11 +94,37 @@ describe('EditBoarModal', () => {
       breed_id: 'breed-1',
       origin: 'Propio',
       location: 'Corral A',
-      active: true,
       entry_date: '2026-01-10',
       birth_date: '2025-12-01',
       note: 'Nota original',
     });
+  });
+
+  it('keeps the date fields editable while the boar is alive', async () => {
+    const fixture = await openWith(buildBoar());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+
+    expect(component.form.controls.entry_date.enabled).toBe(true);
+    expect(component.form.controls.birth_date.enabled).toBe(true);
+  });
+
+  it('disables the date fields and shows a hint when the boar is not alive', async () => {
+    const fixture = await openWith(buildBoar({ state: 'Muerto' }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+
+    expect(component.form.controls.entry_date.disabled).toBe(true);
+    expect(component.form.controls.birth_date.disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Solo se pueden editar las fechas');
+  });
+
+  it('does not expose the active status control', async () => {
+    const fixture = await openWith(buildBoar());
+
+    expect(fixture.nativeElement.textContent).not.toContain('Verraco activo');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((fixture.componentInstance as any).form.contains('active')).toBe(false);
   });
 
   it('sends the origin when it changes', async () => {

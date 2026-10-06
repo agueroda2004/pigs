@@ -13,10 +13,6 @@ const removalPayload = {
   reason: 'Enfermedad',
   note: null,
   last_state: 'Vivo',
-  created_at: '',
-  updated_at: '',
-  created_by: 'admin',
-  updated_by: 'admin',
 };
 
 describe('BoarRemovalsService', () => {
@@ -70,9 +66,9 @@ describe('BoarRemovalsService', () => {
       (request) => request.url.endsWith('/boar-removals') && request.method === 'POST',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush(removalPayload);
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ boar_id: 'boar-1' });
+    await expect(promise).resolves.toBeNull();
   });
 
   it('updates a removal', async () => {
@@ -83,9 +79,9 @@ describe('BoarRemovalsService', () => {
       (request) => request.url.endsWith('/boar-removals/1') && request.method === 'PATCH',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush(removalPayload);
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ id: '1' });
+    await expect(promise).resolves.toBeNull();
   });
 
   it('deletes a removal', async () => {

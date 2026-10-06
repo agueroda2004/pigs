@@ -9,7 +9,7 @@ import { NotificationService } from '../../../core/notifications/notification.se
 import { RegisterBoarRemovalModal } from './register-boar-removal-modal';
 
 class BoarRemovalsStub {
-  createBoarRemoval = vi.fn((_request: Record<string, unknown>) => of({}));
+  createBoarRemoval = vi.fn((_request: Record<string, unknown>) => of(void 0));
 }
 
 class BoarsStub {

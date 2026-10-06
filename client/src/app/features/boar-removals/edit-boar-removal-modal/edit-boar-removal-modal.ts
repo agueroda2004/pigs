@@ -99,8 +99,8 @@ export class EditBoarRemovalModal {
     this.loading.set(true);
 
     try {
-      const updated = await firstValueFrom(this.removals.updateBoarRemoval(current.id, request));
-      this.updated.emit(updated);
+      await firstValueFrom(this.removals.updateBoarRemoval(current.id, request));
+      this.updated.emit(current);
     } catch (error) {
       this.notifications.error(this.mapError(error));
     } finally {

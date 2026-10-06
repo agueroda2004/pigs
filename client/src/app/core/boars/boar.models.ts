@@ -28,7 +28,6 @@ export interface CreateBoarRequest {
 export interface UpdateBoarRequest {
   code?: string;
   location?: string;
-  active?: boolean;
   entry_date?: string;
   birth_date?: string;
   note?: string;

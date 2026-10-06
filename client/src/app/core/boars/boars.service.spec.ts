@@ -123,6 +123,19 @@ describe('BoarsService', () => {
     await expect(promise).resolves.toHaveLength(0);
   });
 
+  it('lists the boar dropdown without an active filter', async () => {
+    const promise = firstValueFrom(service.listBoarDropdown());
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/boars/dropdown') && request.method === 'GET',
+    );
+    expect(call.request.params.has('active')).toBe(false);
+    expect(call.request.params.has('state')).toBe(false);
+    call.flush([]);
+
+    await expect(promise).resolves.toHaveLength(0);
+  });
+
   it('deletes a boar', async () => {
     const promise = firstValueFrom(service.deleteBoar('7'));
 

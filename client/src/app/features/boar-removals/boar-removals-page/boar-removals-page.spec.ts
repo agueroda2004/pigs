@@ -19,22 +19,18 @@ function buildRemoval(id: string): BoarRemoval {
     reason: 'Enfermedad',
     note: null,
     last_state: 'Vivo',
-    created_at: '2026-01-20T12:00:00',
-    updated_at: '2026-01-20T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
   };
 }
 
 class BoarRemovalsStub {
   listBoarRemovals = vi.fn(() => of([buildRemoval('1'), buildRemoval('2')]));
-  createBoarRemoval = vi.fn(() => of(buildRemoval('3')));
-  updateBoarRemoval = vi.fn(() => of(buildRemoval('1')));
+  createBoarRemoval = vi.fn(() => of(void 0));
+  updateBoarRemoval = vi.fn(() => of(void 0));
   deleteBoarRemoval = vi.fn(() => of(void 0));
 }
 
 class BoarsStub {
-  listBoars = vi.fn(() => of([{ id: 'boar-1', code: 'B-001' }]));
+  listBoarDropdown = vi.fn(() => of([{ id: 'boar-1', code: 'B-001', active: false }]));
 }
 
 class NotificationsStub {
@@ -44,18 +40,20 @@ class NotificationsStub {
 
 describe('BoarRemovalsPage', () => {
   let stub: BoarRemovalsStub;
+  let boars: BoarsStub;
   let notifications: NotificationsStub;
   let isAdmin: WritableSignal<boolean>;
 
   beforeEach(async () => {
     stub = new BoarRemovalsStub();
+    boars = new BoarsStub();
     notifications = new NotificationsStub();
     isAdmin = signal(true);
     await TestBed.configureTestingModule({
       imports: [BoarRemovalsPage],
       providers: [
         { provide: BoarRemovalsService, useValue: stub },
-        { provide: BoarsService, useValue: new BoarsStub() },
+        { provide: BoarsService, useValue: boars },
         { provide: NotificationService, useValue: notifications },
         { provide: AuthService, useValue: { isAdmin } },
       ],
@@ -80,6 +78,7 @@ describe('BoarRemovalsPage', () => {
     const component = create();
     await component.loadLookups();
 
+    expect(boars.listBoarDropdown).toHaveBeenCalledWith(false);
     expect(component.boarCode(buildRemoval('1'))).toBe('B-001');
   });
 

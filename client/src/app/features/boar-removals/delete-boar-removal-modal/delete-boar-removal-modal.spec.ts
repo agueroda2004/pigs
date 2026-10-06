@@ -17,10 +17,6 @@ function buildRemoval(overrides: Partial<BoarRemoval> = {}): BoarRemoval {
     reason: 'Enfermedad',
     note: null,
     last_state: 'Vivo',
-    created_at: '2026-01-20T12:00:00',
-    updated_at: '2026-01-20T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }

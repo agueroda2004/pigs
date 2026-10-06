@@ -19,10 +19,6 @@ export interface BoarRemoval {
   reason: RemovalReason;
   note: string | null;
   last_state: BoarState;
-  created_at: string;
-  updated_at: string;
-  created_by: string;
-  updated_by: string;
 }
 
 export interface CreateBoarRemovalRequest {

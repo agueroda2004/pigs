@@ -24,12 +24,12 @@ export class BoarRemovalsService {
     return this.http.get<BoarRemoval[]>(this.baseUrl, { params });
   }
 
-  createBoarRemoval(request: CreateBoarRemovalRequest): Observable<BoarRemoval> {
-    return this.http.post<BoarRemoval>(this.baseUrl, request);
+  createBoarRemoval(request: CreateBoarRemovalRequest): Observable<void> {
+    return this.http.post<void>(this.baseUrl, request);
   }
 
-  updateBoarRemoval(id: string, request: UpdateBoarRemovalRequest): Observable<BoarRemoval> {
-    return this.http.patch<BoarRemoval>(`${this.baseUrl}/${id}`, request);
+  updateBoarRemoval(id: string, request: UpdateBoarRemovalRequest): Observable<void> {
+    return this.http.patch<void>(`${this.baseUrl}/${id}`, request);
   }
 
   deleteBoarRemoval(id: string): Observable<void> {

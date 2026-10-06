@@ -152,7 +152,7 @@ export class BoarRemovalsPage implements OnInit {
 
   private async loadLookups(): Promise<void> {
     try {
-      const boars = await firstValueFrom(this.boarsService.listBoars());
+      const boars = await firstValueFrom(this.boarsService.listBoarDropdown(false));
       this.boarCodes.set(new Map(boars.map((boar) => [boar.id, boar.code])));
       this.boarOptions.set(boars.map((boar) => ({ value: boar.id, label: boar.code })));
     } catch {
