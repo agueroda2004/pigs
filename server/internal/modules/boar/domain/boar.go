@@ -35,18 +35,20 @@ const (
 )
 
 var (
-	ErrInvalidID        = errors.New("El identificador del verraco es obligatorio")
-	ErrInvalidCode      = errors.New("El código es obligatorio y debe tener como máximo 50 caracteres")
-	ErrInvalidLocation  = errors.New("La ubicación debe tener como máximo 100 caracteres")
-	ErrInvalidEntryDate = errors.New("La fecha de ingreso es obligatoria")
-	ErrInvalidBirthDate = errors.New("La fecha de nacimiento no puede ser posterior a la fecha de ingreso")
-	ErrInvalidNote      = errors.New("La nota debe tener como máximo 500 caracteres")
-	ErrInvalidState     = errors.New("El estado del verraco no es válido")
-	ErrInvalidOrigin    = errors.New("El origen del verraco no es válido")
-	ErrInvalidBreed     = errors.New("La raza es obligatoria")
-	ErrInvalidUpdate    = errors.New("Debe actualizar al menos un campo del verraco")
-	ErrInvalidCreatedBy = errors.New("El usuario que crea el verraco es obligatorio")
-	ErrInvalidUpdatedBy = errors.New("El usuario que actualiza el verraco es obligatorio")
+	ErrInvalidID           = errors.New("El identificador del verraco es obligatorio")
+	ErrInvalidCode         = errors.New("El código es obligatorio y debe tener como máximo 50 caracteres")
+	ErrInvalidLocation     = errors.New("La ubicación debe tener como máximo 100 caracteres")
+	ErrInvalidEntryDate    = errors.New("La fecha de ingreso es obligatoria")
+	ErrEntryDateInFuture   = errors.New("La fecha de ingreso no puede ser futura")
+	ErrEntryDateAfterEvent = errors.New("La fecha de ingreso no puede ser posterior a una monta o baja del verraco")
+	ErrInvalidBirthDate    = errors.New("La fecha de nacimiento no puede ser posterior a la fecha de ingreso")
+	ErrInvalidNote         = errors.New("La nota debe tener como máximo 500 caracteres")
+	ErrInvalidState        = errors.New("El estado del verraco no es válido")
+	ErrInvalidOrigin       = errors.New("El origen del verraco no es válido")
+	ErrInvalidBreed        = errors.New("La raza es obligatoria")
+	ErrInvalidUpdate       = errors.New("Debe actualizar al menos un campo del verraco")
+	ErrInvalidCreatedBy    = errors.New("El usuario que crea el verraco es obligatorio")
+	ErrInvalidUpdatedBy    = errors.New("El usuario que actualiza el verraco es obligatorio")
 )
 
 // Boar is the aggregate root that represents a boar (verraco) in the farm.
@@ -95,17 +97,20 @@ type NewBoarParams struct {
 // A nil pointer means the field is omitted and stays unchanged. Nullable string
 // fields are cleared to NULL by providing an empty string, while the nullable
 // date uses ClearBirthDate because it cannot carry an empty value. The state is
-// intentionally absent because only ChangeState may alter it.
+// intentionally absent because only ChangeState may alter it. EarliestEventDate
+// is a reference bound (earliest mount or removal date) used to keep the entry
+// date consistent with events that already reference the boar.
 type UpdateBoarParams struct {
-	Code           *string
-	Location       *string
-	Active         *bool
-	EntryDate      *time.Time
-	BirthDate      *time.Time
-	ClearBirthDate bool
-	Note           *string
-	Origin         *Origin
-	BreedID        *uuid.UUID
+	Code              *string
+	Location          *string
+	Active            *bool
+	EntryDate         *time.Time
+	BirthDate         *time.Time
+	ClearBirthDate    bool
+	Note              *string
+	Origin            *Origin
+	BreedID           *uuid.UUID
+	EarliestEventDate *time.Time
 }
 
 // NewBoar builds a boar after validating its fields.
@@ -128,6 +133,10 @@ func NewBoar(params NewBoarParams, now time.Time) (*Boar, error) {
 
 	if params.EntryDate.IsZero() {
 		return nil, ErrInvalidEntryDate
+	}
+
+	if truncateToDay(params.EntryDate).After(truncateToDay(now)) {
+		return nil, ErrEntryDateInFuture
 	}
 
 	birthDate, err := validateBirthDate(params.BirthDate, params.EntryDate)
@@ -208,6 +217,13 @@ func (b *Boar) Update(params UpdateBoarParams, updatedBy uuid.UUID, now time.Tim
 	if params.EntryDate != nil {
 		if params.EntryDate.IsZero() {
 			return ErrInvalidEntryDate
+		}
+		if truncateToDay(*params.EntryDate).After(truncateToDay(now)) {
+			return ErrEntryDateInFuture
+		}
+		if params.EarliestEventDate != nil && !params.EarliestEventDate.IsZero() &&
+			truncateToDay(*params.EntryDate).After(truncateToDay(*params.EarliestEventDate)) {
+			return ErrEntryDateAfterEvent
 		}
 		validatedEntryDate = *params.EntryDate
 	}
@@ -341,6 +357,13 @@ func validateBirthDate(birthDate *time.Time, entryDate time.Time) (*time.Time, e
 		return nil, ErrInvalidBirthDate
 	}
 	return birthDate, nil
+}
+
+// truncateToDay removes the time portion from a timestamp in UTC.
+// It is used to compare dates at day granularity across the domain.
+func truncateToDay(value time.Time) time.Time {
+	value = value.UTC()
+	return time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, time.UTC)
 }
 
 // isValidState checks whether the state belongs to the boar domain.

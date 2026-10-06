@@ -18,8 +18,9 @@ func NewListBoarDropdownService(repository ports.BoarRepository) *ListBoarDropdo
 }
 
 // Execute returns the id, code and active flag of the boars for a selection list.
-// When active is true it only returns active boars; an optional state narrows the
-// result to that state while nil returns every state.
-func (s *ListBoarDropdownService) Execute(ctx context.Context, active bool, state *boardomain.State) ([]boardomain.BoarDropdown, error) {
+// A nil active returns every boar, true only the active boars and false only the
+// inactive ones; an optional state narrows the result to that state while nil
+// returns every state.
+func (s *ListBoarDropdownService) Execute(ctx context.Context, active *bool, state *boardomain.State) ([]boardomain.BoarDropdown, error) {
 	return s.repository.ListDropdown(ctx, active, state)
 }

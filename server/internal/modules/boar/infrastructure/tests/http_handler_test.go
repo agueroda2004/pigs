@@ -217,7 +217,7 @@ func TestBoarHandlerUpdate(t *testing.T) {
 	t.Run("updates the provided fields and forwards the actor", func(t *testing.T) {
 		update := &fakeUpdateBoarUseCase{boar: handlerBoar()}
 		handler := newTestHandler(&fakeCreateBoarUseCase{}, &fakeListBoarsUseCase{}, update)
-		body := `{"code":"B-002","active":false,"entry_date":"2026-02-01","breed_id":"` + breedID.String() + `"}`
+		body := `{"code":"B-002","entry_date":"2026-02-01","breed_id":"` + breedID.String() + `"}`
 		request := httptest.NewRequest(http.MethodPatch, "/api/v1/boars/"+boarID.String(), strings.NewReader(body))
 		request = authenticatedRequest(request, actorID)
 		response := serve(handler, request)
@@ -225,7 +225,7 @@ func TestBoarHandlerUpdate(t *testing.T) {
 		if response.Code != http.StatusOK || update.boarID != boarID || update.command.UpdatedBy != actorID {
 			t.Fatalf("status=%d id=%v command=%#v", response.Code, update.boarID, update.command)
 		}
-		if update.command.Code == nil || *update.command.Code != "B-002" || update.command.Active == nil || *update.command.Active {
+		if update.command.Code == nil || *update.command.Code != "B-002" {
 			t.Fatalf("unexpected command: %#v", update.command)
 		}
 		if update.command.EntryDate == nil || update.command.BreedID == nil || *update.command.BreedID != breedID {
@@ -233,6 +233,18 @@ func TestBoarHandlerUpdate(t *testing.T) {
 		}
 		if body := strings.TrimSpace(response.Body.String()); body != "" {
 			t.Fatalf("expected an empty body, got %q", body)
+		}
+	})
+
+	t.Run("rejects the active field", func(t *testing.T) {
+		update := &fakeUpdateBoarUseCase{boar: handlerBoar()}
+		handler := newTestHandler(&fakeCreateBoarUseCase{}, &fakeListBoarsUseCase{}, update)
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/boars/"+boarID.String(), strings.NewReader(`{"active":false}`))
+		request = authenticatedRequest(request, actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusBadRequest || update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
 		}
 	})
 
@@ -371,7 +383,7 @@ func TestBoarHandlerListDropdown(t *testing.T) {
 		if response.Code != http.StatusOK || !options.called {
 			t.Fatalf("status=%d called=%v", response.Code, options.called)
 		}
-		if options.active || options.state != nil {
+		if options.active != nil || options.state != nil {
 			t.Fatalf("unexpected filters active=%v state=%#v", options.active, options.state)
 		}
 		body := response.Body.String()
@@ -385,11 +397,21 @@ func TestBoarHandlerListDropdown(t *testing.T) {
 		handler := newDropdownHandler(options)
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/dropdown?active=true&state=Vivo", nil))
 
-		if response.Code != http.StatusOK || !options.active {
+		if response.Code != http.StatusOK || options.active == nil || !*options.active {
 			t.Fatalf("status=%d active=%v", response.Code, options.active)
 		}
 		if options.state == nil || *options.state != boardomain.StateAlive {
 			t.Fatalf("unexpected state: %#v", options.state)
+		}
+	})
+
+	t.Run("forwards a false active filter", func(t *testing.T) {
+		options := &fakeListBoarDropdownUseCase{options: []boardomain.BoarDropdown{}}
+		handler := newDropdownHandler(options)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/dropdown?active=false", nil))
+
+		if response.Code != http.StatusOK || options.active == nil || *options.active {
+			t.Fatalf("status=%d active=%v", response.Code, options.active)
 		}
 	})
 

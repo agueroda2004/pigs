@@ -17,6 +17,7 @@ var (
 	ErrSowNotEligible       = errors.New("La cerda no está en un estado válido para el servicio")
 	ErrBoarNotEligible      = errors.New("El verraco no está disponible para el servicio")
 	ErrOperatorNotAvailable = errors.New("El operador no está disponible")
+	ErrMountBeforeBoarEntry = errors.New("La fecha de monta no puede ser anterior al ingreso del verraco")
 )
 
 // CreateMountCommand carries the fields required to register a single mount.
@@ -69,6 +70,9 @@ func (s *CreateServiceService) Execute(ctx context.Context, command CreateServic
 		if !boar.Active || boar.State != boardomain.StateAlive {
 			return nil, ErrBoarNotEligible
 		}
+		if truncateToDay(mount.MountDate).Before(truncateToDay(boar.EntryDate)) {
+			return nil, ErrMountBeforeBoarEntry
+		}
 
 		operator, err := s.repository.GetOperator(ctx, mount.OperatorID)
 		if err != nil {
@@ -119,4 +123,11 @@ func isServiceableSowState(state sowdomain.State) bool {
 	default:
 		return false
 	}
+}
+
+// truncateToDay removes the time portion from a timestamp in UTC.
+// It is used to compare mount dates with the boar entry date at day granularity.
+func truncateToDay(value time.Time) time.Time {
+	value = value.UTC()
+	return time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, time.UTC)
 }

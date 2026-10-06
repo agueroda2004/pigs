@@ -163,6 +163,18 @@ func TestCreateService(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects a mount date before the boar entry date", func(t *testing.T) {
+		repository, sowID, boarID, operatorID := newRepository()
+		repository.boar.EntryDate = mountDayOne.Add(48 * time.Hour)
+		service := serviceapplication.NewCreateServiceService(repository, clock)
+
+		_, err := service.Execute(context.Background(), validCommand(sowID, boarID, operatorID, uuid.New()))
+
+		if !errors.Is(err, serviceapplication.ErrMountBeforeBoarEntry) || repository.created != nil {
+			t.Fatalf("unexpected result: err=%v created=%#v", err, repository.created)
+		}
+	})
+
 	t.Run("rejects an inactive operator", func(t *testing.T) {
 		repository, sowID, boarID, operatorID := newRepository()
 		repository.operator.Active = false

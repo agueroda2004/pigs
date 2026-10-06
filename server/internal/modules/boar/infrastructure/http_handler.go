@@ -32,7 +32,7 @@ type UpdateBoarUseCase interface {
 }
 
 type ListBoarDropdownUseCase interface {
-	Execute(context.Context, bool, *boardomain.State) ([]boardomain.BoarDropdown, error)
+	Execute(context.Context, *bool, *boardomain.State) ([]boardomain.BoarDropdown, error)
 }
 
 type DeleteBoarUseCase interface {
@@ -94,7 +94,6 @@ type createBoarRequest struct {
 type updateBoarRequest struct {
 	Code      *string `json:"code"`
 	Location  *string `json:"location"`
-	Active    *bool   `json:"active"`
 	EntryDate *string `json:"entry_date"`
 	BirthDate *string `json:"birth_date"`
 	Note      *string `json:"note"`
@@ -214,17 +213,17 @@ func (h *BoarHandler) listDropdown(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseActiveQuery reads the optional active query parameter.
-// It defaults to false (every boar) and rejects a malformed boolean.
-func parseActiveQuery(r *http.Request) (bool, error) {
+// It returns nil (no filter) when absent and rejects a malformed boolean.
+func parseActiveQuery(r *http.Request) (*bool, error) {
 	active := strings.TrimSpace(r.URL.Query().Get("active"))
 	if active == "" {
-		return false, nil
+		return nil, nil
 	}
 	parsedActive, err := strconv.ParseBool(active)
 	if err != nil {
-		return false, errors.New("El filtro de activo no es válido")
+		return nil, errors.New("El filtro de activo no es válido")
 	}
-	return parsedActive, nil
+	return &parsedActive, nil
 }
 
 // parseStateQuery reads the optional state query parameter.
@@ -335,7 +334,6 @@ func (h *BoarHandler) update(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.updateBoar.Execute(r.Context(), boarID, boarapplication.UpdateBoarCommand{
 		Code:           request.Code,
 		Location:       request.Location,
-		Active:         request.Active,
 		EntryDate:      entryDate,
 		BirthDate:      birthDate,
 		ClearBirthDate: clearBirthDate,
@@ -442,6 +440,8 @@ func writeBoarError(w http.ResponseWriter, err error) {
 		errors.Is(err, boardomain.ErrInvalidCode),
 		errors.Is(err, boardomain.ErrInvalidLocation),
 		errors.Is(err, boardomain.ErrInvalidEntryDate),
+		errors.Is(err, boardomain.ErrEntryDateInFuture),
+		errors.Is(err, boardomain.ErrEntryDateAfterEvent),
 		errors.Is(err, boardomain.ErrInvalidBirthDate),
 		errors.Is(err, boardomain.ErrInvalidNote),
 		errors.Is(err, boardomain.ErrInvalidState),

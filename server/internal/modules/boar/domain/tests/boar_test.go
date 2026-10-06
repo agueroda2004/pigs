@@ -164,6 +164,16 @@ func TestNewBoar(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects a future entry date", func(t *testing.T) {
+		params := validParams()
+		params.EntryDate = now.Add(24 * time.Hour)
+
+		_, err := boardomain.NewBoar(params, now)
+		if !errors.Is(err, boardomain.ErrEntryDateInFuture) {
+			t.Fatalf("error = %v, want ErrEntryDateInFuture", err)
+		}
+	})
+
 	t.Run("rejects birth date after entry date", func(t *testing.T) {
 		params := validParams()
 		birth := params.EntryDate.Add(24 * time.Hour)
@@ -303,6 +313,63 @@ func TestBoarUpdate(t *testing.T) {
 		}
 		if boar.UpdatedBy != updatedBy || !boar.UpdatedAt.Equal(now) {
 			t.Fatalf("unexpected audit fields: %#v", boar)
+		}
+	})
+
+	t.Run("rejects a future entry date", func(t *testing.T) {
+		boar := newBoar()
+		entry := now.Add(24 * time.Hour)
+
+		err := boar.Update(boardomain.UpdateBoarParams{EntryDate: &entry}, updatedBy, now)
+
+		if !errors.Is(err, boardomain.ErrEntryDateInFuture) ||
+			!boar.EntryDate.Equal(time.Date(2026, time.January, 10, 0, 0, 0, 0, time.UTC)) {
+			t.Fatalf("unexpected result: err=%v boar=%#v", err, boar)
+		}
+	})
+
+	t.Run("rejects an entry date after the earliest event", func(t *testing.T) {
+		boar := newBoar()
+		event := boar.EntryDate.Add(24 * time.Hour)
+		entry := event.Add(24 * time.Hour)
+
+		err := boar.Update(boardomain.UpdateBoarParams{
+			EntryDate:         &entry,
+			EarliestEventDate: &event,
+		}, updatedBy, now)
+
+		if !errors.Is(err, boardomain.ErrEntryDateAfterEvent) {
+			t.Fatalf("error = %v, want ErrEntryDateAfterEvent", err)
+		}
+	})
+
+	t.Run("accepts an entry date before the earliest event", func(t *testing.T) {
+		boar := newBoar()
+		event := boar.EntryDate.Add(48 * time.Hour)
+		entry := boar.EntryDate.Add(24 * time.Hour)
+
+		err := boar.Update(boardomain.UpdateBoarParams{
+			EntryDate:         &entry,
+			EarliestEventDate: &event,
+		}, updatedBy, now)
+
+		if err != nil || !boar.EntryDate.Equal(entry) {
+			t.Fatalf("unexpected result: err=%v boar=%#v", err, boar)
+		}
+	})
+
+	t.Run("ignores the event bound when the entry date is not provided", func(t *testing.T) {
+		boar := newBoar()
+		event := boar.EntryDate.Add(-24 * time.Hour)
+		code := "B-010"
+
+		err := boar.Update(boardomain.UpdateBoarParams{
+			Code:              &code,
+			EarliestEventDate: &event,
+		}, updatedBy, now)
+
+		if err != nil || boar.Code != code {
+			t.Fatalf("unexpected result: err=%v boar=%#v", err, boar)
 		}
 	})
 

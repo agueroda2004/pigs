@@ -60,12 +60,12 @@ func (f *fakeUpdateBoarUseCase) Execute(_ context.Context, boarID uuid.UUID, com
 type fakeListBoarDropdownUseCase struct {
 	options []boardomain.BoarDropdown
 	err     error
-	active  bool
+	active  *bool
 	state   *boardomain.State
 	called  bool
 }
 
-func (f *fakeListBoarDropdownUseCase) Execute(_ context.Context, active bool, state *boardomain.State) ([]boardomain.BoarDropdown, error) {
+func (f *fakeListBoarDropdownUseCase) Execute(_ context.Context, active *bool, state *boardomain.State) ([]boardomain.BoarDropdown, error) {
 	f.called = true
 	f.active = active
 	f.state = state

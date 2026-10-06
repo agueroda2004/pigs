@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -91,6 +92,26 @@ func (r *PostgresBoarRepository) GetByID(ctx context.Context, id uuid.UUID) (*bo
 	return result, nil
 }
 
+// GetEarliestEventDate returns the earliest date among the boar mounts and its
+// removal, or the zero time when the boar has neither. It is used to keep the
+// entry date consistent with the events that already reference the boar.
+func (r *PostgresBoarRepository) GetEarliestEventDate(ctx context.Context, boarID uuid.UUID) (time.Time, error) {
+	var earliest *time.Time
+
+	if err := r.pool.QueryRow(ctx, `
+		SELECT LEAST(
+			(SELECT MIN(mount_date) FROM mounts WHERE boar_id = $1),
+			(SELECT removal_date FROM boar_removals WHERE boar_id = $1)
+		)
+	`, boarID).Scan(&earliest); err != nil {
+		return time.Time{}, fmt.Errorf("No se pudieron consultar los eventos del verraco: %w", err)
+	}
+	if earliest == nil {
+		return time.Time{}, nil
+	}
+	return *earliest, nil
+}
+
 // ExistsByCode reports whether a boar code is already taken.
 // It wraps any query failure with context.
 func (r *PostgresBoarRepository) ExistsByCode(ctx context.Context, code string) (bool, error) {
@@ -164,9 +185,10 @@ func (r *PostgresBoarRepository) List(ctx context.Context, filter ports.BoarFilt
 }
 
 // ListDropdown fetches the id, code and active flag of the boars for selection lists.
-// A true active restricts the result to active boars, false returns every boar;
-// an optional state narrows the result to that state and nil returns every state.
-func (r *PostgresBoarRepository) ListDropdown(ctx context.Context, active bool, state *boardomain.State) ([]boardomain.BoarDropdown, error) {
+// A nil active returns every boar, true only the active ones and false only the
+// inactive ones; an optional state narrows the result to that state and nil
+// returns every state.
+func (r *PostgresBoarRepository) ListDropdown(ctx context.Context, active *bool, state *boardomain.State) ([]boardomain.BoarDropdown, error) {
 	var stateCode *string
 	if state != nil {
 		value := string(*state)
@@ -176,7 +198,7 @@ func (r *PostgresBoarRepository) ListDropdown(ctx context.Context, active bool, 
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, code, active
 		FROM boars
-		WHERE ($1 = FALSE OR active = TRUE)
+		WHERE ($1::boolean IS NULL OR active = $1)
 		  AND ($2::text IS NULL OR state::text = $2)
 		ORDER BY code ASC
 	`, active, stateCode)

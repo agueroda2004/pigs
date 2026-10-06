@@ -13,7 +13,6 @@ import (
 type UpdateBoarCommand struct {
 	Code           *string
 	Location       *string
-	Active         *bool
 	EntryDate      *time.Time
 	BirthDate      *time.Time
 	ClearBirthDate bool
@@ -46,17 +45,26 @@ func (s *UpdateBoarService) Execute(
 		return nil, err
 	}
 
-	if err := currentBoar.Update(boardomain.UpdateBoarParams{
+	params := boardomain.UpdateBoarParams{
 		Code:           command.Code,
 		Location:       command.Location,
-		Active:         command.Active,
 		EntryDate:      command.EntryDate,
 		BirthDate:      command.BirthDate,
 		ClearBirthDate: command.ClearBirthDate,
 		Note:           command.Note,
 		Origin:         command.Origin,
 		BreedID:        command.BreedID,
-	}, command.UpdatedBy, s.clock()); err != nil {
+	}
+
+	if command.EntryDate != nil {
+		earliestEvent, err := s.repository.GetEarliestEventDate(ctx, boarID)
+		if err != nil {
+			return nil, err
+		}
+		params.EarliestEventDate = &earliestEvent
+	}
+
+	if err := currentBoar.Update(params, command.UpdatedBy, s.clock()); err != nil {
 		return nil, err
 	}
 

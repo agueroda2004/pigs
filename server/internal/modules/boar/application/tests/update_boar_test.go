@@ -22,22 +22,87 @@ func TestUpdateBoar(t *testing.T) {
 		repository := &fakeBoarRepository{getBoar: testBoar(boarID)}
 		service := boarapplication.NewUpdateBoarService(repository, clock)
 		code := "  B-002  "
-		active := false
 
 		boar, err := service.Execute(context.Background(), boarID, boarapplication.UpdateBoarCommand{
 			Code:      &code,
-			Active:    &active,
 			UpdatedBy: updatedBy,
 		})
 
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
-		if boar.Code != "B-002" || boar.Active || boar.State != boardomain.StateAlive {
+		if boar.Code != "B-002" || !boar.Active || boar.State != boardomain.StateAlive {
 			t.Fatalf("unexpected boar: %#v", boar)
 		}
 		if boar.UpdatedBy != updatedBy || !boar.UpdatedAt.Equal(now) || repository.updated != boar {
 			t.Fatalf("unexpected boar: %#v", boar)
+		}
+	})
+
+	t.Run("rejects an entry date after the earliest event", func(t *testing.T) {
+		repository := &fakeBoarRepository{
+			getBoar:           testBoar(boarID),
+			earliestEventDate: time.Date(2026, time.January, 12, 0, 0, 0, 0, time.UTC),
+		}
+		service := boarapplication.NewUpdateBoarService(repository, clock)
+		entry := time.Date(2026, time.January, 15, 0, 0, 0, 0, time.UTC)
+
+		_, err := service.Execute(context.Background(), boarID, boarapplication.UpdateBoarCommand{
+			EntryDate: &entry,
+			UpdatedBy: updatedBy,
+		})
+
+		if !errors.Is(err, boardomain.ErrEntryDateAfterEvent) || repository.updated != nil {
+			t.Fatalf("unexpected result: err=%v updated=%#v", err, repository.updated)
+		}
+	})
+
+	t.Run("accepts an entry date before the earliest event", func(t *testing.T) {
+		repository := &fakeBoarRepository{
+			getBoar:           testBoar(boarID),
+			earliestEventDate: time.Date(2026, time.January, 20, 0, 0, 0, 0, time.UTC),
+		}
+		service := boarapplication.NewUpdateBoarService(repository, clock)
+		entry := time.Date(2026, time.January, 15, 0, 0, 0, 0, time.UTC)
+
+		boar, err := service.Execute(context.Background(), boarID, boarapplication.UpdateBoarCommand{
+			EntryDate: &entry,
+			UpdatedBy: updatedBy,
+		})
+
+		if err != nil || !boar.EntryDate.Equal(entry) || repository.updated != boar {
+			t.Fatalf("unexpected result: err=%v boar=%#v", err, boar)
+		}
+	})
+
+	t.Run("rejects a future entry date", func(t *testing.T) {
+		repository := &fakeBoarRepository{getBoar: testBoar(boarID)}
+		service := boarapplication.NewUpdateBoarService(repository, clock)
+		entry := now.Add(24 * time.Hour)
+
+		_, err := service.Execute(context.Background(), boarID, boarapplication.UpdateBoarCommand{
+			EntryDate: &entry,
+			UpdatedBy: updatedBy,
+		})
+
+		if !errors.Is(err, boardomain.ErrEntryDateInFuture) || repository.updated != nil {
+			t.Fatalf("unexpected result: err=%v updated=%#v", err, repository.updated)
+		}
+	})
+
+	t.Run("propagates the earliest event lookup error", func(t *testing.T) {
+		unexpected := errors.New("unexpected")
+		repository := &fakeBoarRepository{getBoar: testBoar(boarID), earliestEventErr: unexpected}
+		service := boarapplication.NewUpdateBoarService(repository, clock)
+		entry := time.Date(2026, time.January, 15, 0, 0, 0, 0, time.UTC)
+
+		_, err := service.Execute(context.Background(), boarID, boarapplication.UpdateBoarCommand{
+			EntryDate: &entry,
+			UpdatedBy: updatedBy,
+		})
+
+		if !errors.Is(err, unexpected) || repository.updated != nil {
+			t.Fatalf("unexpected result: err=%v updated=%#v", err, repository.updated)
 		}
 	})
 

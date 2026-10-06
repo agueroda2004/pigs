@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -20,9 +21,10 @@ type BoarFilter struct {
 type BoarRepository interface {
 	Create(ctx context.Context, boar *boardomain.Boar) error
 	GetByID(ctx context.Context, id uuid.UUID) (*boardomain.Boar, error)
+	GetEarliestEventDate(ctx context.Context, boarID uuid.UUID) (time.Time, error)
 	ExistsByCode(ctx context.Context, code string) (bool, error)
 	List(ctx context.Context, filter BoarFilter) ([]*boardomain.Boar, error)
-	ListDropdown(ctx context.Context, active bool, state *boardomain.State) ([]boardomain.BoarDropdown, error)
+	ListDropdown(ctx context.Context, active *bool, state *boardomain.State) ([]boardomain.BoarDropdown, error)
 	Update(ctx context.Context, boar *boardomain.Boar) error
 	UpdateState(ctx context.Context, boar *boardomain.Boar) error
 	Delete(ctx context.Context, id uuid.UUID) error

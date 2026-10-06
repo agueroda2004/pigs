@@ -284,7 +284,8 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		errors.Is(err, serviceapplication.ErrBoarNotEligible),
 		errors.Is(err, serviceapplication.ErrOperatorNotAvailable):
 		status = http.StatusConflict
-	case errors.Is(err, servicedomain.ErrInvalidID),
+	case errors.Is(err, serviceapplication.ErrMountBeforeBoarEntry),
+		errors.Is(err, servicedomain.ErrInvalidID),
 		errors.Is(err, servicedomain.ErrInvalidSow),
 		errors.Is(err, servicedomain.ErrInvalidLocation),
 		errors.Is(err, servicedomain.ErrInvalidNote),

@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -14,12 +15,14 @@ type fakeBoarRepository struct {
 	existsErr          error
 	getBoar            *boardomain.Boar
 	getErr             error
+	earliestEventDate  time.Time
+	earliestEventErr   error
 	listBoars          []*boardomain.Boar
 	listErr            error
 	listFilter         ports.BoarFilter
 	listDropdown       []boardomain.BoarDropdown
 	listDropdownErr    error
-	listDropdownActive bool
+	listDropdownActive *bool
 	listDropdownState  *boardomain.State
 	createErr          error
 	updateErr          error
@@ -40,6 +43,10 @@ func (f *fakeBoarRepository) GetByID(_ context.Context, _ uuid.UUID) (*boardomai
 	return f.getBoar, f.getErr
 }
 
+func (f *fakeBoarRepository) GetEarliestEventDate(_ context.Context, _ uuid.UUID) (time.Time, error) {
+	return f.earliestEventDate, f.earliestEventErr
+}
+
 func (f *fakeBoarRepository) ExistsByCode(_ context.Context, _ string) (bool, error) {
 	return f.exists, f.existsErr
 }
@@ -49,7 +56,7 @@ func (f *fakeBoarRepository) List(_ context.Context, filter ports.BoarFilter) ([
 	return f.listBoars, f.listErr
 }
 
-func (f *fakeBoarRepository) ListDropdown(_ context.Context, active bool, state *boardomain.State) ([]boardomain.BoarDropdown, error) {
+func (f *fakeBoarRepository) ListDropdown(_ context.Context, active *bool, state *boardomain.State) ([]boardomain.BoarDropdown, error) {
 	f.listDropdownActive = active
 	f.listDropdownState = state
 	return f.listDropdown, f.listDropdownErr
