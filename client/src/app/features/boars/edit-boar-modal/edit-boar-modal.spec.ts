@@ -21,16 +21,12 @@ function buildBoar(overrides: Partial<Boar> = {}): Boar {
     state: 'Vivo',
     origin: 'Propio',
     breed_id: 'breed-1',
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }
 
 class BoarsStub {
-  updateBoar = vi.fn((_id: string, _request: Record<string, unknown>) => of(buildBoar()));
+  updateBoar = vi.fn((_id: string, _request: Record<string, unknown>) => of(undefined));
 }
 
 class BreedsStub {
@@ -154,9 +150,8 @@ describe('EditBoarModal', () => {
     expect(request).not.toHaveProperty('state');
   });
 
-  it('emits the current boar when nothing changed', async () => {
-    const boar = buildBoar();
-    const fixture = await openWith(boar);
+  it('emits when nothing changed', async () => {
+    const fixture = await openWith(buildBoar());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const component = fixture.componentInstance as any;
     const updated = vi.fn();
@@ -165,7 +160,7 @@ describe('EditBoarModal', () => {
     await component.submit();
 
     expect(stub.updateBoar).not.toHaveBeenCalled();
-    expect(updated).toHaveBeenCalledWith(boar);
+    expect(updated).toHaveBeenCalled();
   });
 
   it('shows an error toast when the boar is missing', async () => {

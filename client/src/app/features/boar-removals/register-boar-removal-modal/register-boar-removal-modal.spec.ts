@@ -13,7 +13,7 @@ class BoarRemovalsStub {
 }
 
 class BoarsStub {
-  listBoarOptions = vi.fn(() => of([{ id: 'boar-1', code: 'B-001' }]));
+  listBoarDropdown = vi.fn(() => of([{ id: 'boar-1', code: 'B-001', active: true }]));
 }
 
 class NotificationsStub {
@@ -58,7 +58,7 @@ describe('RegisterBoarRemovalModal', () => {
 
     await component.loadOptions();
 
-    expect(boars.listBoarOptions).toHaveBeenCalledWith(true);
+    expect(boars.listBoarDropdown).toHaveBeenCalledWith(true, 'Vivo');
     expect(component.boarOptions()).toEqual([{ value: 'boar-1', label: 'B-001' }]);
   });
 

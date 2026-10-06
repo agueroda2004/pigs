@@ -23,7 +23,7 @@ export class EditBoarModal {
   readonly open = input(false);
   readonly boar = input<Boar | null>(null);
   readonly closed = output<void>();
-  readonly updated = output<Boar>();
+  readonly updated = output<void>();
 
   private readonly boars = inject(BoarsService);
   private readonly breeds = inject(BreedsService);
@@ -119,15 +119,15 @@ export class EditBoarModal {
     }
 
     if (Object.keys(request).length === 0) {
-      this.updated.emit(current);
+      this.updated.emit();
       return;
     }
 
     this.loading.set(true);
 
     try {
-      const updated = await firstValueFrom(this.boars.updateBoar(current.id, request));
-      this.updated.emit(updated);
+      await firstValueFrom(this.boars.updateBoar(current.id, request));
+      this.updated.emit();
     } catch (error) {
       this.notifications.error(this.mapError(error));
     } finally {

@@ -10,22 +10,25 @@ import (
 )
 
 type fakeBoarRepository struct {
-	exists            bool
-	existsErr         error
-	getBoar           *boardomain.Boar
-	getErr            error
-	listBoars         []*boardomain.Boar
-	listErr           error
-	listFilter        ports.BoarFilter
-	listOptions       []boardomain.BoarOption
-	listOptionsErr    error
-	listOptionsActive *bool
-	createErr         error
-	updateErr         error
-	updateStateErr    error
-	created           *boardomain.Boar
-	updated           *boardomain.Boar
-	updatedState      *boardomain.Boar
+	exists             bool
+	existsErr          error
+	getBoar            *boardomain.Boar
+	getErr             error
+	listBoars          []*boardomain.Boar
+	listErr            error
+	listFilter         ports.BoarFilter
+	listDropdown       []boardomain.BoarDropdown
+	listDropdownErr    error
+	listDropdownActive bool
+	listDropdownState  *boardomain.State
+	createErr          error
+	updateErr          error
+	updateStateErr     error
+	deleteErr          error
+	deletedID          uuid.UUID
+	created            *boardomain.Boar
+	updated            *boardomain.Boar
+	updatedState       *boardomain.Boar
 }
 
 func (f *fakeBoarRepository) Create(_ context.Context, boar *boardomain.Boar) error {
@@ -46,9 +49,10 @@ func (f *fakeBoarRepository) List(_ context.Context, filter ports.BoarFilter) ([
 	return f.listBoars, f.listErr
 }
 
-func (f *fakeBoarRepository) ListOptions(_ context.Context, active *bool) ([]boardomain.BoarOption, error) {
-	f.listOptionsActive = active
-	return f.listOptions, f.listOptionsErr
+func (f *fakeBoarRepository) ListDropdown(_ context.Context, active bool, state *boardomain.State) ([]boardomain.BoarDropdown, error) {
+	f.listDropdownActive = active
+	f.listDropdownState = state
+	return f.listDropdown, f.listDropdownErr
 }
 
 func (f *fakeBoarRepository) Update(_ context.Context, boar *boardomain.Boar) error {
@@ -59,4 +63,9 @@ func (f *fakeBoarRepository) Update(_ context.Context, boar *boardomain.Boar) er
 func (f *fakeBoarRepository) UpdateState(_ context.Context, boar *boardomain.Boar) error {
 	f.updatedState = boar
 	return f.updateStateErr
+}
+
+func (f *fakeBoarRepository) Delete(_ context.Context, id uuid.UUID) error {
+	f.deletedID = id
+	return f.deleteErr
 }

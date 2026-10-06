@@ -163,25 +163,32 @@ func (r *PostgresBoarRepository) List(ctx context.Context, filter ports.BoarFilt
 	return boars, nil
 }
 
-// ListOptions fetches the id and code of the boars matching the active filter.
-// A true active restricts the result to alive boars; nil or false apply no
-// filter and return every state, active or inactive.
-func (r *PostgresBoarRepository) ListOptions(ctx context.Context, active *bool) ([]boardomain.BoarOption, error) {
+// ListDropdown fetches the id, code and active flag of the boars for selection lists.
+// A true active restricts the result to active boars, false returns every boar;
+// an optional state narrows the result to that state and nil returns every state.
+func (r *PostgresBoarRepository) ListDropdown(ctx context.Context, active bool, state *boardomain.State) ([]boardomain.BoarDropdown, error) {
+	var stateCode *string
+	if state != nil {
+		value := string(*state)
+		stateCode = &value
+	}
+
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, code
+		SELECT id, code, active
 		FROM boars
-		WHERE ($1::boolean IS NOT TRUE OR state = 'Vivo')
+		WHERE ($1 = FALSE OR active = TRUE)
+		  AND ($2::text IS NULL OR state::text = $2)
 		ORDER BY code ASC
-	`, active)
+	`, active, stateCode)
 	if err != nil {
 		return nil, fmt.Errorf("No se pudo consultar los verracos: %w", err)
 	}
 	defer rows.Close()
 
-	options := make([]boardomain.BoarOption, 0)
+	options := make([]boardomain.BoarDropdown, 0)
 	for rows.Next() {
-		var option boardomain.BoarOption
-		if err := rows.Scan(&option.ID, &option.Code); err != nil {
+		var option boardomain.BoarDropdown
+		if err := rows.Scan(&option.ID, &option.Code, &option.Active); err != nil {
 			return nil, fmt.Errorf("No se pudo consultar los verracos: %w", err)
 		}
 		options = append(options, option)
@@ -254,12 +261,35 @@ func (r *PostgresBoarRepository) UpdateState(ctx context.Context, boar *boardoma
 	return nil
 }
 
+// Delete removes a boar by its identifier.
+// It returns ErrBoarNotFound when no row was affected and ErrBoarInUse when the
+// boar still has mounts or removals linked to it.
+func (r *PostgresBoarRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	commandTag, err := r.pool.Exec(ctx, `
+		DELETE FROM boars
+		WHERE id = $1
+	`, id)
+	if err != nil {
+		return mapPostgresError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ErrBoarNotFound
+	}
+	return nil
+}
+
 // mapPostgresError translates PostgreSQL errors into domain port errors.
-// Unique violations become ErrBoarCodeAlreadyUsed; others are wrapped.
+// Unique violations become ErrBoarCodeAlreadyUsed, foreign key violations become
+// ErrBoarInUse; others are wrapped.
 func mapPostgresError(err error) error {
 	var postgresError *pgconn.PgError
-	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
-		return ports.ErrBoarCodeAlreadyUsed
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return ports.ErrBoarCodeAlreadyUsed
+		case "23503":
+			return ports.ErrBoarInUse
+		}
 	}
 	return fmt.Errorf("No se pudo guardar el verraco: %w", err)
 }

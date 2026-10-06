@@ -15,10 +15,6 @@ function buildBoar(overrides: Partial<Boar> = {}): Boar {
     state: 'Vivo',
     origin: 'Propio',
     breed_id: 'breed-1',
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }
@@ -90,6 +86,21 @@ describe('BoarCard', () => {
     const emitted: Boar[] = [];
     fixture.componentInstance.editRequested.subscribe((value) => emitted.push(value));
     (fixture.nativeElement.querySelector('button') as HTMLButtonElement).click();
+
+    expect(emitted).toEqual([boar]);
+  });
+
+  it('emits the boar when the delete button is clicked', () => {
+    const boar = buildBoar();
+    const fixture = TestBed.createComponent(BoarCard);
+    fixture.componentRef.setInput('boar', boar);
+    fixture.componentRef.setInput('canEdit', true);
+    fixture.detectChanges();
+
+    const emitted: Boar[] = [];
+    fixture.componentInstance.deleteRequested.subscribe((value) => emitted.push(value));
+    const buttons = fixture.nativeElement.querySelectorAll('button');
+    (buttons[buttons.length - 1] as HTMLButtonElement).click();
 
     expect(emitted).toEqual([boar]);
   });

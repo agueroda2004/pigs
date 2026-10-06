@@ -16,10 +16,6 @@ const boarPayload = {
   state: 'Vivo',
   origin: 'Propio',
   breed_id: 'breed-1',
-  created_at: '',
-  updated_at: '',
-  created_by: 'admin',
-  updated_by: 'admin',
 };
 
 describe('BoarsService', () => {
@@ -83,9 +79,9 @@ describe('BoarsService', () => {
       (request) => request.url.endsWith('/boars') && request.method === 'POST',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush(boarPayload);
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ code: 'B-001' });
+    await expect(promise).resolves.toBeNull();
   });
 
   it('updates a boar', async () => {
@@ -96,32 +92,45 @@ describe('BoarsService', () => {
       (request) => request.url.endsWith('/boars/7') && request.method === 'PATCH',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush({ ...boarPayload, code: 'B-002' });
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ code: 'B-002' });
+    await expect(promise).resolves.toBeNull();
   });
 
-  it('lists boar options with the active filter', async () => {
-    const promise = firstValueFrom(service.listBoarOptions(true));
+  it('lists the boar dropdown with the active filter', async () => {
+    const promise = firstValueFrom(service.listBoarDropdown(true));
 
     const call = http.expectOne(
-      (request) => request.url.endsWith('/boars/options') && request.method === 'GET',
+      (request) => request.url.endsWith('/boars/dropdown') && request.method === 'GET',
     );
     expect(call.request.params.get('active')).toBe('true');
-    call.flush([{ id: '1', code: 'B-001' }]);
+    expect(call.request.params.has('state')).toBe(false);
+    call.flush([{ id: '1', code: 'B-001', active: true }]);
 
     await expect(promise).resolves.toHaveLength(1);
   });
 
-  it('lists every boar option without the active filter', async () => {
-    const promise = firstValueFrom(service.listBoarOptions());
+  it('lists the boar dropdown with the state filter', async () => {
+    const promise = firstValueFrom(service.listBoarDropdown(false, 'Vivo'));
 
     const call = http.expectOne(
-      (request) => request.url.endsWith('/boars/options') && request.method === 'GET',
+      (request) => request.url.endsWith('/boars/dropdown') && request.method === 'GET',
     );
-    expect(call.request.params.keys()).toHaveLength(0);
+    expect(call.request.params.get('active')).toBe('false');
+    expect(call.request.params.get('state')).toBe('Vivo');
     call.flush([]);
 
     await expect(promise).resolves.toHaveLength(0);
+  });
+
+  it('deletes a boar', async () => {
+    const promise = firstValueFrom(service.deleteBoar('7'));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/boars/7') && request.method === 'DELETE',
+    );
+    call.flush(null);
+
+    await expect(promise).resolves.toBeNull();
   });
 });

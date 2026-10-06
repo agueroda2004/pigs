@@ -37,8 +37,8 @@ func TestBoarHandlerCreate(t *testing.T) {
 		if create.command.Origin != boardomain.OriginOwn {
 			t.Fatalf("unexpected origin: %#v", create.command.Origin)
 		}
-		if response.Header().Get("Content-Type") != "application/json" {
-			t.Fatalf("unexpected content type: %q", response.Header().Get("Content-Type"))
+		if body := strings.TrimSpace(response.Body.String()); body != "" {
+			t.Fatalf("expected an empty body, got %q", body)
 		}
 	})
 
@@ -130,6 +130,9 @@ func TestBoarHandlerList(t *testing.T) {
 		body := strings.TrimSpace(response.Body.String())
 		if !strings.HasPrefix(body, "[") || !strings.Contains(body, "B-001") || !strings.Contains(body, "Vivo") || !strings.Contains(body, "Propio") {
 			t.Fatalf("unexpected body: %s", body)
+		}
+		if strings.Contains(body, "created_at") || strings.Contains(body, "created_by") {
+			t.Fatalf("audit fields must be omitted: %s", body)
 		}
 	})
 
@@ -227,6 +230,9 @@ func TestBoarHandlerUpdate(t *testing.T) {
 		}
 		if update.command.EntryDate == nil || update.command.BreedID == nil || *update.command.BreedID != breedID {
 			t.Fatalf("unexpected command: %#v", update.command)
+		}
+		if body := strings.TrimSpace(response.Body.String()); body != "" {
+			t.Fatalf("expected an empty body, got %q", body)
 		}
 	})
 
@@ -341,75 +347,165 @@ func TestBoarHandlerUpdate(t *testing.T) {
 	})
 }
 
-func TestBoarHandlerListOptions(t *testing.T) {
-	newOptionsHandler := func(options *fakeListBoarOptionsUseCase) *boarinfra.BoarHandler {
-		return newTestHandlerWithOptions(
+func TestBoarHandlerListDropdown(t *testing.T) {
+	newDropdownHandler := func(options *fakeListBoarDropdownUseCase) *boarinfra.BoarHandler {
+		return newTestHandlerWithDropdown(
 			&fakeCreateBoarUseCase{},
 			&fakeListBoarsUseCase{},
 			options,
 			&fakeUpdateBoarUseCase{},
+			&fakeDeleteBoarUseCase{},
 		)
 	}
 
-	t.Run("returns the boar options", func(t *testing.T) {
-		options := &fakeListBoarOptionsUseCase{
-			options: []boardomain.BoarOption{
-				{ID: uuid.New(), Code: "B-001"},
-				{ID: uuid.New(), Code: "B-002"},
+	t.Run("returns the boar dropdown items", func(t *testing.T) {
+		options := &fakeListBoarDropdownUseCase{
+			options: []boardomain.BoarDropdown{
+				{ID: uuid.New(), Code: "B-001", Active: true},
+				{ID: uuid.New(), Code: "B-002", Active: false},
 			},
 		}
-		handler := newOptionsHandler(options)
-		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/options", nil))
+		handler := newDropdownHandler(options)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/dropdown", nil))
 
 		if response.Code != http.StatusOK || !options.called {
 			t.Fatalf("status=%d called=%v", response.Code, options.called)
 		}
-		if options.active != nil {
-			t.Fatalf("unexpected active filter: %#v", options.active)
+		if options.active || options.state != nil {
+			t.Fatalf("unexpected filters active=%v state=%#v", options.active, options.state)
 		}
 		body := response.Body.String()
-		if !strings.Contains(body, "B-001") || !strings.Contains(body, "B-002") {
+		if !strings.Contains(body, "B-001") || !strings.Contains(body, "active") {
 			t.Fatalf("unexpected body: %s", body)
 		}
 	})
 
-	t.Run("forwards the active filter", func(t *testing.T) {
-		options := &fakeListBoarOptionsUseCase{options: []boardomain.BoarOption{}}
-		handler := newOptionsHandler(options)
-		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/options?active=true", nil))
+	t.Run("forwards the active and state filters", func(t *testing.T) {
+		options := &fakeListBoarDropdownUseCase{options: []boardomain.BoarDropdown{}}
+		handler := newDropdownHandler(options)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/dropdown?active=true&state=Vivo", nil))
 
-		if response.Code != http.StatusOK || options.active == nil || !*options.active {
-			t.Fatalf("status=%d active=%#v", response.Code, options.active)
+		if response.Code != http.StatusOK || !options.active {
+			t.Fatalf("status=%d active=%v", response.Code, options.active)
+		}
+		if options.state == nil || *options.state != boardomain.StateAlive {
+			t.Fatalf("unexpected state: %#v", options.state)
 		}
 	})
 
 	t.Run("returns an empty array when there are no options", func(t *testing.T) {
-		options := &fakeListBoarOptionsUseCase{options: []boardomain.BoarOption{}}
-		handler := newOptionsHandler(options)
-		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/options", nil))
+		options := &fakeListBoarDropdownUseCase{options: []boardomain.BoarDropdown{}}
+		handler := newDropdownHandler(options)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/dropdown", nil))
 
 		if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "[]" {
 			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 		}
 	})
 
-	t.Run("rejects an invalid active value", func(t *testing.T) {
-		options := &fakeListBoarOptionsUseCase{}
-		handler := newOptionsHandler(options)
-		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/options?active=not-bool", nil))
+	t.Run("rejects invalid active and state values", func(t *testing.T) {
+		for _, target := range []string{
+			"/api/v1/boars/dropdown?active=not-bool",
+			"/api/v1/boars/dropdown?state=Desconocido",
+		} {
+			options := &fakeListBoarDropdownUseCase{}
+			handler := newDropdownHandler(options)
+			response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
 
-		if response.Code != http.StatusBadRequest || options.called {
-			t.Fatalf("status=%d called=%v", response.Code, options.called)
+			if response.Code != http.StatusBadRequest || options.called {
+				t.Fatalf("target=%s status=%d called=%v", target, response.Code, options.called)
+			}
 		}
 	})
 
 	t.Run("maps internal errors", func(t *testing.T) {
-		options := &fakeListBoarOptionsUseCase{err: errors.New("unexpected")}
-		handler := newOptionsHandler(options)
-		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/options", nil))
+		options := &fakeListBoarDropdownUseCase{err: errors.New("unexpected")}
+		handler := newDropdownHandler(options)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars/dropdown", nil))
 
 		if response.Code != http.StatusInternalServerError {
 			t.Fatalf("status=%d, want %d", response.Code, http.StatusInternalServerError)
+		}
+	})
+}
+
+func TestBoarHandlerDelete(t *testing.T) {
+	boarID := uuid.New()
+
+	t.Run("deletes the boar with the provided id", func(t *testing.T) {
+		remove := &fakeDeleteBoarUseCase{}
+		handler := newTestHandlerWithDropdown(
+			&fakeCreateBoarUseCase{},
+			&fakeListBoarsUseCase{},
+			&fakeListBoarDropdownUseCase{},
+			&fakeUpdateBoarUseCase{},
+			remove,
+		)
+		request := httptest.NewRequest(http.MethodDelete, "/api/v1/boars/"+boarID.String(), nil)
+		request = authenticatedRequest(request, uuid.New())
+		response := serve(handler, request)
+
+		if response.Code != http.StatusNoContent || !remove.called || remove.boarID != boarID {
+			t.Fatalf("status=%d called=%v id=%v", response.Code, remove.called, remove.boarID)
+		}
+	})
+
+	t.Run("returns bad request for invalid UUID", func(t *testing.T) {
+		remove := &fakeDeleteBoarUseCase{}
+		handler := newTestHandlerWithDropdown(
+			&fakeCreateBoarUseCase{},
+			&fakeListBoarsUseCase{},
+			&fakeListBoarDropdownUseCase{},
+			&fakeUpdateBoarUseCase{},
+			remove,
+		)
+		request := httptest.NewRequest(http.MethodDelete, "/api/v1/boars/not-a-uuid", nil)
+		request = authenticatedRequest(request, uuid.New())
+		response := serve(handler, request)
+
+		if response.Code != http.StatusBadRequest || remove.called {
+			t.Fatalf("status=%d called=%v", response.Code, remove.called)
+		}
+	})
+
+	t.Run("blocks deletion for non-admins", func(t *testing.T) {
+		remove := &fakeDeleteBoarUseCase{}
+		handler := newAdminGuardHandler(remove)
+		request := httptest.NewRequest(http.MethodDelete, "/api/v1/boars/"+boarID.String(), nil)
+		request = authenticatedRequest(request, uuid.New())
+		response := serve(handler, request)
+
+		if response.Code != http.StatusForbidden || remove.called {
+			t.Fatalf("status=%d called=%v", response.Code, remove.called)
+		}
+	})
+
+	t.Run("maps application errors", func(t *testing.T) {
+		for _, test := range []struct {
+			name   string
+			err    error
+			status int
+		}{
+			{"not found", ports.ErrBoarNotFound, http.StatusNotFound},
+			{"in use", ports.ErrBoarInUse, http.StatusConflict},
+			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				remove := &fakeDeleteBoarUseCase{err: test.err}
+				handler := newTestHandlerWithDropdown(
+					&fakeCreateBoarUseCase{},
+					&fakeListBoarsUseCase{},
+					&fakeListBoarDropdownUseCase{},
+					&fakeUpdateBoarUseCase{},
+					remove,
+				)
+				request := httptest.NewRequest(http.MethodDelete, "/api/v1/boars/"+uuid.New().String(), nil)
+				request = authenticatedRequest(request, uuid.New())
+				response := serve(handler, request)
+				if response.Code != test.status {
+					t.Fatalf("status=%d, want %d", response.Code, test.status)
+				}
+			})
 		}
 	})
 }

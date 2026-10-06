@@ -22,10 +22,6 @@ function buildBoar(id: string): Boar {
     state: 'Vivo',
     origin: 'Propio',
     breed_id: 'breed-1',
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
   };
 }
 
@@ -34,7 +30,6 @@ class BoarsStub {
 }
 
 class BreedsStub {
-  listBreeds = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc', active: true }]));
   listBreedDropdown = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc', active: true }]));
 }
 
@@ -112,10 +107,32 @@ describe('BoarsPage', () => {
     await component.loadBoars();
 
     stub.listBoars = vi.fn(() => of([buildBoar('9')]));
-    await component.onUpdated(buildBoar('9'));
+    await component.onUpdated();
 
-    expect(notifications.success).toHaveBeenCalledWith('Verraco "B-009" actualizado correctamente');
+    expect(notifications.success).toHaveBeenCalledWith('Verraco actualizado correctamente');
     expect(component.editOpen()).toBe(false);
+    expect(component.boars()).toHaveLength(1);
+  });
+
+  it('opens the delete modal for the selected boar', () => {
+    const component = create();
+    const boar = buildBoar('9');
+
+    component.openDelete(boar);
+
+    expect(component.deleteOpen()).toBe(true);
+    expect(component.deletingBoar()).toEqual(boar);
+  });
+
+  it('reloads the list after deleting a boar', async () => {
+    const component = create();
+    await component.loadBoars();
+
+    stub.listBoars = vi.fn(() => of([buildBoar('2')]));
+    await component.onDeleted(buildBoar('9'));
+
+    expect(notifications.success).toHaveBeenCalledWith('Verraco "B-009" eliminado correctamente');
+    expect(component.deleteOpen()).toBe(false);
     expect(component.boars()).toHaveLength(1);
   });
 
@@ -135,13 +152,7 @@ describe('BoarsPage', () => {
     expect(component.breedOptions()).toEqual([{ value: 'breed-1', label: 'Duroc' }]);
   });
 
-  it('builds the filter options from the dropdown and names from every breed', async () => {
-    breeds.listBreeds = vi.fn(() =>
-      of([
-        { id: 'breed-1', name: 'Duroc', active: true },
-        { id: 'breed-2', name: 'Retired', active: false },
-      ]),
-    );
+  it('builds the filter options and names from a single dropdown request', async () => {
     breeds.listBreedDropdown = vi.fn(() =>
       of([
         { id: 'breed-1', name: 'Duroc', active: true },
@@ -152,6 +163,7 @@ describe('BoarsPage', () => {
 
     await component.loadBreeds();
 
+    expect(breeds.listBreedDropdown).toHaveBeenCalledTimes(1);
     expect(breeds.listBreedDropdown).toHaveBeenCalledWith(false);
     expect(component.breedOptions()).toEqual([
       { value: 'breed-1', label: 'Duroc' },

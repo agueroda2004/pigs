@@ -105,7 +105,7 @@ export class RegisterBoarRemovalModal {
 
   private async loadOptions(): Promise<void> {
     try {
-      const boars = await firstValueFrom(this.boars.listBoarOptions(true));
+      const boars = await firstValueFrom(this.boars.listBoarDropdown(true, 'Vivo'));
       this.boarOptions.set(boars.map((boar) => ({ value: boar.id, label: boar.code })));
     } catch {
       this.notifications.error('No se pudieron cargar los verracos disponibles');

@@ -68,11 +68,12 @@ type Boar struct {
 	UpdatedBy uuid.UUID
 }
 
-// BoarOption is a lightweight boar read model for selection lists.
-// It only carries the identifier and code of a boar.
-type BoarOption struct {
-	ID   uuid.UUID
-	Code string
+// BoarDropdown is a lightweight boar read model for selection lists.
+// It carries the identifier, code and active flag of a boar.
+type BoarDropdown struct {
+	ID     uuid.UUID
+	Code   string
+	Active bool
 }
 
 // NewBoarParams holds the fields required to build a new boar.

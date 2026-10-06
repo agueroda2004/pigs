@@ -13,10 +13,6 @@ export interface Boar {
   state: BoarState;
   origin: BoarOrigin;
   breed_id: string;
-  created_at: string;
-  updated_at: string;
-  created_by: string;
-  updated_by: string;
 }
 
 export interface CreateBoarRequest {
@@ -47,7 +43,8 @@ export interface BoarFilters {
   active?: boolean;
 }
 
-export interface BoarOption {
+export interface BoarDropdown {
   id: string;
   code: string;
+  active: boolean;
 }

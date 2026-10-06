@@ -1,0 +1,31 @@
+<app-modal [open]="open()" size="xl" title="Eliminar verraco" (closed)="closed.emit()">
+  <div class="space-y-4">
+    <p class="text-sm text-muted-foreground">
+      ¿Seguro que quieres eliminar el verraco
+      <span class="font-medium text-foreground">{{ boar()?.code ?? 'sin identificar' }}</span
+      >?
+    </p>
+    <p class="text-sm text-muted-foreground">
+      Esta acción no se puede deshacer. Si el verraco tiene montas o bajas asociadas, no se podrá
+      eliminar y deberás desactivarlo en su lugar.
+    </p>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="button"
+        (click)="confirm()"
+        [disabled]="loading()"
+        class="rounded-md bg-danger px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Eliminando…' : 'Eliminar' }}
+      </button>
+    </div>
+  </div>
+</app-modal>

@@ -123,6 +123,7 @@
           [breedName]="breedName(boar)"
           [canEdit]="isAdmin()"
           (editRequested)="openEdit($event)"
+          (deleteRequested)="openDelete($event)"
         />
       }
     </div>
@@ -135,5 +136,12 @@
   [open]="editOpen()"
   [boar]="editingBoar()"
   (closed)="closeEdit()"
-  (updated)="onUpdated($event)"
+  (updated)="onUpdated()"
+/>
+
+<app-delete-boar-modal
+  [open]="deleteOpen()"
+  [boar]="deletingBoar()"
+  (closed)="closeDelete()"
+  (deleted)="onDeleted($event)"
 />

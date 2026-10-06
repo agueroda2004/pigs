@@ -10,11 +10,19 @@ import { NotificationService } from '../../../core/notifications/notification.se
 import { Dropdown, DropdownOption } from '../../../shared/ui/dropdown/dropdown';
 import { BoarCard } from '../boar-card/boar-card';
 import { CreateBoarModal } from '../create-boar-modal/create-boar-modal';
+import { DeleteBoarModal } from '../delete-boar-modal/delete-boar-modal';
 import { EditBoarModal } from '../edit-boar-modal/edit-boar-modal';
 
 @Component({
   selector: 'app-boars-page',
-  imports: [ReactiveFormsModule, BoarCard, CreateBoarModal, EditBoarModal, Dropdown],
+  imports: [
+    ReactiveFormsModule,
+    BoarCard,
+    CreateBoarModal,
+    EditBoarModal,
+    DeleteBoarModal,
+    Dropdown,
+  ],
   styleUrl: './boars-page.css',
   templateUrl: './boars-page.html',
 })
@@ -35,6 +43,8 @@ export class BoarsPage implements OnInit {
   protected readonly modalOpen = signal(false);
   protected readonly editOpen = signal(false);
   protected readonly editingBoar = signal<Boar | null>(null);
+  protected readonly deleteOpen = signal(false);
+  protected readonly deletingBoar = signal<Boar | null>(null);
 
   protected readonly originOptions: DropdownOption[] = [
     { value: '', label: 'Todos' },
@@ -84,9 +94,24 @@ export class BoarsPage implements OnInit {
     this.editOpen.set(false);
   }
 
-  protected async onUpdated(boar: Boar): Promise<void> {
+  protected async onUpdated(): Promise<void> {
     this.editOpen.set(false);
-    this.notifications.success(`Verraco "${boar.code}" actualizado correctamente`);
+    this.notifications.success('Verraco actualizado correctamente');
+    await this.loadBoars();
+  }
+
+  protected openDelete(boar: Boar): void {
+    this.deletingBoar.set(boar);
+    this.deleteOpen.set(true);
+  }
+
+  protected closeDelete(): void {
+    this.deleteOpen.set(false);
+  }
+
+  protected async onDeleted(boar: Boar): Promise<void> {
+    this.deleteOpen.set(false);
+    this.notifications.success(`Verraco "${boar.code}" eliminado correctamente`);
     await this.loadBoars();
   }
 
@@ -137,15 +162,12 @@ export class BoarsPage implements OnInit {
 
   protected async loadBreeds(): Promise<void> {
     try {
-      const [breeds, options] = await Promise.all([
-        firstValueFrom(this.breedsService.listBreeds()),
-        firstValueFrom(this.breedsService.listBreedDropdown(false)),
-      ]);
+      const breeds = await firstValueFrom(this.breedsService.listBreedDropdown(false));
       this.breedNames.set(new Map(breeds.map((breed) => [breed.id, breed.name])));
       this.breedOptions.set(
-        options.map((option) => ({
-          value: option.id,
-          label: option.active ? option.name : `${option.name} (inactiva)`,
+        breeds.map((breed) => ({
+          value: breed.id,
+          label: breed.active ? breed.name : `${breed.name} (inactiva)`,
         })),
       );
     } catch {

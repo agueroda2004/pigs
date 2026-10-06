@@ -9,12 +9,13 @@ import (
 )
 
 type Module struct {
-	CreateBoar      *boarapplication.CreateBoarService
-	ListBoars       *boarapplication.ListBoarsService
-	ListBoarOptions *boarapplication.ListBoarOptionsService
-	UpdateBoar      *boarapplication.UpdateBoarService
-	ChangeBoarState *boarapplication.ChangeBoarStateService
-	Handler         *BoarHandler
+	CreateBoar       *boarapplication.CreateBoarService
+	ListBoars        *boarapplication.ListBoarsService
+	ListBoarDropdown *boarapplication.ListBoarDropdownService
+	UpdateBoar       *boarapplication.UpdateBoarService
+	DeleteBoar       *boarapplication.DeleteBoarService
+	ChangeBoarState  *boarapplication.ChangeBoarStateService
+	Handler          *BoarHandler
 }
 
 // NewModule assembles the boar use cases and HTTP handler from its dependencies.
@@ -28,16 +29,18 @@ func NewModule(
 ) *Module {
 	createBoar := boarapplication.NewCreateBoarService(repository, clock)
 	listBoars := boarapplication.NewListBoarsService(repository)
-	listBoarOptions := boarapplication.NewListBoarOptionsService(repository)
+	listBoarDropdown := boarapplication.NewListBoarDropdownService(repository)
 	updateBoar := boarapplication.NewUpdateBoarService(repository, clock)
+	deleteBoar := boarapplication.NewDeleteBoarService(repository)
 	changeBoarState := boarapplication.NewChangeBoarStateService(repository, clock)
 
 	return &Module{
-		CreateBoar:      createBoar,
-		ListBoars:       listBoars,
-		ListBoarOptions: listBoarOptions,
-		UpdateBoar:      updateBoar,
-		ChangeBoarState: changeBoarState,
-		Handler:         NewBoarHandler(createBoar, listBoars, listBoarOptions, updateBoar, authMiddleware, adminMiddleware),
+		CreateBoar:       createBoar,
+		ListBoars:        listBoars,
+		ListBoarDropdown: listBoarDropdown,
+		UpdateBoar:       updateBoar,
+		DeleteBoar:       deleteBoar,
+		ChangeBoarState:  changeBoarState,
+		Handler:          NewBoarHandler(createBoar, listBoars, listBoarDropdown, updateBoar, deleteBoar, authMiddleware, adminMiddleware),
 	}
 }

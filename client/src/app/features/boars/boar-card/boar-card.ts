@@ -14,6 +14,7 @@ export class BoarCard {
   readonly breedName = input<string | null>(null);
   readonly canEdit = input(false);
   readonly editRequested = output<Boar>();
+  readonly deleteRequested = output<Boar>();
 
   protected readonly stateLabel = computed(() => BOAR_STATE_LABELS[this.boar().state]);
   protected readonly stateClass = computed(() => BOAR_STATE_CLASSES[this.boar().state]);

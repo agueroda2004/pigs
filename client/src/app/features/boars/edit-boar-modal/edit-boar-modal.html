@@ -1,4 +1,4 @@
-<app-modal [open]="open()" title="Editar verraco" (closed)="closed.emit()">
+<app-modal [open]="open()" size="xl" title="Editar verraco" (closed)="closed.emit()">
   <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
     <div class="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
       <span class="text-sm font-medium">Estado</span>

@@ -3,7 +3,14 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { Boar, BoarFilters, BoarOption, CreateBoarRequest, UpdateBoarRequest } from './boar.models';
+import {
+  Boar,
+  BoarDropdown,
+  BoarFilters,
+  BoarState,
+  CreateBoarRequest,
+  UpdateBoarRequest,
+} from './boar.models';
 
 @Injectable({ providedIn: 'root' })
 export class BoarsService {
@@ -28,20 +35,24 @@ export class BoarsService {
     return this.http.get<Boar[]>(this.baseUrl, { params });
   }
 
-  createBoar(request: CreateBoarRequest): Observable<Boar> {
-    return this.http.post<Boar>(this.baseUrl, request);
+  createBoar(request: CreateBoarRequest): Observable<void> {
+    return this.http.post<void>(this.baseUrl, request);
   }
 
-  listBoarOptions(active?: boolean): Observable<BoarOption[]> {
-    let params = new HttpParams();
-    if (active !== undefined) {
-      params = params.set('active', String(active));
+  listBoarDropdown(active: boolean, state?: BoarState): Observable<BoarDropdown[]> {
+    let params = new HttpParams().set('active', String(active));
+    if (state) {
+      params = params.set('state', state);
     }
 
-    return this.http.get<BoarOption[]>(`${this.baseUrl}/options`, { params });
+    return this.http.get<BoarDropdown[]>(`${this.baseUrl}/dropdown`, { params });
   }
 
-  updateBoar(id: string, request: UpdateBoarRequest): Observable<Boar> {
-    return this.http.patch<Boar>(`${this.baseUrl}/${id}`, request);
+  updateBoar(id: string, request: UpdateBoarRequest): Observable<void> {
+    return this.http.patch<void>(`${this.baseUrl}/${id}`, request);
+  }
+
+  deleteBoar(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
 }

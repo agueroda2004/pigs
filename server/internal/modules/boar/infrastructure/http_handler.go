@@ -31,17 +31,22 @@ type UpdateBoarUseCase interface {
 	Execute(context.Context, uuid.UUID, boarapplication.UpdateBoarCommand) (*boardomain.Boar, error)
 }
 
-type ListBoarOptionsUseCase interface {
-	Execute(context.Context, *bool) ([]boardomain.BoarOption, error)
+type ListBoarDropdownUseCase interface {
+	Execute(context.Context, bool, *boardomain.State) ([]boardomain.BoarDropdown, error)
+}
+
+type DeleteBoarUseCase interface {
+	Execute(context.Context, uuid.UUID) error
 }
 
 type BoarHandler struct {
-	createBoar      CreateBoarUseCase
-	listBoars       ListBoarsUseCase
-	listBoarOptions ListBoarOptionsUseCase
-	updateBoar      UpdateBoarUseCase
-	authMiddleware  func(http.Handler) http.Handler
-	adminMiddleware func(http.Handler) http.Handler
+	createBoar       CreateBoarUseCase
+	listBoars        ListBoarsUseCase
+	listBoarDropdown ListBoarDropdownUseCase
+	updateBoar       UpdateBoarUseCase
+	deleteBoar       DeleteBoarUseCase
+	authMiddleware   func(http.Handler) http.Handler
+	adminMiddleware  func(http.Handler) http.Handler
 }
 
 // NewBoarHandler wires the boar use cases and middlewares into a handler.
@@ -49,28 +54,31 @@ type BoarHandler struct {
 func NewBoarHandler(
 	createBoar CreateBoarUseCase,
 	listBoars ListBoarsUseCase,
-	listBoarOptions ListBoarOptionsUseCase,
+	listBoarDropdown ListBoarDropdownUseCase,
 	updateBoar UpdateBoarUseCase,
+	deleteBoar DeleteBoarUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *BoarHandler {
 	return &BoarHandler{
-		createBoar:      createBoar,
-		listBoars:       listBoars,
-		listBoarOptions: listBoarOptions,
-		updateBoar:      updateBoar,
-		authMiddleware:  authMiddleware,
-		adminMiddleware: adminMiddleware,
+		createBoar:       createBoar,
+		listBoars:        listBoars,
+		listBoarDropdown: listBoarDropdown,
+		updateBoar:       updateBoar,
+		deleteBoar:       deleteBoar,
+		authMiddleware:   authMiddleware,
+		adminMiddleware:  adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the boar create, list, options and update endpoints.
+// RegisterRoutes registers the boar create, list, dropdown, update and delete endpoints.
 // Write routes are admin-only while the read routes only require authentication.
 func (h *BoarHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/boars", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/v1/boars", h.authMiddleware(http.HandlerFunc(h.list)))
-	mux.Handle("GET /api/v1/boars/options", h.authMiddleware(http.HandlerFunc(h.listOptions)))
+	mux.Handle("GET /api/v1/boars/dropdown", h.authMiddleware(http.HandlerFunc(h.listDropdown)))
 	mux.Handle("PATCH /api/v1/boars/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
+	mux.Handle("DELETE /api/v1/boars/{id}", h.adminMiddleware(http.HandlerFunc(h.delete)))
 }
 
 type createBoarRequest struct {
@@ -94,7 +102,7 @@ type updateBoarRequest struct {
 	BreedID   *string `json:"breed_id"`
 }
 
-type boarResponse struct {
+type boarSummaryResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Code      string    `json:"code"`
 	Location  *string   `json:"location"`
@@ -105,15 +113,12 @@ type boarResponse struct {
 	State     string    `json:"state"`
 	Origin    string    `json:"origin"`
 	BreedID   uuid.UUID `json:"breed_id"`
-	CreatedAt string    `json:"created_at"`
-	UpdatedAt string    `json:"updated_at"`
-	CreatedBy uuid.UUID `json:"created_by"`
-	UpdatedBy uuid.UUID `json:"updated_by"`
 }
 
-type boarOptionResponse struct {
-	ID   uuid.UUID `json:"id"`
-	Code string    `json:"code"`
+type boarDropdownResponse struct {
+	ID     uuid.UUID `json:"id"`
+	Code   string    `json:"code"`
+	Active bool      `json:"active"`
 }
 
 // create handles POST /api/v1/boars and creates a boar from the request body.
@@ -149,7 +154,7 @@ func (h *BoarHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdBoar, err := h.createBoar.Execute(r.Context(), boarapplication.CreateBoarCommand{
+	if _, err := h.createBoar.Execute(r.Context(), boarapplication.CreateBoarCommand{
 		Code:      request.Code,
 		Location:  request.Location,
 		EntryDate: entryDate,
@@ -158,13 +163,12 @@ func (h *BoarHandler) create(w http.ResponseWriter, r *http.Request) {
 		Origin:    boardomain.Origin(request.Origin),
 		BreedID:   breedID,
 		CreatedBy: actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeBoarError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusCreated, toBoarResponse(createdBoar))
+	w.WriteHeader(http.StatusCreated)
 }
 
 // list handles GET /api/v1/boars and returns the boars matching the query filter.
@@ -182,39 +186,59 @@ func (h *BoarHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toBoarResponses(boars))
+	platformhttp.WriteJSON(w, http.StatusOK, toBoarSummaries(boars))
 }
 
-// listOptions handles GET /api/v1/boars/options and returns the boar options.
-// It forwards the optional active filter so callers may list all boars when empty.
-func (h *BoarHandler) listOptions(w http.ResponseWriter, r *http.Request) {
-	active, err := parseBoarOptionsActive(r)
+// listDropdown handles GET /api/v1/boars/dropdown and returns boars for a selection list.
+// It forwards the active flag and an optional state filter so callers may narrow the list.
+func (h *BoarHandler) listDropdown(w http.ResponseWriter, r *http.Request) {
+	active, err := parseActiveQuery(r)
 	if err != nil {
 		platformhttp.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	options, err := h.listBoarOptions.Execute(r.Context(), active)
+	state, err := parseStateQuery(r)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	options, err := h.listBoarDropdown.Execute(r.Context(), active, state)
 	if err != nil {
 		writeBoarError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toBoarOptionResponses(options))
+	platformhttp.WriteJSON(w, http.StatusOK, toBoarDropdownResponses(options))
 }
 
-// parseBoarOptionsActive reads the optional active query parameter.
-// It returns nil when empty (no filter) and an error for a non-boolean value.
-func parseBoarOptionsActive(r *http.Request) (*bool, error) {
+// parseActiveQuery reads the optional active query parameter.
+// It defaults to false (every boar) and rejects a malformed boolean.
+func parseActiveQuery(r *http.Request) (bool, error) {
 	active := strings.TrimSpace(r.URL.Query().Get("active"))
 	if active == "" {
-		return nil, nil
+		return false, nil
 	}
 	parsedActive, err := strconv.ParseBool(active)
 	if err != nil {
-		return nil, errors.New("El filtro de activo no es válido")
+		return false, errors.New("El filtro de activo no es válido")
 	}
-	return &parsedActive, nil
+	return parsedActive, nil
+}
+
+// parseStateQuery reads the optional state query parameter.
+// It returns nil when empty (no state filter) and an error for an unknown state.
+func parseStateQuery(r *http.Request) (*boardomain.State, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get("state"))
+	if raw == "" {
+		return nil, nil
+	}
+	state, err := boardomain.ParseState(raw)
+	if err != nil {
+		return nil, errors.New("El estado no es válido")
+	}
+	return &state, nil
 }
 
 // parseBoarFilter reads the optional list filters from the query string.
@@ -308,7 +332,7 @@ func (h *BoarHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedBoar, err := h.updateBoar.Execute(r.Context(), boarID, boarapplication.UpdateBoarCommand{
+	if _, err := h.updateBoar.Execute(r.Context(), boarID, boarapplication.UpdateBoarCommand{
 		Code:           request.Code,
 		Location:       request.Location,
 		Active:         request.Active,
@@ -319,13 +343,29 @@ func (h *BoarHandler) update(w http.ResponseWriter, r *http.Request) {
 		Origin:         origin,
 		BreedID:        breedID,
 		UpdatedBy:      actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeBoarError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toBoarResponse(updatedBoar))
+	w.WriteHeader(http.StatusOK)
+}
+
+// delete handles DELETE /api/v1/boars/{id} and removes a boar.
+// It parses the id path value and maps a linked-records conflict to 409.
+func (h *BoarHandler) delete(w http.ResponseWriter, r *http.Request) {
+	boarID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador del verraco no es válido"))
+		return
+	}
+
+	if err := h.deleteBoar.Execute(r.Context(), boarID); err != nil {
+		writeBoarError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // parseOptionalDate parses an optional date pointer using the shared layout.
@@ -341,10 +381,10 @@ func parseOptionalDate(value *string) (*time.Time, error) {
 	return &parsed, nil
 }
 
-// toBoarResponse maps a domain boar to the HTTP response shape.
-// It formats dates as YYYY-MM-DD and timestamps in UTC.
-func toBoarResponse(boar *boardomain.Boar) boarResponse {
-	return boarResponse{
+// toBoarSummary maps a domain boar to the HTTP response shape without audit fields.
+// It formats the dates as YYYY-MM-DD.
+func toBoarSummary(boar *boardomain.Boar) boarSummaryResponse {
+	return boarSummaryResponse{
 		ID:        boar.ID,
 		Code:      boar.Code,
 		Location:  boar.Location,
@@ -355,29 +395,25 @@ func toBoarResponse(boar *boardomain.Boar) boarResponse {
 		State:     string(boar.State),
 		Origin:    string(boar.Origin),
 		BreedID:   boar.BreedID,
-		CreatedAt: boar.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt: boar.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		CreatedBy: boar.CreatedBy,
-		UpdatedBy: boar.UpdatedBy,
 	}
 }
 
-// toBoarResponses maps a list of domain boars to HTTP response shapes.
+// toBoarSummaries maps a list of domain boars to HTTP response shapes.
 // It returns an empty slice instead of null when there are no boars.
-func toBoarResponses(boars []*boardomain.Boar) []boarResponse {
-	responses := make([]boarResponse, 0, len(boars))
+func toBoarSummaries(boars []*boardomain.Boar) []boarSummaryResponse {
+	responses := make([]boarSummaryResponse, 0, len(boars))
 	for _, boar := range boars {
-		responses = append(responses, toBoarResponse(boar))
+		responses = append(responses, toBoarSummary(boar))
 	}
 	return responses
 }
 
-// toBoarOptionResponses maps boar options to their HTTP response shape.
+// toBoarDropdownResponses maps boar dropdown items to their HTTP response shape.
 // It returns an empty slice instead of null when there are no options.
-func toBoarOptionResponses(options []boardomain.BoarOption) []boarOptionResponse {
-	responses := make([]boarOptionResponse, 0, len(options))
+func toBoarDropdownResponses(options []boardomain.BoarDropdown) []boarDropdownResponse {
+	responses := make([]boarDropdownResponse, 0, len(options))
 	for _, option := range options {
-		responses = append(responses, boarOptionResponse{ID: option.ID, Code: option.Code})
+		responses = append(responses, boarDropdownResponse{ID: option.ID, Code: option.Code, Active: option.Active})
 	}
 	return responses
 }
@@ -397,7 +433,8 @@ func formatOptionalDate(value *time.Time) *string {
 func writeBoarError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, ports.ErrBoarCodeAlreadyUsed):
+	case errors.Is(err, ports.ErrBoarCodeAlreadyUsed),
+		errors.Is(err, ports.ErrBoarInUse):
 		status = http.StatusConflict
 	case errors.Is(err, ports.ErrBoarNotFound):
 		status = http.StatusNotFound

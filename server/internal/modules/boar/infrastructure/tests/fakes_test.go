@@ -57,31 +57,56 @@ func (f *fakeUpdateBoarUseCase) Execute(_ context.Context, boarID uuid.UUID, com
 	return f.boar, f.err
 }
 
-type fakeListBoarOptionsUseCase struct {
-	options []boardomain.BoarOption
+type fakeListBoarDropdownUseCase struct {
+	options []boardomain.BoarDropdown
 	err     error
-	active  *bool
+	active  bool
+	state   *boardomain.State
 	called  bool
 }
 
-func (f *fakeListBoarOptionsUseCase) Execute(_ context.Context, active *bool) ([]boardomain.BoarOption, error) {
+func (f *fakeListBoarDropdownUseCase) Execute(_ context.Context, active bool, state *boardomain.State) ([]boardomain.BoarDropdown, error) {
 	f.called = true
 	f.active = active
+	f.state = state
 	return f.options, f.err
 }
 
-func newTestHandler(create boarinfra.CreateBoarUseCase, list boarinfra.ListBoarsUseCase, update boarinfra.UpdateBoarUseCase) *boarinfra.BoarHandler {
-	return newTestHandlerWithOptions(create, list, &fakeListBoarOptionsUseCase{}, update)
+type fakeDeleteBoarUseCase struct {
+	err    error
+	boarID uuid.UUID
+	called bool
 }
 
-func newTestHandlerWithOptions(
+func (f *fakeDeleteBoarUseCase) Execute(_ context.Context, boarID uuid.UUID) error {
+	f.called = true
+	f.boarID = boarID
+	return f.err
+}
+
+func newTestHandler(create boarinfra.CreateBoarUseCase, list boarinfra.ListBoarsUseCase, update boarinfra.UpdateBoarUseCase) *boarinfra.BoarHandler {
+	return newTestHandlerWithDropdown(create, list, &fakeListBoarDropdownUseCase{}, update, &fakeDeleteBoarUseCase{})
+}
+
+func newTestHandlerWithDropdown(
 	create boarinfra.CreateBoarUseCase,
 	list boarinfra.ListBoarsUseCase,
-	options boarinfra.ListBoarOptionsUseCase,
+	dropdown boarinfra.ListBoarDropdownUseCase,
 	update boarinfra.UpdateBoarUseCase,
+	remove boarinfra.DeleteBoarUseCase,
 ) *boarinfra.BoarHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return boarinfra.NewBoarHandler(create, list, options, update, passThrough, passThrough)
+	return boarinfra.NewBoarHandler(create, list, dropdown, update, remove, passThrough, passThrough)
+}
+
+func newAdminGuardHandler(remove boarinfra.DeleteBoarUseCase) *boarinfra.BoarHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	adminGuard := func(_ http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		})
+	}
+	return boarinfra.NewBoarHandler(&fakeCreateBoarUseCase{}, &fakeListBoarsUseCase{}, &fakeListBoarDropdownUseCase{}, &fakeUpdateBoarUseCase{}, remove, passThrough, adminGuard)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {
