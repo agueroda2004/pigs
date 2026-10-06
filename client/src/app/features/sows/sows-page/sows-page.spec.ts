@@ -35,8 +35,8 @@ class SowsStub {
 }
 
 class BreedsStub {
-  listBreeds = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc' }]));
-  listBreedOptions = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc' }]));
+  listBreeds = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc', active: true }]));
+  listBreedDropdown = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc', active: true }]));
 }
 
 class NotificationsStub {
@@ -137,19 +137,28 @@ describe('SowsPage', () => {
     expect(component.breedOptions()).toEqual([{ value: 'breed-1', label: 'Duroc' }]);
   });
 
-  it('uses only active breeds for the filter while keeping names for every breed', async () => {
+  it('builds the filter options from the dropdown and names from every breed', async () => {
     breeds.listBreeds = vi.fn(() =>
       of([
-        { id: 'breed-1', name: 'Duroc' },
-        { id: 'breed-2', name: 'Retired' },
+        { id: 'breed-1', name: 'Duroc', active: true },
+        { id: 'breed-2', name: 'Retired', active: false },
       ]),
     );
-    breeds.listBreedOptions = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc' }]));
+    breeds.listBreedDropdown = vi.fn(() =>
+      of([
+        { id: 'breed-1', name: 'Duroc', active: true },
+        { id: 'breed-2', name: 'Retired', active: false },
+      ]),
+    );
     const component = create();
 
     await component.loadBreeds();
 
-    expect(component.breedOptions()).toEqual([{ value: 'breed-1', label: 'Duroc' }]);
+    expect(breeds.listBreedDropdown).toHaveBeenCalledWith(false);
+    expect(component.breedOptions()).toEqual([
+      { value: 'breed-1', label: 'Duroc' },
+      { value: 'breed-2', label: 'Retired (inactiva)' },
+    ]);
     expect(component.breedNames().get('breed-2')).toBe('Retired');
   });
 

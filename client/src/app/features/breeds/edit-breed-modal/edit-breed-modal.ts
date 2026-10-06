@@ -18,7 +18,7 @@ export class EditBreedModal {
   readonly open = input(false);
   readonly breed = input<Breed | null>(null);
   readonly closed = output<void>();
-  readonly updated = output<Breed>();
+  readonly updated = output<void>();
 
   private readonly breeds = inject(BreedsService);
   private readonly notifications = inject(NotificationService);
@@ -61,15 +61,15 @@ export class EditBreedModal {
     }
 
     if (request.name === undefined && request.active === undefined) {
-      this.updated.emit(current);
+      this.updated.emit();
       return;
     }
 
     this.loading.set(true);
 
     try {
-      const updated = await firstValueFrom(this.breeds.updateBreed(current.id, request));
-      this.updated.emit(updated);
+      await firstValueFrom(this.breeds.updateBreed(current.id, request));
+      this.updated.emit();
     } catch (error) {
       this.notifications.error(this.mapError(error));
     } finally {

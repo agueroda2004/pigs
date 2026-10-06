@@ -34,7 +34,12 @@ class BoarsStub {
 }
 
 class BreedsStub {
-  listBreeds = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc' }]));
+  listBreedDropdown = vi.fn(() =>
+    of([
+      { id: 'breed-1', name: 'Duroc', active: true },
+      { id: 'breed-2', name: 'Landrace', active: false },
+    ]),
+  );
 }
 
 class NotificationsStub {
@@ -44,19 +49,33 @@ class NotificationsStub {
 
 describe('EditBoarModal', () => {
   let stub: BoarsStub;
+  let breeds: BreedsStub;
   let notifications: NotificationsStub;
 
   beforeEach(async () => {
     stub = new BoarsStub();
+    breeds = new BreedsStub();
     notifications = new NotificationsStub();
     await TestBed.configureTestingModule({
       imports: [EditBoarModal],
       providers: [
         { provide: BoarsService, useValue: stub },
-        { provide: BreedsService, useValue: new BreedsStub() },
+        { provide: BreedsService, useValue: breeds },
         { provide: NotificationService, useValue: notifications },
       ],
     }).compileComponents();
+  });
+
+  it('loads every breed and marks the inactive ones', async () => {
+    const fixture = await openWith(buildBoar());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+
+    expect(breeds.listBreedDropdown).toHaveBeenCalledWith(false);
+    expect(component.breedOptions()).toEqual([
+      { value: 'breed-1', label: 'Duroc' },
+      { value: 'breed-2', label: 'Landrace (inactiva)' },
+    ]);
   });
 
   async function openWith(boar: Boar): Promise<ComponentFixture<EditBoarModal>> {

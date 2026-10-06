@@ -9,11 +9,12 @@ import (
 )
 
 type Module struct {
-	CreateBreed      *breedapplication.CreateBreedService
-	ListBreeds       *breedapplication.ListBreedsService
-	ListBreedOptions *breedapplication.ListBreedOptionsService
-	UpdateBreed      *breedapplication.UpdateBreedService
-	Handler          *BreedHandler
+	CreateBreed       *breedapplication.CreateBreedService
+	ListBreeds        *breedapplication.ListBreedsService
+	ListBreedDropdown *breedapplication.ListBreedDropdownService
+	UpdateBreed       *breedapplication.UpdateBreedService
+	DeleteBreed       *breedapplication.DeleteBreedService
+	Handler           *BreedHandler
 }
 
 // NewModule assembles the breed use cases and HTTP handler from its dependencies.
@@ -26,14 +27,16 @@ func NewModule(
 ) *Module {
 	createBreed := breedapplication.NewCreateBreedService(repository, clock)
 	listBreeds := breedapplication.NewListBreedsService(repository)
-	listBreedOptions := breedapplication.NewListBreedOptionsService(repository)
+	listBreedDropdown := breedapplication.NewListBreedDropdownService(repository)
 	updateBreed := breedapplication.NewUpdateBreedService(repository, clock)
+	deleteBreed := breedapplication.NewDeleteBreedService(repository)
 
 	return &Module{
-		CreateBreed:      createBreed,
-		ListBreeds:       listBreeds,
-		ListBreedOptions: listBreedOptions,
-		UpdateBreed:      updateBreed,
-		Handler:          NewBreedHandler(createBreed, listBreeds, listBreedOptions, updateBreed, authMiddleware, adminMiddleware),
+		CreateBreed:       createBreed,
+		ListBreeds:        listBreeds,
+		ListBreedDropdown: listBreedDropdown,
+		UpdateBreed:       updateBreed,
+		DeleteBreed:       deleteBreed,
+		Handler:           NewBreedHandler(createBreed, listBreeds, listBreedDropdown, updateBreed, deleteBreed, authMiddleware, adminMiddleware),
 	}
 }

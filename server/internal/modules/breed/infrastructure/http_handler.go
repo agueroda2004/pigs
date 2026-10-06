@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -19,24 +21,29 @@ type CreateBreedUseCase interface {
 }
 
 type ListBreedsUseCase interface {
-	Execute(context.Context) ([]*breeddomain.Breed, error)
+	Execute(context.Context, ports.BreedFilter) ([]*breeddomain.Breed, error)
 }
 
-type ListBreedOptionsUseCase interface {
-	Execute(context.Context) ([]breeddomain.BreedOption, error)
+type ListBreedDropdownUseCase interface {
+	Execute(context.Context, bool) ([]breeddomain.BreedDropdown, error)
 }
 
 type UpdateBreedUseCase interface {
 	Execute(context.Context, uuid.UUID, breedapplication.UpdateBreedCommand) (*breeddomain.Breed, error)
 }
 
+type DeleteBreedUseCase interface {
+	Execute(context.Context, uuid.UUID) error
+}
+
 type BreedHandler struct {
-	createBreed      CreateBreedUseCase
-	listBreeds       ListBreedsUseCase
-	listBreedOptions ListBreedOptionsUseCase
-	updateBreed      UpdateBreedUseCase
-	authMiddleware   func(http.Handler) http.Handler
-	adminMiddleware  func(http.Handler) http.Handler
+	createBreed       CreateBreedUseCase
+	listBreeds        ListBreedsUseCase
+	listBreedDropdown ListBreedDropdownUseCase
+	updateBreed       UpdateBreedUseCase
+	deleteBreed       DeleteBreedUseCase
+	authMiddleware    func(http.Handler) http.Handler
+	adminMiddleware   func(http.Handler) http.Handler
 }
 
 // NewBreedHandler wires the breed use cases and middlewares into a handler.
@@ -44,28 +51,31 @@ type BreedHandler struct {
 func NewBreedHandler(
 	createBreed CreateBreedUseCase,
 	listBreeds ListBreedsUseCase,
-	listOptions ListBreedOptionsUseCase,
+	listDropdown ListBreedDropdownUseCase,
 	updateBreed UpdateBreedUseCase,
+	deleteBreed DeleteBreedUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *BreedHandler {
 	return &BreedHandler{
-		createBreed:      createBreed,
-		listBreeds:       listBreeds,
-		listBreedOptions: listOptions,
-		updateBreed:      updateBreed,
-		authMiddleware:   authMiddleware,
-		adminMiddleware:  adminMiddleware,
+		createBreed:       createBreed,
+		listBreeds:        listBreeds,
+		listBreedDropdown: listDropdown,
+		updateBreed:       updateBreed,
+		deleteBreed:       deleteBreed,
+		authMiddleware:    authMiddleware,
+		adminMiddleware:   adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the breed create, list, options and update endpoints on the mux.
+// RegisterRoutes registers the breed create, list, dropdown, update and delete endpoints on the mux.
 // Write routes are admin-only while the read routes only require authentication.
 func (h *BreedHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/breeds", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/v1/breeds", h.authMiddleware(http.HandlerFunc(h.list)))
-	mux.Handle("GET /api/v1/breeds/options", h.authMiddleware(http.HandlerFunc(h.listOptions)))
+	mux.Handle("GET /api/v1/breeds/dropdown", h.authMiddleware(http.HandlerFunc(h.listDropdown)))
 	mux.Handle("PATCH /api/v1/breeds/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
+	mux.Handle("DELETE /api/v1/breeds/{id}", h.adminMiddleware(http.HandlerFunc(h.delete)))
 }
 
 type createBreedRequest struct {
@@ -77,19 +87,10 @@ type updateBreedRequest struct {
 	Active *bool   `json:"active"`
 }
 
-type breedResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Active    bool      `json:"active"`
-	CreatedAt string    `json:"created_at"`
-	UpdatedAt string    `json:"updated_at"`
-	CreatedBy uuid.UUID `json:"created_by"`
-	UpdatedBy uuid.UUID `json:"updated_by"`
-}
-
-type breedOptionResponse struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
+type breedSummaryResponse struct {
+	ID     uuid.UUID `json:"id"`
+	Name   string    `json:"name"`
+	Active bool      `json:"active"`
 }
 
 // create handles POST /api/v1/breeds and creates a breed from the request body.
@@ -107,40 +108,51 @@ func (h *BreedHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdBreed, err := h.createBreed.Execute(r.Context(), breedapplication.CreateBreedCommand{
+	if _, err := h.createBreed.Execute(r.Context(), breedapplication.CreateBreedCommand{
 		Name:      request.Name,
 		CreatedBy: actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeBreedError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusCreated, toBreedResponse(createdBreed))
+	w.WriteHeader(http.StatusCreated)
 }
 
-// list handles GET /api/v1/breeds and returns every registered breed.
-// It maps the domain breeds to the public response shape.
+// list handles GET /api/v1/breeds and returns the breeds matching the filter.
+// It parses the optional name and active query parameters and omits the audit fields.
 func (h *BreedHandler) list(w http.ResponseWriter, r *http.Request) {
-	breeds, err := h.listBreeds.Execute(r.Context())
+	filter, err := parseBreedFilter(r)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	breeds, err := h.listBreeds.Execute(r.Context(), filter)
 	if err != nil {
 		writeBreedError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toBreedResponses(breeds))
+	platformhttp.WriteJSON(w, http.StatusOK, toBreedSummaries(breeds))
 }
 
-// listOptions handles GET /api/v1/breeds/options and returns the active breeds.
-// It maps the read model to a lightweight response with only id and name.
-func (h *BreedHandler) listOptions(w http.ResponseWriter, r *http.Request) {
-	options, err := h.listBreedOptions.Execute(r.Context())
+// listDropdown handles GET /api/v1/breeds/dropdown and returns breeds for a selection list.
+// The active query parameter (default false) returns only active breeds or every breed.
+func (h *BreedHandler) listDropdown(w http.ResponseWriter, r *http.Request) {
+	active, err := parseActiveQuery(r)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	options, err := h.listBreedDropdown.Execute(r.Context(), active)
 	if err != nil {
 		writeBreedError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toBreedOptionResponses(options))
+	platformhttp.WriteJSON(w, http.StatusOK, toBreedDropdownResponses(options))
 }
 
 // update handles PATCH /api/v1/breeds/{id} and applies the provided fields.
@@ -164,49 +176,86 @@ func (h *BreedHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedBreed, err := h.updateBreed.Execute(r.Context(), breedID, breedapplication.UpdateBreedCommand{
+	if _, err := h.updateBreed.Execute(r.Context(), breedID, breedapplication.UpdateBreedCommand{
 		Name:      request.Name,
 		Active:    request.Active,
 		UpdatedBy: actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeBreedError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toBreedResponse(updatedBreed))
+	w.WriteHeader(http.StatusOK)
 }
 
-// toBreedResponse maps a domain breed to the HTTP response shape.
-// It formats timestamps in UTC.
-func toBreedResponse(breed *breeddomain.Breed) breedResponse {
-	return breedResponse{
-		ID:        breed.ID,
-		Name:      breed.Name,
-		Active:    breed.Active,
-		CreatedAt: breed.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt: breed.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		CreatedBy: breed.CreatedBy,
-		UpdatedBy: breed.UpdatedBy,
+// delete handles DELETE /api/v1/breeds/{id} and removes a breed.
+// It parses the id path value and maps a linked-records conflict to 409.
+func (h *BreedHandler) delete(w http.ResponseWriter, r *http.Request) {
+	breedID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador de la raza no es válido"))
+		return
 	}
+
+	if err := h.deleteBreed.Execute(r.Context(), breedID); err != nil {
+		writeBreedError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
-// toBreedResponses maps a list of domain breeds to HTTP response shapes.
-// It returns an empty slice instead of null when there are no breeds.
-func toBreedResponses(breeds []*breeddomain.Breed) []breedResponse {
-	responses := make([]breedResponse, 0, len(breeds))
+// parseBreedFilter reads the optional name and active filters from the query string.
+// It returns an error when the active value is not a valid boolean.
+func parseBreedFilter(r *http.Request) (ports.BreedFilter, error) {
+	query := r.URL.Query()
+	var filter ports.BreedFilter
+
+	if name := strings.TrimSpace(query.Get("name")); name != "" {
+		filter.Name = &name
+	}
+
+	if raw := strings.TrimSpace(query.Get("active")); raw != "" {
+		active, err := strconv.ParseBool(raw)
+		if err != nil {
+			return ports.BreedFilter{}, errors.New("El filtro activo no es válido")
+		}
+		filter.Active = &active
+	}
+
+	return filter, nil
+}
+
+// parseActiveQuery reads the optional active query parameter.
+// It defaults to false (every breed) and rejects a malformed boolean.
+func parseActiveQuery(r *http.Request) (bool, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get("active"))
+	if raw == "" {
+		return false, nil
+	}
+	active, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, errors.New("El filtro activo no es válido")
+	}
+	return active, nil
+}
+
+// toBreedSummaries maps domain breeds to the lightweight list response shape.
+// It only exposes the identifier, name and active flag.
+func toBreedSummaries(breeds []*breeddomain.Breed) []breedSummaryResponse {
+	responses := make([]breedSummaryResponse, 0, len(breeds))
 	for _, breed := range breeds {
-		responses = append(responses, toBreedResponse(breed))
+		responses = append(responses, breedSummaryResponse{ID: breed.ID, Name: breed.Name, Active: breed.Active})
 	}
 	return responses
 }
 
-// toBreedOptionResponses maps breed options to their HTTP response shape.
-// It returns an empty slice instead of null when there are no options.
-func toBreedOptionResponses(options []breeddomain.BreedOption) []breedOptionResponse {
-	responses := make([]breedOptionResponse, 0, len(options))
+// toBreedDropdownResponses maps breed dropdown items to their HTTP response shape.
+// It returns an empty slice instead of null when there are no items.
+func toBreedDropdownResponses(options []breeddomain.BreedDropdown) []breedSummaryResponse {
+	responses := make([]breedSummaryResponse, 0, len(options))
 	for _, option := range options {
-		responses = append(responses, breedOptionResponse{ID: option.ID, Name: option.Name})
+		responses = append(responses, breedSummaryResponse{ID: option.ID, Name: option.Name, Active: option.Active})
 	}
 	return responses
 }
@@ -216,7 +265,8 @@ func toBreedOptionResponses(options []breeddomain.BreedOption) []breedOptionResp
 func writeBreedError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, ports.ErrBreedNameAlreadyUsed):
+	case errors.Is(err, ports.ErrBreedNameAlreadyUsed),
+		errors.Is(err, ports.ErrBreedInUse):
 		status = http.StatusConflict
 	case errors.Is(err, ports.ErrBreedNotFound):
 		status = http.StatusNotFound

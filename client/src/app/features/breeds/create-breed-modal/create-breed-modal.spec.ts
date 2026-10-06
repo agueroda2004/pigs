@@ -8,7 +8,7 @@ import { NotificationService } from '../../../core/notifications/notification.se
 import { CreateBreedModal } from './create-breed-modal';
 
 class BreedsStub {
-  createBreed = vi.fn(() => of({}));
+  createBreed = vi.fn(() => of(undefined));
 }
 
 class NotificationsStub {
@@ -51,6 +51,26 @@ describe('CreateBreedModal', () => {
 
     expect(stub.createBreed).toHaveBeenCalledWith({ name: 'Duroc' });
     expect(created).toHaveBeenCalledWith('Duroc');
+  });
+
+  it('rejects a name longer than 100 characters', async () => {
+    const component = create();
+    component.form.setValue({ name: 'a'.repeat(101) });
+
+    await component.submit();
+
+    expect(component.form.controls.name.invalid).toBe(true);
+    expect(stub.createBreed).not.toHaveBeenCalled();
+  });
+
+  it('accepts a name at exactly 100 characters', async () => {
+    const component = create();
+    const name = 'a'.repeat(100);
+    component.form.setValue({ name });
+
+    await component.submit();
+
+    expect(stub.createBreed).toHaveBeenCalledWith({ name });
   });
 
   it('shows an error toast when the name is taken', async () => {

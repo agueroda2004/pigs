@@ -17,8 +17,8 @@ func NewListBreedsService(repository ports.BreedRepository) *ListBreedsService {
 	return &ListBreedsService{repository: repository}
 }
 
-// Execute returns every registered breed without pagination or filtering.
-// It is intended for the small catalog of breeds managed by the farm.
-func (s *ListBreedsService) Execute(ctx context.Context) ([]*breeddomain.Breed, error) {
-	return s.repository.List(ctx)
+// Execute returns the breeds matching the filter without pagination.
+// A zero-value filter returns every registered breed.
+func (s *ListBreedsService) Execute(ctx context.Context, filter ports.BreedFilter) ([]*breeddomain.Breed, error) {
+	return s.repository.List(ctx, filter)
 }

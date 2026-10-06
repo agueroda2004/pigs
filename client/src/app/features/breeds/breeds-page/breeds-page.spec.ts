@@ -14,10 +14,6 @@ function buildBreed(id: string): Breed {
     id,
     name: `Breed ${id}`,
     active: true,
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
   };
 }
 
@@ -96,9 +92,9 @@ describe('BreedsPage', () => {
     await component.loadBreeds();
 
     stub.listBreeds = vi.fn(() => of([buildBreed('9')]));
-    await component.onUpdated(buildBreed('9'));
+    await component.onUpdated();
 
-    expect(notifications.success).toHaveBeenCalledWith('Raza "Breed 9" actualizada correctamente');
+    expect(notifications.success).toHaveBeenCalledWith('Raza actualizada correctamente');
     expect(component.editOpen()).toBe(false);
     expect(component.breeds()).toHaveLength(1);
   });
@@ -109,5 +105,48 @@ describe('BreedsPage', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Crear raza');
+  });
+
+  it('applies the name and active filters when searching', async () => {
+    const component = create();
+    component.filterForm.setValue({ name: 'dur', active: 'true' });
+
+    await component.search();
+
+    expect(stub.listBreeds).toHaveBeenLastCalledWith({ name: 'dur', active: true });
+  });
+
+  it('clears the filters and reloads without them', async () => {
+    const component = create();
+    component.filterForm.setValue({ name: 'dur', active: 'true' });
+    await component.search();
+
+    stub.listBreeds = vi.fn(() => of([buildBreed('1')]));
+    await component.clearFilters();
+
+    expect(stub.listBreeds).toHaveBeenCalledWith({});
+    expect(component.filterForm.getRawValue()).toEqual({ name: '', active: '' });
+  });
+
+  it('opens the delete modal for the selected breed', () => {
+    const component = create();
+    const breed = buildBreed('9');
+
+    component.openDelete(breed);
+
+    expect(component.deleteOpen()).toBe(true);
+    expect(component.deletingBreed()).toEqual(breed);
+  });
+
+  it('reloads the list after deleting a breed', async () => {
+    const component = create();
+    await component.loadBreeds();
+
+    stub.listBreeds = vi.fn(() => of([buildBreed('2')]));
+    await component.onDeleted(buildBreed('9'));
+
+    expect(notifications.success).toHaveBeenCalledWith('Raza "Breed 9" eliminada correctamente');
+    expect(component.deleteOpen()).toBe(false);
+    expect(component.breeds()).toHaveLength(1);
   });
 });

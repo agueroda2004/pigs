@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,6 +40,10 @@ func (s *UpdateBreedService) Execute(
 		return nil, err
 	}
 
+	if err := s.checkNameAvailable(ctx, breedID, currentBreed.Name, command.Name); err != nil {
+		return nil, err
+	}
+
 	if err := currentBreed.Update(command.Name, command.Active, command.UpdatedBy, s.clock()); err != nil {
 		return nil, err
 	}
@@ -47,4 +52,25 @@ func (s *UpdateBreedService) Execute(
 		return nil, err
 	}
 	return currentBreed, nil
+}
+
+// checkNameAvailable verifies that a new breed name is not used by another breed.
+// It skips the check when the name is omitted or unchanged and returns
+// ports.ErrBreedNameAlreadyUsed when the name is taken.
+func (s *UpdateBreedService) checkNameAvailable(ctx context.Context, breedID uuid.UUID, currentName string, name *string) error {
+	if name == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*name)
+	if trimmed == currentName {
+		return nil
+	}
+	exists, err := s.repository.ExistsByNameExcludingID(ctx, trimmed, breedID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ports.ErrBreedNameAlreadyUsed
+	}
+	return nil
 }

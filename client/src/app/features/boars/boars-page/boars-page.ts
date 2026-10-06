@@ -139,10 +139,15 @@ export class BoarsPage implements OnInit {
     try {
       const [breeds, options] = await Promise.all([
         firstValueFrom(this.breedsService.listBreeds()),
-        firstValueFrom(this.breedsService.listBreedOptions()),
+        firstValueFrom(this.breedsService.listBreedDropdown(false)),
       ]);
       this.breedNames.set(new Map(breeds.map((breed) => [breed.id, breed.name])));
-      this.breedOptions.set(options.map((option) => ({ value: option.id, label: option.name })));
+      this.breedOptions.set(
+        options.map((option) => ({
+          value: option.id,
+          label: option.active ? option.name : `${option.name} (inactiva)`,
+        })),
+      );
     } catch {
       this.breedNames.set(new Map());
       this.breedOptions.set([]);

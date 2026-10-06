@@ -13,15 +13,11 @@ function buildBreed(): Breed {
     id: '42',
     name: 'Duroc',
     active: true,
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
   };
 }
 
 class BreedsStub {
-  updateBreed = vi.fn(() => of(buildBreed()));
+  updateBreed = vi.fn(() => of(undefined));
 }
 
 class NotificationsStub {
@@ -82,6 +78,35 @@ describe('EditBreedModal', () => {
 
     expect(stub.updateBreed).not.toHaveBeenCalled();
     expect(updated).toHaveBeenCalled();
+  });
+
+  it('sends the active flag when only it changes', async () => {
+    const component = create();
+    component.form.controls.active.setValue(false);
+
+    await component.submit();
+
+    expect(stub.updateBreed).toHaveBeenCalledWith('42', { active: false });
+  });
+
+  it('rejects an empty name', async () => {
+    const component = create();
+    component.form.controls.name.setValue('');
+
+    await component.submit();
+
+    expect(component.form.controls.name.invalid).toBe(true);
+    expect(stub.updateBreed).not.toHaveBeenCalled();
+  });
+
+  it('rejects a name longer than 100 characters', async () => {
+    const component = create();
+    component.form.controls.name.setValue('a'.repeat(101));
+
+    await component.submit();
+
+    expect(component.form.controls.name.invalid).toBe(true);
+    expect(stub.updateBreed).not.toHaveBeenCalled();
   });
 
   it('shows an error toast when the name is taken', async () => {

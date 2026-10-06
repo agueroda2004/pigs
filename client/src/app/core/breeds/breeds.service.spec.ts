@@ -9,10 +9,6 @@ const breedPayload = {
   id: '1',
   name: 'Duroc',
   active: true,
-  created_at: '',
-  updated_at: '',
-  created_by: 'admin',
-  updated_by: 'admin',
 };
 
 describe('BreedsService', () => {
@@ -35,20 +31,35 @@ describe('BreedsService', () => {
     const call = http.expectOne(
       (request) => request.url.endsWith('/breeds') && request.method === 'GET',
     );
+    expect(call.request.params.keys()).toHaveLength(0);
     call.flush([breedPayload]);
 
     await expect(promise).resolves.toHaveLength(1);
   });
 
-  it('lists the active breed options', async () => {
-    const promise = firstValueFrom(service.listBreedOptions());
+  it('lists breeds with the name and active filters', async () => {
+    const promise = firstValueFrom(service.listBreeds({ name: 'dur', active: true }));
 
     const call = http.expectOne(
-      (request) => request.url.endsWith('/breeds/options') && request.method === 'GET',
+      (request) => request.url.endsWith('/breeds') && request.method === 'GET',
     );
-    call.flush([{ id: '1', name: 'Duroc' }]);
+    expect(call.request.params.get('name')).toBe('dur');
+    expect(call.request.params.get('active')).toBe('true');
+    call.flush([breedPayload]);
 
-    await expect(promise).resolves.toEqual([{ id: '1', name: 'Duroc' }]);
+    await expect(promise).resolves.toHaveLength(1);
+  });
+
+  it('lists the breed dropdown with the active query', async () => {
+    const promise = firstValueFrom(service.listBreedDropdown(false));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/breeds/dropdown') && request.method === 'GET',
+    );
+    expect(call.request.params.get('active')).toBe('false');
+    call.flush([breedPayload]);
+
+    await expect(promise).resolves.toEqual([breedPayload]);
   });
 
   it('creates a breed', async () => {
@@ -58,9 +69,9 @@ describe('BreedsService', () => {
       (request) => request.url.endsWith('/breeds') && request.method === 'POST',
     );
     expect(call.request.body).toEqual({ name: 'Duroc' });
-    call.flush(breedPayload);
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ name: 'Duroc' });
+    await expect(promise).resolves.toBeNull();
   });
 
   it('updates a breed', async () => {
@@ -71,8 +82,19 @@ describe('BreedsService', () => {
       (request) => request.url.endsWith('/breeds/7') && request.method === 'PATCH',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush({ ...breedPayload, name: 'Landrace', active: false });
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ name: 'Landrace', active: false });
+    await expect(promise).resolves.toBeNull();
+  });
+
+  it('deletes a breed', async () => {
+    const promise = firstValueFrom(service.deleteBreed('7'));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/breeds/7') && request.method === 'DELETE',
+    );
+    call.flush(null);
+
+    await expect(promise).resolves.toBeNull();
   });
 });

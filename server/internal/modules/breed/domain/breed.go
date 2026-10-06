@@ -28,11 +28,12 @@ type Breed struct {
 	UpdatedBy uuid.UUID
 }
 
-// BreedOption is a lightweight breed read model for selection lists.
-// It only carries the identifier and name of an active breed.
-type BreedOption struct {
-	ID   uuid.UUID
-	Name string
+// BreedDropdown is a lightweight breed read model for selection lists.
+// It carries the identifier, name and active flag of a breed.
+type BreedDropdown struct {
+	ID     uuid.UUID
+	Name   string
+	Active bool
 }
 
 // NewBreed builds a breed after validating id, name and createdBy.

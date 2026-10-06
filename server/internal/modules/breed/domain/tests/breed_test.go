@@ -132,6 +132,24 @@ func TestBreedUpdate(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts a name at exactly the max length", func(t *testing.T) {
+		breed := &breeddomain.Breed{ID: breedID, Name: "Old", Active: true}
+		name := strings.Repeat("a", 100)
+
+		if err := breed.Update(&name, nil, updatedBy, now); err != nil || breed.Name != name {
+			t.Fatalf("unexpected result: err=%v breed=%#v", err, breed)
+		}
+	})
+
+	t.Run("rejects a name longer than the max length", func(t *testing.T) {
+		breed := &breeddomain.Breed{ID: breedID, Name: "Old", Active: true}
+		name := strings.Repeat("a", 101)
+
+		if err := breed.Update(&name, nil, updatedBy, now); !errors.Is(err, breeddomain.ErrInvalidName) {
+			t.Fatalf("error = %v, want ErrInvalidName", err)
+		}
+	})
+
 	t.Run("rejects nil receiver", func(t *testing.T) {
 		var breed *breeddomain.Breed
 		name := "New Name"

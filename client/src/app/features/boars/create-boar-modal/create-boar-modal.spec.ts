@@ -13,7 +13,7 @@ class BoarsStub {
 }
 
 class BreedsStub {
-  listBreedOptions = vi.fn(() => of([]));
+  listBreedDropdown = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc', active: true }]));
 }
 
 class NotificationsStub {
@@ -23,16 +23,18 @@ class NotificationsStub {
 
 describe('CreateBoarModal', () => {
   let stub: BoarsStub;
+  let breeds: BreedsStub;
   let notifications: NotificationsStub;
 
   beforeEach(async () => {
     stub = new BoarsStub();
+    breeds = new BreedsStub();
     notifications = new NotificationsStub();
     await TestBed.configureTestingModule({
       imports: [CreateBoarModal],
       providers: [
         { provide: BoarsService, useValue: stub },
-        { provide: BreedsService, useValue: new BreedsStub() },
+        { provide: BreedsService, useValue: breeds },
         { provide: NotificationService, useValue: notifications },
       ],
     }).compileComponents();
@@ -40,6 +42,15 @@ describe('CreateBoarModal', () => {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const create = () => TestBed.createComponent(CreateBoarModal).componentInstance as any;
+
+  it('loads only the active breeds for the dropdown', async () => {
+    const component = create();
+
+    await component.loadBreeds();
+
+    expect(breeds.listBreedDropdown).toHaveBeenCalledWith(true);
+    expect(component.breedOptions()).toEqual([{ value: 'breed-1', label: 'Duroc' }]);
+  });
 
   it('does not submit when the form is empty', async () => {
     const component = create();

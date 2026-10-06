@@ -12,6 +12,7 @@ import (
 	breedapplication "server/internal/modules/breed/application"
 	breeddomain "server/internal/modules/breed/domain"
 	breedinfra "server/internal/modules/breed/infrastructure"
+	"server/internal/modules/breed/ports"
 	userdomain "server/internal/modules/user/domain"
 )
 
@@ -31,22 +32,26 @@ func (f *fakeCreateBreedUseCase) Execute(_ context.Context, command breedapplica
 type fakeListBreedsUseCase struct {
 	breeds []*breeddomain.Breed
 	err    error
+	filter ports.BreedFilter
 	called bool
 }
 
-func (f *fakeListBreedsUseCase) Execute(_ context.Context) ([]*breeddomain.Breed, error) {
+func (f *fakeListBreedsUseCase) Execute(_ context.Context, filter ports.BreedFilter) ([]*breeddomain.Breed, error) {
 	f.called = true
+	f.filter = filter
 	return f.breeds, f.err
 }
 
-type fakeListBreedOptionsUseCase struct {
-	options []breeddomain.BreedOption
+type fakeListBreedDropdownUseCase struct {
+	options []breeddomain.BreedDropdown
 	err     error
+	active  bool
 	called  bool
 }
 
-func (f *fakeListBreedOptionsUseCase) Execute(_ context.Context) ([]breeddomain.BreedOption, error) {
+func (f *fakeListBreedDropdownUseCase) Execute(_ context.Context, active bool) ([]breeddomain.BreedDropdown, error) {
 	f.called = true
+	f.active = active
 	return f.options, f.err
 }
 
@@ -65,9 +70,31 @@ func (f *fakeUpdateBreedUseCase) Execute(_ context.Context, breedID uuid.UUID, c
 	return f.breed, f.err
 }
 
-func newTestHandler(create breedinfra.CreateBreedUseCase, list breedinfra.ListBreedsUseCase, options breedinfra.ListBreedOptionsUseCase, update breedinfra.UpdateBreedUseCase) *breedinfra.BreedHandler {
+type fakeDeleteBreedUseCase struct {
+	err     error
+	breedID uuid.UUID
+	called  bool
+}
+
+func (f *fakeDeleteBreedUseCase) Execute(_ context.Context, breedID uuid.UUID) error {
+	f.called = true
+	f.breedID = breedID
+	return f.err
+}
+
+func newTestHandler(create breedinfra.CreateBreedUseCase, list breedinfra.ListBreedsUseCase, dropdown breedinfra.ListBreedDropdownUseCase, update breedinfra.UpdateBreedUseCase, remove breedinfra.DeleteBreedUseCase) *breedinfra.BreedHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return breedinfra.NewBreedHandler(create, list, options, update, passThrough, passThrough)
+	return breedinfra.NewBreedHandler(create, list, dropdown, update, remove, passThrough, passThrough)
+}
+
+func newAdminGuardHandler(remove breedinfra.DeleteBreedUseCase) *breedinfra.BreedHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	adminGuard := func(_ http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		})
+	}
+	return breedinfra.NewBreedHandler(&fakeCreateBreedUseCase{}, &fakeListBreedsUseCase{}, &fakeListBreedDropdownUseCase{}, &fakeUpdateBreedUseCase{}, remove, passThrough, adminGuard)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {

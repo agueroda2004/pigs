@@ -53,6 +53,52 @@ func TestUpdateBreedServiceExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects a name used by another breed", func(t *testing.T) {
+		breed := testBreed(breedID)
+		name := "  Landrace  "
+		repository := &fakeBreedRepository{getBreed: breed, existsExcluding: true}
+		service := breedapplication.NewUpdateBreedService(repository, time.Now)
+
+		_, err := service.Execute(context.Background(), breedID, breedapplication.UpdateBreedCommand{Name: &name, UpdatedBy: updatedBy})
+
+		if !errors.Is(err, ports.ErrBreedNameAlreadyUsed) {
+			t.Fatalf("error = %v, want ErrBreedNameAlreadyUsed", err)
+		}
+		if repository.updated != nil {
+			t.Fatalf("breed should not be persisted")
+		}
+		if repository.existsExcludingName != "Landrace" || repository.existsExcludingID != breedID {
+			t.Fatalf("unexpected existence check: name=%q id=%v", repository.existsExcludingName, repository.existsExcludingID)
+		}
+	})
+
+	t.Run("skips the existence check when the name is unchanged", func(t *testing.T) {
+		breed := testBreed(breedID)
+		name := breed.Name
+		repository := &fakeBreedRepository{getBreed: breed}
+		service := breedapplication.NewUpdateBreedService(repository, time.Now)
+
+		if _, err := service.Execute(context.Background(), breedID, breedapplication.UpdateBreedCommand{Name: &name, UpdatedBy: updatedBy}); err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if repository.existsExcludingID != uuid.Nil {
+			t.Fatalf("existence check should be skipped")
+		}
+	})
+
+	t.Run("propagates the existence check error", func(t *testing.T) {
+		expected := errors.New("existence check failed")
+		name := "Landrace"
+		repository := &fakeBreedRepository{getBreed: testBreed(breedID), existsExcludingErr: expected}
+		service := breedapplication.NewUpdateBreedService(repository, time.Now)
+
+		_, err := service.Execute(context.Background(), breedID, breedapplication.UpdateBreedCommand{Name: &name, UpdatedBy: updatedBy})
+
+		if !errors.Is(err, expected) {
+			t.Fatalf("error = %v, want %v", err, expected)
+		}
+	})
+
 	t.Run("propagates dependency and validation errors", func(t *testing.T) {
 		getErr := errors.New("get failed")
 		repository := &fakeBreedRepository{getErr: getErr}

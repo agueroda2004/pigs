@@ -139,8 +139,13 @@ export class EditSowModal {
 
   private async loadBreeds(): Promise<void> {
     try {
-      const breeds = await firstValueFrom(this.breeds.listBreeds());
-      this.breedOptions.set(breeds.map((breed) => ({ value: breed.id, label: breed.name })));
+      const breeds = await firstValueFrom(this.breeds.listBreedDropdown(false));
+      this.breedOptions.set(
+        breeds.map((breed) => ({
+          value: breed.id,
+          label: breed.active ? breed.name : `${breed.name} (inactiva)`,
+        })),
+      );
     } catch {
       this.notifications.error('No se pudieron cargar las razas');
     }
