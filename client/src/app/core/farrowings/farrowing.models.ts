@@ -27,6 +27,8 @@ export interface Farrowing {
   litter_weight: number | null;
   stillborn_weight: number | null;
   is_manipulated: boolean;
+  is_nurse: boolean;
+  nurse_start_date: string | null;
   note: string | null;
   operators: FarrowingOperatorLink[];
   medications: FarrowingMedicationLink[];

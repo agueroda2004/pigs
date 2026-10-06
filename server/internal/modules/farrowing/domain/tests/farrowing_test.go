@@ -373,6 +373,45 @@ func TestFarrowingAddCurrentPiglets(t *testing.T) {
 	})
 }
 
+func TestFarrowingMarkAsNurse(t *testing.T) {
+	now := time.Date(2026, time.February, 2, 3, 4, 5, 0, time.UTC)
+	actor := uuid.New()
+	startDate := time.Date(2026, time.February, 1, 18, 30, 0, 0, time.UTC)
+
+	t.Run("flags the farrowing as a nurse", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New()}
+
+		if err := farrowing.MarkAsNurse(startDate, actor, now); err != nil {
+			t.Fatalf("MarkAsNurse() error = %v", err)
+		}
+		if !farrowing.IsNurse || farrowing.NurseStartDate == nil {
+			t.Fatalf("nurse fields not set: %#v", farrowing)
+		}
+		if !farrowing.NurseStartDate.Equal(time.Date(2026, time.February, 1, 0, 0, 0, 0, time.UTC)) {
+			t.Fatalf("nurse start date = %v, want truncated day", farrowing.NurseStartDate)
+		}
+		if !farrowing.UpdatedAt.Equal(now) || farrowing.UpdatedBy != actor {
+			t.Fatalf("unexpected audit fields: %#v", farrowing)
+		}
+	})
+
+	t.Run("rejects a zero start date", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New()}
+
+		if err := farrowing.MarkAsNurse(time.Time{}, actor, now); !errors.Is(err, farrowingdomain.ErrInvalidNurseStartDate) {
+			t.Fatalf("error = %v, want ErrInvalidNurseStartDate", err)
+		}
+	})
+
+	t.Run("rejects a nil updated by", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New()}
+
+		if err := farrowing.MarkAsNurse(startDate, uuid.Nil, now); !errors.Is(err, farrowingdomain.ErrInvalidUpdatedBy) {
+			t.Fatalf("error = %v, want ErrInvalidUpdatedBy", err)
+		}
+	})
+}
+
 func TestNewFarrowingMedication(t *testing.T) {
 	now := time.Date(2026, time.February, 2, 3, 4, 5, 0, time.UTC)
 	farrowingID := uuid.New()

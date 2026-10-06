@@ -73,6 +73,9 @@ func main() {
 	pigletFosteringHandler := dependencies.PigletFostering.Handler
 	pigletFosteringHandler.RegisterRoutes(mux)
 
+	partialWeagingHandler := dependencies.PartialWeaging.Handler
+	partialWeagingHandler.RegisterRoutes(mux)
+
 	server := &http.Server{
 		Addr:    ":" + applicationConfig.Port,
 		Handler: platformhttp.CORS(applicationConfig.CorsAllowedOrigins)(mux),

@@ -70,7 +70,7 @@ func (r *PostgresPigletDeathRepository) GetLastFarrowing(ctx context.Context, so
 	err := r.pool.QueryRow(ctx, `
 		SELECT id, service_id, sow_id, farrow_date, start_time, end_time, location,
 		       live_born, stillborn, mummified, current_piglets, litter_weight, stillborn_weight,
-		       is_manipulated, note, created_at, updated_at, created_by, updated_by
+		       is_manipulated, is_nurse, nurse_start_date, note, created_at, updated_at, created_by, updated_by
 		FROM farrowings
 		WHERE sow_id = $1
 		ORDER BY farrow_date DESC, created_at DESC
@@ -90,6 +90,8 @@ func (r *PostgresPigletDeathRepository) GetLastFarrowing(ctx context.Context, so
 		&result.LitterWeight,
 		&result.StillbornWeight,
 		&result.IsManipulated,
+		&result.IsNurse,
+		&result.NurseStartDate,
 		&result.Note,
 		&result.CreatedAt,
 		&result.UpdatedAt,

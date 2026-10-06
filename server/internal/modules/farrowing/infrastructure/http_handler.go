@@ -112,6 +112,8 @@ type farrowingResponse struct {
 	LitterWeight    *float64                      `json:"litter_weight"`
 	StillbornWeight *float64                      `json:"stillborn_weight"`
 	IsManipulated   bool                          `json:"is_manipulated"`
+	IsNurse         bool                          `json:"is_nurse"`
+	NurseStartDate  *string                       `json:"nurse_start_date"`
 	Note            *string                       `json:"note"`
 	Operators       []farrowingOperatorResponse   `json:"operators"`
 	Medications     []farrowingMedicationResponse `json:"medications"`
@@ -305,6 +307,8 @@ func toFarrowingResponse(farrowing *farrowingdomain.Farrowing) farrowingResponse
 		LitterWeight:    farrowing.LitterWeight,
 		StillbornWeight: farrowing.StillbornWeight,
 		IsManipulated:   farrowing.IsManipulated,
+		IsNurse:         farrowing.IsNurse,
+		NurseStartDate:  toDatePointer(farrowing.NurseStartDate),
 		Note:            farrowing.Note,
 		Operators:       toOperatorResponses(farrowing.Operators),
 		Medications:     toMedicationResponses(farrowing.Medications),
@@ -313,6 +317,16 @@ func toFarrowingResponse(farrowing *farrowingdomain.Farrowing) farrowingResponse
 		CreatedBy:       farrowing.CreatedBy,
 		UpdatedBy:       farrowing.UpdatedBy,
 	}
+}
+
+// toDatePointer formats an optional date as YYYY-MM-DD in UTC.
+// It returns nil when the given date is nil so the response stays nullable.
+func toDatePointer(value *time.Time) *string {
+	if value == nil {
+		return nil
+	}
+	formatted := value.UTC().Format(dateLayout)
+	return &formatted
 }
 
 // toFarrowingResponses maps a list of domain farrowings to HTTP response shapes.
@@ -384,6 +398,7 @@ func writeFarrowingError(w http.ResponseWriter, err error) {
 		errors.Is(err, farrowingdomain.ErrInvalidLitterWeight),
 		errors.Is(err, farrowingdomain.ErrInvalidStillbornWeight),
 		errors.Is(err, farrowingdomain.ErrInvalidNote),
+		errors.Is(err, farrowingdomain.ErrInvalidNurseStartDate),
 		errors.Is(err, farrowingdomain.ErrInvalidCreatedBy),
 		errors.Is(err, farrowingdomain.ErrInvalidUpdatedBy),
 		errors.Is(err, farrowingdomain.ErrFarrowDateInFuture),

@@ -32,6 +32,7 @@ var (
 	ErrInvalidLitterWeight    = errors.New("El peso de la camada no puede ser negativo")
 	ErrInvalidStillbornWeight = errors.New("El peso de los nacidos muertos no puede ser negativo")
 	ErrInvalidNote            = errors.New("La nota debe tener como máximo 500 caracteres")
+	ErrInvalidNurseStartDate  = errors.New("La fecha de inicio de nodriza no es válida")
 	ErrInvalidCreatedBy       = errors.New("El usuario que crea el parto es obligatorio")
 	ErrInvalidUpdatedBy       = errors.New("El usuario que actualiza el parto es obligatorio")
 	ErrFarrowDateInFuture     = errors.New("La fecha del parto no puede ser futura")
@@ -60,6 +61,8 @@ type Farrowing struct {
 	LitterWeight    *float64
 	StillbornWeight *float64
 	IsManipulated   bool
+	IsNurse         bool
+	NurseStartDate  *time.Time
 	Note            *string
 	Operators       []*FarrowingOperator
 	Medications     []*FarrowingMedication
@@ -269,6 +272,28 @@ func (f *Farrowing) AddCurrentPiglets(quantity int, updatedBy uuid.UUID, now tim
 	}
 
 	f.CurrentPiglets += quantity
+	f.UpdatedAt = now
+	f.UpdatedBy = updatedBy
+	return nil
+}
+
+// MarkAsNurse flags the farrowing as a nurse and records its start date.
+// It rejects a zero date or missing actor, then sets the nurse fields plus the
+// update metadata so the farrowing can receive donated piglets.
+func (f *Farrowing) MarkAsNurse(startDate time.Time, updatedBy uuid.UUID, now time.Time) error {
+	if f == nil || f.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if startDate.IsZero() {
+		return ErrInvalidNurseStartDate
+	}
+
+	normalized := truncateToDay(startDate)
+	f.IsNurse = true
+	f.NurseStartDate = &normalized
 	f.UpdatedAt = now
 	f.UpdatedBy = updatedBy
 	return nil

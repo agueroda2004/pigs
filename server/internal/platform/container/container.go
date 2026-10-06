@@ -14,6 +14,7 @@ import (
 	farrowinginfrastructure "server/internal/modules/farrowing/infrastructure"
 	medicationinfrastructure "server/internal/modules/medication/infrastructure"
 	operatorinfrastructure "server/internal/modules/operator/infrastructure"
+	partialweaginginfrastructure "server/internal/modules/partialweaging/infrastructure"
 	pigletdeathinfrastructure "server/internal/modules/pigletdeath/infrastructure"
 	pigletfosteringinfrastructure "server/internal/modules/pigletfostering/infrastructure"
 	serviceinfrastructure "server/internal/modules/service/infrastructure"
@@ -39,6 +40,7 @@ type Container struct {
 	Farrowing       *farrowinginfrastructure.Module
 	PigletDeath     *pigletdeathinfrastructure.Module
 	PigletFostering *pigletfosteringinfrastructure.Module
+	PartialWeaging  *partialweaginginfrastructure.Module
 	Auth            *authinfrastructure.Module
 }
 
@@ -91,6 +93,9 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 	// + === PIGLET FOSTERING MODULE ===
 	pigletFosteringRepository := pigletfosteringinfrastructure.NewPostgresPigletFosteringRepository(db)
 
+	// + === PARTIAL WEAGING MODULE ===
+	partialWeagingRepository := partialweaginginfrastructure.NewPostgresPartialWeagingRepository(db)
+
 	// + === AUTH MODULE ===
 	refreshTokenRepository := authinfrastructure.NewPostgresRefreshTokenRepository(db)
 	tokenGenerator := authinfrastructure.NewRandomTokenGenerator()
@@ -134,6 +139,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		Farrowing:       farrowinginfrastructure.NewModule(farrowingRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		PigletDeath:     pigletdeathinfrastructure.NewModule(pigletDeathRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		PigletFostering: pigletfosteringinfrastructure.NewModule(pigletFosteringRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		PartialWeaging:  partialweaginginfrastructure.NewModule(partialWeagingRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Auth:            authModule,
 	}, nil
 }

@@ -217,11 +217,11 @@ func (r *PostgresFarrowingRepository) Create(
 		INSERT INTO farrowings (
 			id, service_id, sow_id, farrow_date, start_time, end_time, location,
 			live_born, stillborn, mummified, current_piglets, litter_weight, stillborn_weight,
-			is_manipulated, note, created_at, updated_at, created_by, updated_by
+			is_manipulated, is_nurse, nurse_start_date, note, created_at, updated_at, created_by, updated_by
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7,
 			$8, $9, $10, $11, $12, $13,
-			$14, $15, $16, $17, $18, $19
+			$14, $15, $16, $17, $18, $19, $20, $21
 		)
 	`,
 		farrowing.ID,
@@ -238,6 +238,8 @@ func (r *PostgresFarrowingRepository) Create(
 		farrowing.LitterWeight,
 		farrowing.StillbornWeight,
 		farrowing.IsManipulated,
+		farrowing.IsNurse,
+		farrowing.NurseStartDate,
 		farrowing.Note,
 		farrowing.CreatedAt,
 		farrowing.UpdatedAt,
@@ -324,7 +326,7 @@ func (r *PostgresFarrowingRepository) List(ctx context.Context, filter ports.Far
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, service_id, sow_id, farrow_date, start_time, end_time, location,
 		       live_born, stillborn, mummified, current_piglets, litter_weight, stillborn_weight,
-		       is_manipulated, note, created_at, updated_at, created_by, updated_by
+		       is_manipulated, is_nurse, nurse_start_date, note, created_at, updated_at, created_by, updated_by
 		FROM farrowings
 		WHERE ($1::uuid IS NULL OR sow_id = $1)
 		  AND ($2::uuid IS NULL OR service_id = $2)
@@ -355,6 +357,8 @@ func (r *PostgresFarrowingRepository) List(ctx context.Context, filter ports.Far
 			&result.LitterWeight,
 			&result.StillbornWeight,
 			&result.IsManipulated,
+			&result.IsNurse,
+			&result.NurseStartDate,
 			&result.Note,
 			&result.CreatedAt,
 			&result.UpdatedAt,

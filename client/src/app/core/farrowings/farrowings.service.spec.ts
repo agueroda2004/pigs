@@ -20,6 +20,8 @@ const farrowingPayload = {
   litter_weight: 15.5,
   stillborn_weight: null,
   is_manipulated: false,
+  is_nurse: false,
+  nurse_start_date: null,
   note: null,
   operators: [],
   medications: [],

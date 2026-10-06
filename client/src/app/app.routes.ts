@@ -70,6 +70,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'partial-weagings',
+        loadComponent: () =>
+          import('./features/partial-weagings/partial-weagings-page/partial-weagings-page').then(
+            (m) => m.PartialWeagingsPage,
+          ),
+      },
+      {
         path: 'sow-removals',
         loadComponent: () =>
           import('./features/sow-removals/sow-removals-page/sow-removals-page').then(

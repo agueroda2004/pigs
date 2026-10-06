@@ -4,43 +4,32 @@ import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AuthService } from '../../../core/auth/auth.service';
-import { Farrowing } from '../../../core/farrowings/farrowing.models';
-import { FarrowingsService } from '../../../core/farrowings/farrowings.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
+import { PartialWeaging } from '../../../core/partial-weagings/partial-weaging.models';
+import { PartialWeagingsService } from '../../../core/partial-weagings/partial-weagings.service';
 import { SowsService } from '../../../core/sows/sows.service';
-import { FarrowingsPage } from './farrowings-page';
+import { PartialWeagingsPage } from './partial-weagings-page';
 
-function buildFarrowing(id: string): Farrowing {
+function buildWeaging(id: string): PartialWeaging {
   return {
     id,
+    farrowing_id: 'farrowing-1',
     sow_id: 'sow-1',
-    service_id: 'service-1',
-    farrow_date: '2026-04-20',
-    start_time: null,
-    end_time: null,
-    location: null,
-    live_born: 10,
-    stillborn: 1,
-    mummified: 0,
-    current_piglets: 10,
-    litter_weight: null,
-    stillborn_weight: null,
-    is_manipulated: false,
-    is_nurse: false,
-    nurse_start_date: null,
+    weaging_date: '2026-04-25',
+    quantity: 2,
+    total_weight: 42.5,
+    type: 'Normal',
     note: null,
-    operators: [],
-    medications: [],
-    created_at: '2026-04-20T12:00:00',
-    updated_at: '2026-04-20T12:00:00',
+    created_at: '2026-04-25T12:00:00',
+    updated_at: '2026-04-25T12:00:00',
     created_by: 'admin',
     updated_by: 'admin',
   };
 }
 
-class FarrowingsStub {
-  listFarrowings = vi.fn(() => of([buildFarrowing('1'), buildFarrowing('2')]));
-  createFarrowing = vi.fn(() => of(buildFarrowing('3')));
+class PartialWeagingsStub {
+  listPartialWeagings = vi.fn(() => of([buildWeaging('1'), buildWeaging('2')]));
+  createPartialWeaging = vi.fn(() => of(buildWeaging('3')));
 }
 
 class SowsStub {
@@ -52,19 +41,19 @@ class NotificationsStub {
   error = vi.fn();
 }
 
-describe('FarrowingsPage', () => {
-  let stub: FarrowingsStub;
+describe('PartialWeagingsPage', () => {
+  let stub: PartialWeagingsStub;
   let notifications: NotificationsStub;
   let isAdmin: WritableSignal<boolean>;
 
   beforeEach(async () => {
-    stub = new FarrowingsStub();
+    stub = new PartialWeagingsStub();
     notifications = new NotificationsStub();
     isAdmin = signal(true);
     await TestBed.configureTestingModule({
-      imports: [FarrowingsPage],
+      imports: [PartialWeagingsPage],
       providers: [
-        { provide: FarrowingsService, useValue: stub },
+        { provide: PartialWeagingsService, useValue: stub },
         { provide: SowsService, useValue: new SowsStub() },
         { provide: NotificationService, useValue: notifications },
         { provide: AuthService, useValue: { isAdmin } },
@@ -73,62 +62,61 @@ describe('FarrowingsPage', () => {
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const create = () => TestBed.createComponent(FarrowingsPage).componentInstance as any;
+  const create = () => TestBed.createComponent(PartialWeagingsPage).componentInstance as any;
 
-  it('loads farrowings on init and renders a card per farrowing', async () => {
-    const fixture = TestBed.createComponent(FarrowingsPage);
+  it('loads partial weagings on init and renders a card per weaging', async () => {
+    const fixture = TestBed.createComponent(PartialWeagingsPage);
 
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(stub.listFarrowings).toHaveBeenCalled();
-    expect(fixture.nativeElement.querySelectorAll('app-farrowing-card')).toHaveLength(2);
+    expect(stub.listPartialWeagings).toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelectorAll('app-partial-weaging-card')).toHaveLength(2);
   });
 
   it('resolves the sow code from the lookup', async () => {
     const component = create();
     await component.loadLookups();
 
-    expect(component.sowCode(buildFarrowing('1'))).toBe('C-001');
+    expect(component.sowCode(buildWeaging('1'))).toBe('C-001');
   });
 
   it('shows the error state and retries', async () => {
-    stub.listFarrowings = vi.fn(() => throwError(() => new Error('failed')));
+    stub.listPartialWeagings = vi.fn(() => throwError(() => new Error('failed')));
     const component = create();
 
-    await component.loadFarrowings();
+    await component.loadWeagings();
     expect(component.error()).toBe(true);
 
-    stub.listFarrowings = vi.fn(() => of([buildFarrowing('1')]));
-    await component.loadFarrowings();
+    stub.listPartialWeagings = vi.fn(() => of([buildWeaging('1')]));
+    await component.loadWeagings();
 
     expect(component.error()).toBe(false);
-    expect(component.farrowings()).toHaveLength(1);
+    expect(component.weagings()).toHaveLength(1);
   });
 
-  it('reloads the list after registering a farrowing', async () => {
+  it('reloads the list after registering a weaging', async () => {
     const component = create();
-    await component.loadFarrowings();
-    component.openModal();
+    await component.loadWeagings();
 
-    stub.listFarrowings = vi.fn(() =>
-      of([buildFarrowing('1'), buildFarrowing('2'), buildFarrowing('3')]),
+    stub.listPartialWeagings = vi.fn(() =>
+      of([buildWeaging('1'), buildWeaging('2'), buildWeaging('3')]),
     );
     await component.onCreated('C-001');
 
     expect(notifications.success).toHaveBeenCalledWith(
-      'Parto de la cerda "C-001" registrado correctamente',
+      'Destete parcial de "C-001" registrado correctamente',
     );
-    expect(component.farrowings()).toHaveLength(3);
+    expect(component.weagings()).toHaveLength(3);
   });
 
   it('hides the register button for non-admins', () => {
     isAdmin.set(false);
-    const fixture = TestBed.createComponent(FarrowingsPage);
+    const fixture = TestBed.createComponent(PartialWeagingsPage);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).not.toContain('Registrar parto');
+    expect(fixture.nativeElement.textContent).not.toContain('Registrar destete');
   });
 
   it('applies the sow filter when searching', async () => {
@@ -137,7 +125,7 @@ describe('FarrowingsPage', () => {
 
     await component.search();
 
-    expect(stub.listFarrowings).toHaveBeenLastCalledWith({ sow_id: 'sow-1' });
+    expect(stub.listPartialWeagings).toHaveBeenLastCalledWith({ sow_id: 'sow-1' });
   });
 
   it('applies the date range filter when searching', async () => {
@@ -146,7 +134,7 @@ describe('FarrowingsPage', () => {
 
     await component.search();
 
-    expect(stub.listFarrowings).toHaveBeenLastCalledWith({
+    expect(stub.listPartialWeagings).toHaveBeenLastCalledWith({
       from: '2026-04-01',
       to: '2026-04-30',
     });
@@ -159,7 +147,7 @@ describe('FarrowingsPage', () => {
     await component.search();
 
     expect(component.rangeError()).toBeTruthy();
-    expect(stub.listFarrowings).not.toHaveBeenCalled();
+    expect(stub.listPartialWeagings).not.toHaveBeenCalled();
   });
 
   it('clears the filters and reloads without them', async () => {
@@ -167,10 +155,10 @@ describe('FarrowingsPage', () => {
     component.filterForm.setValue({ sow_id: 'sow-1', from: '', to: '' });
     await component.search();
 
-    stub.listFarrowings = vi.fn(() => of([buildFarrowing('1')]));
+    stub.listPartialWeagings = vi.fn(() => of([buildWeaging('1')]));
     await component.clearFilters();
 
-    expect(stub.listFarrowings).toHaveBeenCalledWith({});
+    expect(stub.listPartialWeagings).toHaveBeenCalledWith({});
     expect(component.filterForm.getRawValue()).toEqual({ sow_id: '', from: '', to: '' });
   });
 });

@@ -1,0 +1,104 @@
+<app-modal [open]="open()" size="xl" title="Registrar destete parcial" (closed)="closed.emit()">
+  <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Cerda</span>
+        <app-search-dropdown
+          formControlName="sow_id"
+          [options]="sowOptions()"
+          placeholder="Seleccionar cerda"
+        />
+        @if (form.controls.sow_id.touched && form.controls.sow_id.invalid) {
+          <p class="text-xs text-danger">La cerda es obligatoria.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Tipo</span>
+        <app-dropdown
+          formControlName="type"
+          [options]="typeOptions"
+          placeholder="Seleccionar tipo"
+        />
+        @if (form.controls.type.touched && form.controls.type.invalid) {
+          <p class="text-xs text-danger">El tipo es obligatorio.</p>
+        }
+      </div>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-3">
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Fecha del destete</span>
+        <app-date-picker
+          formControlName="weaging_date"
+          [maxDate]="today"
+          placeholder="Seleccionar fecha"
+        />
+        @if (form.controls.weaging_date.touched && form.controls.weaging_date.invalid) {
+          <p class="text-xs text-danger">La fecha del destete es obligatoria.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <label for="partial-weaging-quantity" class="block text-sm font-medium">Cantidad</label>
+        <input
+          id="partial-weaging-quantity"
+          type="number"
+          min="1"
+          formControlName="quantity"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+        />
+        @if (form.controls.quantity.touched && form.controls.quantity.invalid) {
+          <p class="text-xs text-danger">La cantidad debe ser mayor a cero.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <label for="partial-weaging-weight" class="block text-sm font-medium"
+          >Peso total (kg)</label
+        >
+        <input
+          id="partial-weaging-weight"
+          type="number"
+          min="0.01"
+          step="0.01"
+          formControlName="total_weight"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+        />
+        @if (form.controls.total_weight.touched && form.controls.total_weight.invalid) {
+          <p class="text-xs text-danger">El peso debe ser mayor a cero.</p>
+        }
+      </div>
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="partial-weaging-note" class="block text-sm font-medium">Nota</label>
+      <textarea
+        id="partial-weaging-note"
+        rows="2"
+        formControlName="note"
+        class="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      ></textarea>
+      @if (form.controls.note.touched && form.controls.note.invalid) {
+        <p class="text-xs text-danger">La nota debe tener como máximo 500 caracteres.</p>
+      }
+    </div>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        [disabled]="loading()"
+        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Registrando…' : 'Registrar destete' }}
+      </button>
+    </div>
+  </form>
+</app-modal>
