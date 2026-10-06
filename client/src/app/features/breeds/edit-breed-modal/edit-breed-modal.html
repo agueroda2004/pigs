@@ -1,4 +1,4 @@
-<app-modal [open]="open()" title="Editar raza" (closed)="closed.emit()">
+<app-modal [open]="open()" size="xl" title="Editar raza" (closed)="closed.emit()">
   <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
     <div class="space-y-1.5">
       <label for="edit-breed-name" class="block text-sm font-medium">Nombre</label>
