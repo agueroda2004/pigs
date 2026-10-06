@@ -49,11 +49,8 @@ func TestBoarRemovalHandlerCreate(t *testing.T) {
 		if !create.command.RemovalDate.Equal(time.Date(2026, time.January, 20, 0, 0, 0, 0, time.UTC)) {
 			t.Fatalf("unexpected date: %v", create.command.RemovalDate)
 		}
-		if response.Header().Get("Content-Type") != "application/json" {
-			t.Fatalf("unexpected content type: %q", response.Header().Get("Content-Type"))
-		}
-		if !strings.Contains(response.Body.String(), "Vivo") {
-			t.Fatalf("unexpected body: %s", response.Body.String())
+		if body := strings.TrimSpace(response.Body.String()); body != "" {
+			t.Fatalf("expected an empty body, got %q", body)
 		}
 	})
 

@@ -95,10 +95,6 @@ type boarRemovalResponse struct {
 	Reason      string    `json:"reason"`
 	Note        *string   `json:"note"`
 	LastState   string    `json:"last_state"`
-	CreatedAt   string    `json:"created_at"`
-	UpdatedAt   string    `json:"updated_at"`
-	CreatedBy   uuid.UUID `json:"created_by"`
-	UpdatedBy   uuid.UUID `json:"updated_by"`
 }
 
 // create handles POST /api/v1/boar-removals and registers a removal.
@@ -141,20 +137,19 @@ func (h *BoarRemovalHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdRemoval, err := h.createBoarRemoval.Execute(r.Context(), boarremovalapplication.CreateBoarRemovalCommand{
+	if _, err := h.createBoarRemoval.Execute(r.Context(), boarremovalapplication.CreateBoarRemovalCommand{
 		BoarID:      boarID,
 		RemovalDate: removalDate,
 		Type:        removalType,
 		Reason:      reason,
 		Note:        request.Note,
 		CreatedBy:   actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeBoarRemovalError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusCreated, toBoarRemovalResponse(createdRemoval))
+	w.WriteHeader(http.StatusCreated)
 }
 
 // update handles PATCH /api/v1/boar-removals/{id} and applies the provided fields.
@@ -205,19 +200,18 @@ func (h *BoarRemovalHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedRemoval, err := h.updateBoarRemoval.Execute(r.Context(), removalID, boarremovalapplication.UpdateBoarRemovalCommand{
+	if _, err := h.updateBoarRemoval.Execute(r.Context(), removalID, boarremovalapplication.UpdateBoarRemovalCommand{
 		RemovalDate: removalDate,
 		Type:        removalType,
 		Reason:      reason,
 		Note:        request.Note,
 		UpdatedBy:   actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeBoarRemovalError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toBoarRemovalResponse(updatedRemoval))
+	w.WriteHeader(http.StatusOK)
 }
 
 // parseBoarRemovalDate parses an optional removal date using the shared layout.
@@ -295,7 +289,7 @@ func parseBoarRemovalFilter(r *http.Request) (ports.BoarRemovalFilter, error) {
 }
 
 // toBoarRemovalResponse maps a domain removal to the HTTP response shape.
-// It formats the date as YYYY-MM-DD and the timestamps in UTC.
+// It formats the date as YYYY-MM-DD and omits the audit fields.
 func toBoarRemovalResponse(removal *boarremovaldomain.BoarRemoval) boarRemovalResponse {
 	return boarRemovalResponse{
 		ID:          removal.ID,
@@ -305,10 +299,6 @@ func toBoarRemovalResponse(removal *boarremovaldomain.BoarRemoval) boarRemovalRe
 		Reason:      string(removal.Reason),
 		Note:        removal.Note,
 		LastState:   removal.LastState,
-		CreatedAt:   removal.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt:   removal.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		CreatedBy:   removal.CreatedBy,
-		UpdatedBy:   removal.UpdatedBy,
 	}
 }
 
