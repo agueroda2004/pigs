@@ -1,4 +1,4 @@
-<app-modal [open]="open()" title="Editar usuario" (closed)="closed.emit()">
+<app-modal [open]="open()" size="xl" title="Editar usuario" (closed)="closed.emit()">
   <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
     <div class="space-y-1.5">
       <label for="edit-name" class="block text-sm font-medium">Nombre</label>
