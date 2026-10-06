@@ -43,8 +43,19 @@ describe('Modal', () => {
     fixture.detectChanges();
 
     const dialog = fixture.nativeElement.querySelector('[role="dialog"]') as HTMLElement;
-    expect(dialog.classList).toContain('max-w-lg');
+    expect(dialog.classList).toContain('sm:max-w-lg');
     expect(dialog.className).toContain('max-h-[90vh]');
+  });
+
+  it('anchors the sheet to the bottom with rounded top corners', () => {
+    const fixture = TestBed.createComponent(HostComponent);
+    fixture.detectChanges();
+
+    const dialog = fixture.nativeElement.querySelector('[role="dialog"]') as HTMLElement;
+    const overlay = dialog.parentElement as HTMLElement;
+    expect(overlay.className).toContain('items-end');
+    expect(dialog.classList).toContain('rounded-t-2xl');
+    expect(dialog.className).toContain('animate-sheet-up');
   });
 
   it('scrolls the body while keeping the header fixed', () => {

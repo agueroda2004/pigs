@@ -3,10 +3,10 @@ import { Component, computed, input, output } from '@angular/core';
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
 const SIZE_CLASSES: Record<ModalSize, string> = {
-  sm: 'max-w-sm',
-  md: 'max-w-md',
-  lg: 'max-w-lg',
-  xl: 'max-w-2xl',
+  sm: 'sm:max-w-sm',
+  md: 'sm:max-w-md',
+  lg: 'sm:max-w-lg',
+  xl: 'sm:max-w-2xl',
 };
 
 @Component({
@@ -16,15 +16,23 @@ const SIZE_CLASSES: Record<ModalSize, string> = {
   },
   template: `
     @if (open()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/50" (click)="closed.emit()" aria-hidden="true"></div>
+      <div class="fixed inset-0 z-50 flex items-end justify-center">
+        <div
+          class="absolute inset-0 animate-fade-in bg-black/50"
+          (click)="closed.emit()"
+          aria-hidden="true"
+        ></div>
 
         <div
           role="dialog"
           aria-modal="true"
-          class="relative z-10 flex max-h-[90vh] w-full flex-col rounded-xl border border-border bg-card p-6 shadow-lg"
+          class="relative z-10 flex max-h-[90vh] w-full animate-sheet-up flex-col rounded-t-2xl border border-b-0 border-border bg-card p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-lg"
           [class]="sizeClass()"
         >
+          <div class="mb-4 flex shrink-0 justify-center">
+            <span class="h-1.5 w-12 rounded-full bg-border" aria-hidden="true"></span>
+          </div>
+
           <div class="mb-5 flex shrink-0 items-center justify-between gap-4">
             <h2 class="text-lg font-semibold tracking-tight">{{ title() }}</h2>
             <button
