@@ -18,29 +18,30 @@ const (
 var timeLayout = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 
 var (
-	ErrInvalidID              = errors.New("El identificador del parto es obligatorio")
-	ErrInvalidService         = errors.New("El servicio del parto es obligatorio")
-	ErrInvalidSow             = errors.New("La cerda del parto es obligatoria")
-	ErrInvalidFarrowDate      = errors.New("La fecha del parto es obligatoria")
-	ErrInvalidLastMount       = errors.New("La fecha de la última monta es obligatoria")
-	ErrInvalidStartTime       = errors.New("La hora de inicio no es válida")
-	ErrInvalidEndTime         = errors.New("La hora de fin no es válida")
-	ErrInvalidLocation        = errors.New("La ubicación debe tener como máximo 100 caracteres")
-	ErrInvalidLiveBorn        = errors.New("La cantidad de nacidos vivos no puede ser negativa")
-	ErrInvalidStillborn       = errors.New("La cantidad de nacidos muertos no puede ser negativa")
-	ErrInvalidMummified       = errors.New("La cantidad de momificados no puede ser negativa")
-	ErrInvalidLitterWeight    = errors.New("El peso de la camada no puede ser negativo")
-	ErrInvalidStillbornWeight = errors.New("El peso de los nacidos muertos no puede ser negativo")
-	ErrInvalidNote            = errors.New("La nota debe tener como máximo 500 caracteres")
-	ErrInvalidNurseStartDate  = errors.New("La fecha de inicio de nodriza no es válida")
-	ErrInvalidCreatedBy       = errors.New("El usuario que crea el parto es obligatorio")
-	ErrInvalidUpdatedBy       = errors.New("El usuario que actualiza el parto es obligatorio")
-	ErrFarrowDateInFuture     = errors.New("La fecha del parto no puede ser futura")
-	ErrFarrowDateBeforeMount  = errors.New("La fecha del parto debe ser posterior a la última monta")
-	ErrDuplicateOperator      = errors.New("No se puede repetir un operador en el parto")
-	ErrDuplicateMedication    = errors.New("No se puede repetir un medicamento en el parto")
-	ErrInvalidPigletQuantity  = errors.New("La cantidad de lechones debe ser mayor a cero")
-	ErrInsufficientPiglets    = errors.New("La cantidad supera los lechones actuales")
+	ErrInvalidID               = errors.New("El identificador del parto es obligatorio")
+	ErrInvalidService          = errors.New("El servicio del parto es obligatorio")
+	ErrInvalidSow              = errors.New("La cerda del parto es obligatoria")
+	ErrInvalidFarrowDate       = errors.New("La fecha del parto es obligatoria")
+	ErrInvalidLastMount        = errors.New("La fecha de la última monta es obligatoria")
+	ErrInvalidStartTime        = errors.New("La hora de inicio no es válida")
+	ErrInvalidEndTime          = errors.New("La hora de fin no es válida")
+	ErrInvalidLocation         = errors.New("La ubicación debe tener como máximo 100 caracteres")
+	ErrInvalidLiveBorn         = errors.New("La cantidad de nacidos vivos no puede ser negativa")
+	ErrInvalidStillborn        = errors.New("La cantidad de nacidos muertos no puede ser negativa")
+	ErrInvalidMummified        = errors.New("La cantidad de momificados no puede ser negativa")
+	ErrInvalidLitterWeight     = errors.New("El peso de la camada no puede ser negativo")
+	ErrInvalidStillbornWeight  = errors.New("El peso de los nacidos muertos no puede ser negativo")
+	ErrInvalidNote             = errors.New("La nota debe tener como máximo 500 caracteres")
+	ErrInvalidNurseStartDate   = errors.New("La fecha de inicio de nodriza no es válida")
+	ErrInvalidCreatedBy        = errors.New("El usuario que crea el parto es obligatorio")
+	ErrInvalidUpdatedBy        = errors.New("El usuario que actualiza el parto es obligatorio")
+	ErrFarrowDateInFuture      = errors.New("La fecha del parto no puede ser futura")
+	ErrFarrowDateBeforeMount   = errors.New("La fecha del parto debe ser posterior a la última monta")
+	ErrDuplicateOperator       = errors.New("No se puede repetir un operador en el parto")
+	ErrDuplicateMedication     = errors.New("No se puede repetir un medicamento en el parto")
+	ErrInvalidPigletQuantity   = errors.New("La cantidad de lechones debe ser mayor a cero")
+	ErrInsufficientPiglets     = errors.New("La cantidad supera los lechones actuales")
+	ErrWeagingQuantityMismatch = errors.New("La cantidad del destete debe coincidir con los lechones actuales")
 )
 
 // Farrowing is the aggregate root that represents a sow farrowing (parto).
@@ -272,6 +273,29 @@ func (f *Farrowing) AddCurrentPiglets(quantity int, updatedBy uuid.UUID, now tim
 	}
 
 	f.CurrentPiglets += quantity
+	f.UpdatedAt = now
+	f.UpdatedBy = updatedBy
+	return nil
+}
+
+// WeanAll completes the weaning of the farrowing by zeroing its current balance.
+// It rejects non-positive or mismatched quantities and missing actors, then sets
+// the balance to zero and records updatedBy plus the timestamp.
+func (f *Farrowing) WeanAll(quantity int, updatedBy uuid.UUID, now time.Time) error {
+	if f == nil || f.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if quantity <= 0 {
+		return ErrInvalidPigletQuantity
+	}
+	if quantity != f.CurrentPiglets {
+		return ErrWeagingQuantityMismatch
+	}
+
+	f.CurrentPiglets = 0
 	f.UpdatedAt = now
 	f.UpdatedBy = updatedBy
 	return nil

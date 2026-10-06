@@ -373,6 +373,52 @@ func TestFarrowingAddCurrentPiglets(t *testing.T) {
 	})
 }
 
+func TestFarrowingWeanAll(t *testing.T) {
+	now := time.Date(2026, time.February, 2, 3, 4, 5, 0, time.UTC)
+	actor := uuid.New()
+
+	t.Run("zeroes the current piglets balance", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New(), CurrentPiglets: 8}
+
+		if err := farrowing.WeanAll(8, actor, now); err != nil {
+			t.Fatalf("WeanAll() error = %v", err)
+		}
+		if farrowing.CurrentPiglets != 0 {
+			t.Fatalf("current piglets = %d, want 0", farrowing.CurrentPiglets)
+		}
+		if !farrowing.UpdatedAt.Equal(now) || farrowing.UpdatedBy != actor {
+			t.Fatalf("unexpected audit fields: %#v", farrowing)
+		}
+	})
+
+	t.Run("rejects a non-positive quantity", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New(), CurrentPiglets: 8}
+
+		if err := farrowing.WeanAll(0, actor, now); !errors.Is(err, farrowingdomain.ErrInvalidPigletQuantity) {
+			t.Fatalf("error = %v, want ErrInvalidPigletQuantity", err)
+		}
+	})
+
+	t.Run("rejects a quantity that does not match the balance", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New(), CurrentPiglets: 8}
+
+		if err := farrowing.WeanAll(7, actor, now); !errors.Is(err, farrowingdomain.ErrWeagingQuantityMismatch) {
+			t.Fatalf("error = %v, want ErrWeagingQuantityMismatch", err)
+		}
+		if farrowing.CurrentPiglets != 8 {
+			t.Fatalf("current piglets = %d, want 8", farrowing.CurrentPiglets)
+		}
+	})
+
+	t.Run("rejects a nil updated by", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New(), CurrentPiglets: 8}
+
+		if err := farrowing.WeanAll(8, uuid.Nil, now); !errors.Is(err, farrowingdomain.ErrInvalidUpdatedBy) {
+			t.Fatalf("error = %v, want ErrInvalidUpdatedBy", err)
+		}
+	})
+}
+
 func TestFarrowingMarkAsNurse(t *testing.T) {
 	now := time.Date(2026, time.February, 2, 3, 4, 5, 0, time.UTC)
 	actor := uuid.New()

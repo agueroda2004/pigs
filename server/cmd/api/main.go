@@ -76,6 +76,9 @@ func main() {
 	partialWeagingHandler := dependencies.PartialWeaging.Handler
 	partialWeagingHandler.RegisterRoutes(mux)
 
+	weagingHandler := dependencies.Weaging.Handler
+	weagingHandler.RegisterRoutes(mux)
+
 	server := &http.Server{
 		Addr:    ":" + applicationConfig.Port,
 		Handler: platformhttp.CORS(applicationConfig.CorsAllowedOrigins)(mux),

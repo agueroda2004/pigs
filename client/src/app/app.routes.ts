@@ -77,6 +77,11 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'weagings',
+        loadComponent: () =>
+          import('./features/weagings/weagings-page/weagings-page').then((m) => m.WeagingsPage),
+      },
+      {
         path: 'sow-removals',
         loadComponent: () =>
           import('./features/sow-removals/sow-removals-page/sow-removals-page').then(

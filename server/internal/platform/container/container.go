@@ -21,6 +21,7 @@ import (
 	sowinfrastructure "server/internal/modules/sow/infrastructure"
 	sowremovalinfrastructure "server/internal/modules/sowremoval/infrastructure"
 	userinfrastructure "server/internal/modules/user/infrastructure"
+	weaginginfrastructure "server/internal/modules/weaging/infrastructure"
 	"server/internal/platform/config"
 	"server/internal/platform/database"
 )
@@ -41,6 +42,7 @@ type Container struct {
 	PigletDeath     *pigletdeathinfrastructure.Module
 	PigletFostering *pigletfosteringinfrastructure.Module
 	PartialWeaging  *partialweaginginfrastructure.Module
+	Weaging         *weaginginfrastructure.Module
 	Auth            *authinfrastructure.Module
 }
 
@@ -96,6 +98,9 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 	// + === PARTIAL WEAGING MODULE ===
 	partialWeagingRepository := partialweaginginfrastructure.NewPostgresPartialWeagingRepository(db)
 
+	// + === WEAGING MODULE ===
+	weagingRepository := weaginginfrastructure.NewPostgresWeagingRepository(db)
+
 	// + === AUTH MODULE ===
 	refreshTokenRepository := authinfrastructure.NewPostgresRefreshTokenRepository(db)
 	tokenGenerator := authinfrastructure.NewRandomTokenGenerator()
@@ -140,6 +145,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		PigletDeath:     pigletdeathinfrastructure.NewModule(pigletDeathRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		PigletFostering: pigletfosteringinfrastructure.NewModule(pigletFosteringRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		PartialWeaging:  partialweaginginfrastructure.NewModule(partialWeagingRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		Weaging:         weaginginfrastructure.NewModule(weagingRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Auth:            authModule,
 	}, nil
 }
