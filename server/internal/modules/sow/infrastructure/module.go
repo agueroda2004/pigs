@@ -9,12 +9,12 @@ import (
 )
 
 type Module struct {
-	CreateSow      *sowapplication.CreateSowService
-	ListSows       *sowapplication.ListSowsService
-	ListSowOptions *sowapplication.ListSowOptionsService
-	UpdateSow      *sowapplication.UpdateSowService
-	ChangeSowState *sowapplication.ChangeSowStateService
-	Handler        *SowHandler
+	CreateSow       *sowapplication.CreateSowService
+	ListSows        *sowapplication.ListSowsService
+	ListSowDropdown *sowapplication.ListSowDropdownService
+	UpdateSow       *sowapplication.UpdateSowService
+	ChangeSowState  *sowapplication.ChangeSowStateService
+	Handler         *SowHandler
 }
 
 // NewModule assembles the sow use cases and HTTP handler from its dependencies.
@@ -28,16 +28,16 @@ func NewModule(
 ) *Module {
 	createSow := sowapplication.NewCreateSowService(repository, clock)
 	listSows := sowapplication.NewListSowsService(repository)
-	listSowOptions := sowapplication.NewListSowOptionsService(repository)
+	listSowDropdown := sowapplication.NewListSowDropdownService(repository)
 	updateSow := sowapplication.NewUpdateSowService(repository, clock)
 	changeSowState := sowapplication.NewChangeSowStateService(repository, clock)
 
 	return &Module{
-		CreateSow:      createSow,
-		ListSows:       listSows,
-		ListSowOptions: listSowOptions,
-		UpdateSow:      updateSow,
-		ChangeSowState: changeSowState,
-		Handler:        NewSowHandler(createSow, listSows, listSowOptions, updateSow, authMiddleware, adminMiddleware),
+		CreateSow:       createSow,
+		ListSows:        listSows,
+		ListSowDropdown: listSowDropdown,
+		UpdateSow:       updateSow,
+		ChangeSowState:  changeSowState,
+		Handler:         NewSowHandler(createSow, listSows, listSowDropdown, updateSow, authMiddleware, adminMiddleware),
 	}
 }

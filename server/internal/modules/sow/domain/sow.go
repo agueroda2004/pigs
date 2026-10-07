@@ -52,6 +52,15 @@ var (
 	ErrInvalidUpdate    = errors.New("Debe actualizar al menos un campo de la cerda")
 	ErrInvalidCreatedBy = errors.New("El usuario que crea la cerda es obligatorio")
 	ErrInvalidUpdatedBy = errors.New("El usuario que actualiza la cerda es obligatorio")
+	// ErrInactiveSowCannotUpdateDates is returned when an inactive sow tries to
+	// change its entry or birth date, which are only editable while active.
+	ErrInactiveSowCannotUpdateDates = errors.New("Solo las cerdas activas pueden modificar la fecha de ingreso y de nacimiento")
+	// ErrParityRequiresAliveState is returned when parity is changed on a sow
+	// whose state is not Viva, the only state where parity is editable.
+	ErrParityRequiresAliveState = errors.New("Solo las cerdas vivas pueden modificar la paridad")
+	// ErrEntryDateAfterService is returned when the new entry date falls after
+	// the most recent mount date registered for the sow.
+	ErrEntryDateAfterService = errors.New("La fecha de ingreso no puede ser posterior al último servicio")
 )
 
 // Sow is the aggregate root that represents a sow (cerda) in the farm.
@@ -74,9 +83,9 @@ type Sow struct {
 	UpdatedBy uuid.UUID
 }
 
-// SowOption is a lightweight sow read model for selection lists.
+// SowDropdown is a lightweight sow read model for selection lists.
 // It only carries the identifier and code of a sow.
-type SowOption struct {
+type SowDropdown struct {
 	ID   uuid.UUID
 	Code string
 }
@@ -100,18 +109,21 @@ type NewSowParams struct {
 // UpdateSowParams holds the mutable fields of a sow for an update.
 // A nil pointer means the field is omitted and stays unchanged; nullable string
 // fields are cleared with an empty string and the nullable date uses
-// ClearBirthDate. Parity and state are intentionally absent because parity is
-// set only at creation and only ChangeState may alter the state.
+// ClearBirthDate. Active and state are intentionally absent because the active
+// flag is internal and only ChangeState may alter the state. LastServiceDate is
+// validation context, never persisted, and carries the most recent mount date
+// used to bound the entry date.
 type UpdateSowParams struct {
-	Code           *string
-	Location       *string
-	Active         *bool
-	EntryDate      *time.Time
-	BirthDate      *time.Time
-	ClearBirthDate bool
-	Note           *string
-	Origin         *Origin
-	BreedID        *uuid.UUID
+	Code            *string
+	Location        *string
+	EntryDate       *time.Time
+	BirthDate       *time.Time
+	ClearBirthDate  bool
+	Note            *string
+	Origin          *Origin
+	BreedID         *uuid.UUID
+	Parity          *int
+	LastServiceDate *time.Time
 }
 
 // NewSow builds a sow after validating its fields.
@@ -183,8 +195,9 @@ func NewSow(params NewSowParams, now time.Time) (*Sow, error) {
 
 // Update applies only the non-nil fields of the given params to the sow.
 // It validates each provided value and records updatedBy plus the timestamp,
-// returning ErrInvalidUpdate when no field is provided; it never touches state
-// or parity.
+// returning ErrInvalidUpdate when no field is provided. Dates are only editable
+// while the sow is active, parity only while its state is Viva, and the entry
+// date can never fall after the most recent service; it never touches state.
 func (s *Sow) Update(params UpdateSowParams, updatedBy uuid.UUID, now time.Time) error {
 	if s == nil || s.ID == uuid.Nil {
 		return ErrInvalidID
@@ -192,10 +205,24 @@ func (s *Sow) Update(params UpdateSowParams, updatedBy uuid.UUID, now time.Time)
 	if updatedBy == uuid.Nil {
 		return ErrInvalidUpdatedBy
 	}
-	if params.Code == nil && params.Location == nil && params.Active == nil &&
+	if params.Code == nil && params.Location == nil &&
 		params.EntryDate == nil && params.BirthDate == nil && !params.ClearBirthDate &&
-		params.Note == nil && params.Origin == nil && params.BreedID == nil {
+		params.Note == nil && params.Origin == nil && params.BreedID == nil && params.Parity == nil {
 		return ErrInvalidUpdate
+	}
+
+	changesDates := params.EntryDate != nil || params.BirthDate != nil || params.ClearBirthDate
+	if changesDates && !s.Active {
+		return ErrInactiveSowCannotUpdateDates
+	}
+
+	if params.Parity != nil {
+		if s.State != StateAlive {
+			return ErrParityRequiresAliveState
+		}
+		if *params.Parity < 0 {
+			return ErrInvalidParity
+		}
 	}
 
 	validatedCode := s.Code
@@ -222,6 +249,10 @@ func (s *Sow) Update(params UpdateSowParams, updatedBy uuid.UUID, now time.Time)
 			return ErrInvalidEntryDate
 		}
 		validatedEntryDate = *params.EntryDate
+	}
+
+	if changesDates && params.LastServiceDate != nil && validatedEntryDate.After(*params.LastServiceDate) {
+		return ErrEntryDateAfterService
 	}
 
 	validatedBirthDate := s.BirthDate
@@ -263,16 +294,36 @@ func (s *Sow) Update(params UpdateSowParams, updatedBy uuid.UUID, now time.Time)
 		validatedBreedID = *params.BreedID
 	}
 
+	validatedParity := s.Parity
+	if params.Parity != nil {
+		validatedParity = *params.Parity
+	}
+
 	s.Code = validatedCode
 	s.Location = validatedLocation
-	if params.Active != nil {
-		s.Active = *params.Active
-	}
 	s.EntryDate = validatedEntryDate
 	s.BirthDate = validatedBirthDate
 	s.Note = validatedNote
 	s.Origin = validatedOrigin
 	s.BreedID = validatedBreedID
+	s.Parity = validatedParity
+	s.UpdatedAt = now
+	s.UpdatedBy = updatedBy
+	return nil
+}
+
+// SetActive flips the internal active flag and records updatedBy plus the timestamp.
+// It is reserved for internal flows such as sow removals, never for the user-facing
+// update flow, which cannot touch the active flag.
+func (s *Sow) SetActive(active bool, updatedBy uuid.UUID, now time.Time) error {
+	if s == nil || s.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+
+	s.Active = active
 	s.UpdatedAt = now
 	s.UpdatedBy = updatedBy
 	return nil

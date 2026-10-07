@@ -91,8 +91,7 @@ func (s *CreateSowRemovalService) Execute(ctx context.Context, command CreateSow
 		return nil, err
 	}
 
-	inactive := false
-	if err := sow.Update(sowdomain.UpdateSowParams{Active: &inactive}, command.CreatedBy, now); err != nil {
+	if err := sow.SetActive(false, command.CreatedBy, now); err != nil {
 		return nil, err
 	}
 	if err := sow.ChangeState(sowdomain.State(targetState), command.CreatedBy, now); err != nil {

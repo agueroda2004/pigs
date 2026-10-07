@@ -24,11 +24,11 @@ type CreateSowUseCase interface {
 }
 
 type ListSowsUseCase interface {
-	Execute(context.Context, ports.SowFilter) ([]*sowdomain.Sow, error)
+	Execute(context.Context, ports.SowFilter, int) (sowapplication.SowPage, error)
 }
 
-type ListSowOptionsUseCase interface {
-	Execute(context.Context, *bool) ([]sowdomain.SowOption, error)
+type ListSowDropdownUseCase interface {
+	Execute(context.Context, *bool, []sowdomain.State) ([]sowdomain.SowDropdown, error)
 }
 
 type UpdateSowUseCase interface {
@@ -38,7 +38,7 @@ type UpdateSowUseCase interface {
 type SowHandler struct {
 	createSow       CreateSowUseCase
 	listSows        ListSowsUseCase
-	listSowOptions  ListSowOptionsUseCase
+	listSowDropdown ListSowDropdownUseCase
 	updateSow       UpdateSowUseCase
 	authMiddleware  func(http.Handler) http.Handler
 	adminMiddleware func(http.Handler) http.Handler
@@ -49,7 +49,7 @@ type SowHandler struct {
 func NewSowHandler(
 	createSow CreateSowUseCase,
 	listSows ListSowsUseCase,
-	listSowOptions ListSowOptionsUseCase,
+	listSowDropdown ListSowDropdownUseCase,
 	updateSow UpdateSowUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
@@ -57,20 +57,20 @@ func NewSowHandler(
 	return &SowHandler{
 		createSow:       createSow,
 		listSows:        listSows,
-		listSowOptions:  listSowOptions,
+		listSowDropdown: listSowDropdown,
 		updateSow:       updateSow,
 		authMiddleware:  authMiddleware,
 		adminMiddleware: adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the sow create, list, options and update endpoints on the mux.
+// RegisterRoutes registers the sow create, list, dropdown and update endpoints on the mux.
 // Write routes are admin-only while the read routes only require authentication;
 // no state route is exposed because the state is server-managed.
 func (h *SowHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/sows", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/v1/sows", h.authMiddleware(http.HandlerFunc(h.list)))
-	mux.Handle("GET /api/v1/sows/options", h.authMiddleware(http.HandlerFunc(h.listOptions)))
+	mux.Handle("GET /api/v1/sows/dropdown", h.authMiddleware(http.HandlerFunc(h.listDropdown)))
 	mux.Handle("PATCH /api/v1/sows/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
 }
 
@@ -88,15 +88,16 @@ type createSowRequest struct {
 type updateSowRequest struct {
 	Code      *string `json:"code"`
 	Location  *string `json:"location"`
-	Active    *bool   `json:"active"`
 	EntryDate *string `json:"entry_date"`
 	BirthDate *string `json:"birth_date"`
 	Note      *string `json:"note"`
 	Origin    *string `json:"origin"`
 	BreedID   *string `json:"breed_id"`
+	Parity    *int    `json:"parity"`
 }
 
-type sowResponse struct {
+// sowSummaryResponse is the sow list shape without the audit fields.
+type sowSummaryResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Code      string    `json:"code"`
 	Location  *string   `json:"location"`
@@ -108,13 +109,18 @@ type sowResponse struct {
 	Origin    string    `json:"origin"`
 	Parity    int       `json:"parity"`
 	BreedID   uuid.UUID `json:"breed_id"`
-	CreatedAt string    `json:"created_at"`
-	UpdatedAt string    `json:"updated_at"`
-	CreatedBy uuid.UUID `json:"created_by"`
-	UpdatedBy uuid.UUID `json:"updated_by"`
 }
 
-type sowOptionResponse struct {
+// sowPageResponse is one page of sows together with its pagination metadata.
+type sowPageResponse struct {
+	Items      []sowSummaryResponse `json:"items"`
+	Total      int                  `json:"total"`
+	Page       int                  `json:"page"`
+	PageSize   int                  `json:"page_size"`
+	TotalPages int                  `json:"total_pages"`
+}
+
+type sowDropdownResponse struct {
 	ID   uuid.UUID `json:"id"`
 	Code string    `json:"code"`
 }
@@ -152,7 +158,7 @@ func (h *SowHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdSow, err := h.createSow.Execute(r.Context(), sowapplication.CreateSowCommand{
+	if _, err := h.createSow.Execute(r.Context(), sowapplication.CreateSowCommand{
 		Code:      request.Code,
 		Location:  request.Location,
 		EntryDate: entryDate,
@@ -162,17 +168,16 @@ func (h *SowHandler) create(w http.ResponseWriter, r *http.Request) {
 		Parity:    request.Parity,
 		BreedID:   breedID,
 		CreatedBy: actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeSowError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusCreated, toSowResponse(createdSow))
+	w.WriteHeader(http.StatusCreated)
 }
 
-// list handles GET /api/v1/sows and returns the sows matching the query filter.
-// It parses the optional code, breed_id, origin, active and state query parameters.
+// list handles GET /api/v1/sows and returns one page of sows matching the filter.
+// It parses the optional code, breed_id, origin, active, state and page params.
 func (h *SowHandler) list(w http.ResponseWriter, r *http.Request) {
 	filter, err := parseSowFilter(r)
 	if err != nil {
@@ -180,36 +185,48 @@ func (h *SowHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sows, err := h.listSows.Execute(r.Context(), filter)
-	if err != nil {
-		writeSowError(w, err)
-		return
-	}
-
-	platformhttp.WriteJSON(w, http.StatusOK, toSowResponses(sows))
-}
-
-// listOptions handles GET /api/v1/sows/options and returns the sow options.
-// It forwards the optional active filter so callers may list all sows when empty.
-func (h *SowHandler) listOptions(w http.ResponseWriter, r *http.Request) {
-	active, err := parseSowOptionsActive(r)
+	page, err := parseSowPage(r)
 	if err != nil {
 		platformhttp.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	options, err := h.listSowOptions.Execute(r.Context(), active)
+	sows, err := h.listSows.Execute(r.Context(), filter, page)
 	if err != nil {
 		writeSowError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toSowOptionResponses(options))
+	platformhttp.WriteJSON(w, http.StatusOK, toSowPageResponse(sows))
 }
 
-// parseSowOptionsActive reads the optional active query parameter.
+// listDropdown handles GET /api/v1/sows/dropdown and returns the sow dropdown.
+// It forwards the optional active filter and the list of states to filter by.
+func (h *SowHandler) listDropdown(w http.ResponseWriter, r *http.Request) {
+	active, err := parseSowDropdownActive(r)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	states, err := parseSowStates(r)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	options, err := h.listSowDropdown.Execute(r.Context(), active, states)
+	if err != nil {
+		writeSowError(w, err)
+		return
+	}
+
+	platformhttp.WriteJSON(w, http.StatusOK, toSowDropdownResponses(options))
+}
+
+// parseSowDropdownActive reads the optional active query parameter.
 // It returns nil when empty (no filter) and an error for a non-boolean value.
-func parseSowOptionsActive(r *http.Request) (*bool, error) {
+func parseSowDropdownActive(r *http.Request) (*bool, error) {
 	active := strings.TrimSpace(r.URL.Query().Get("active"))
 	if active == "" {
 		return nil, nil
@@ -219,6 +236,48 @@ func parseSowOptionsActive(r *http.Request) (*bool, error) {
 		return nil, errors.New("El filtro de activo no es válido")
 	}
 	return &parsedActive, nil
+}
+
+// parseSowStates reads the optional repeated states query parameter and validates
+// every value. It accepts comma-separated values inside each occurrence.
+func parseSowStates(r *http.Request) ([]sowdomain.State, error) {
+	rawStates := r.URL.Query()["states"]
+	if len(rawStates) == 0 {
+		return nil, nil
+	}
+
+	states := make([]sowdomain.State, 0, len(rawStates))
+	for _, raw := range rawStates {
+		for _, value := range strings.Split(raw, ",") {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			state, err := sowdomain.ParseState(value)
+			if err != nil {
+				return nil, errors.New("El estado no es válido")
+			}
+			states = append(states, state)
+		}
+	}
+	if len(states) == 0 {
+		return nil, nil
+	}
+	return states, nil
+}
+
+// parseSowPage reads the optional page query parameter.
+// It defaults to page one and rejects non-positive or malformed values.
+func parseSowPage(r *http.Request) (int, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get("page"))
+	if raw == "" {
+		return 1, nil
+	}
+	page, err := strconv.Atoi(raw)
+	if err != nil || page < 1 {
+		return 0, errors.New("La página no es válida")
+	}
+	return page, nil
 }
 
 // parseSowFilter reads the optional list filters from the query string.
@@ -320,24 +379,23 @@ func (h *SowHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedSow, err := h.updateSow.Execute(r.Context(), sowID, sowapplication.UpdateSowCommand{
+	if _, err := h.updateSow.Execute(r.Context(), sowID, sowapplication.UpdateSowCommand{
 		Code:           request.Code,
 		Location:       request.Location,
-		Active:         request.Active,
 		EntryDate:      entryDate,
 		BirthDate:      birthDate,
 		ClearBirthDate: clearBirthDate,
 		Note:           request.Note,
 		Origin:         origin,
 		BreedID:        breedID,
+		Parity:         request.Parity,
 		UpdatedBy:      actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeSowError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toSowResponse(updatedSow))
+	w.WriteHeader(http.StatusOK)
 }
 
 // parseOptionalDate parses an optional date pointer using the shared layout.
@@ -353,10 +411,10 @@ func parseOptionalDate(value *string) (*time.Time, error) {
 	return &parsed, nil
 }
 
-// toSowResponse maps a domain sow to the HTTP response shape.
-// It formats dates as YYYY-MM-DD and timestamps in UTC.
-func toSowResponse(sow *sowdomain.Sow) sowResponse {
-	return sowResponse{
+// toSowSummary maps a domain sow to the list response shape without audit fields.
+// It formats dates as YYYY-MM-DD.
+func toSowSummary(sow *sowdomain.Sow) sowSummaryResponse {
+	return sowSummaryResponse{
 		ID:        sow.ID,
 		Code:      sow.Code,
 		Location:  sow.Location,
@@ -368,29 +426,31 @@ func toSowResponse(sow *sowdomain.Sow) sowResponse {
 		Origin:    string(sow.Origin),
 		Parity:    sow.Parity,
 		BreedID:   sow.BreedID,
-		CreatedAt: sow.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt: sow.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		CreatedBy: sow.CreatedBy,
-		UpdatedBy: sow.UpdatedBy,
 	}
 }
 
-// toSowResponses maps a list of domain sows to HTTP response shapes.
-// It returns an empty slice instead of null when there are no sows.
-func toSowResponses(sows []*sowdomain.Sow) []sowResponse {
-	responses := make([]sowResponse, 0, len(sows))
-	for _, sow := range sows {
-		responses = append(responses, toSowResponse(sow))
+// toSowPageResponse maps a page of domain sows to the paginated response shape.
+// It returns an empty items slice instead of null when there are no sows.
+func toSowPageResponse(page sowapplication.SowPage) sowPageResponse {
+	items := make([]sowSummaryResponse, 0, len(page.Items))
+	for _, sow := range page.Items {
+		items = append(items, toSowSummary(sow))
 	}
-	return responses
+	return sowPageResponse{
+		Items:      items,
+		Total:      page.Total,
+		Page:       page.Page,
+		PageSize:   page.PageSize,
+		TotalPages: page.TotalPages,
+	}
 }
 
-// toSowOptionResponses maps sow options to their HTTP response shape.
-// It returns an empty slice instead of null when there are no options.
-func toSowOptionResponses(options []sowdomain.SowOption) []sowOptionResponse {
-	responses := make([]sowOptionResponse, 0, len(options))
+// toSowDropdownResponses maps sow dropdown items to their HTTP response shape.
+// It returns an empty slice instead of null when there are no items.
+func toSowDropdownResponses(options []sowdomain.SowDropdown) []sowDropdownResponse {
+	responses := make([]sowDropdownResponse, 0, len(options))
 	for _, option := range options {
-		responses = append(responses, sowOptionResponse{ID: option.ID, Code: option.Code})
+		responses = append(responses, sowDropdownResponse{ID: option.ID, Code: option.Code})
 	}
 	return responses
 }
@@ -426,7 +486,10 @@ func writeSowError(w http.ResponseWriter, err error) {
 		errors.Is(err, sowdomain.ErrInvalidParity),
 		errors.Is(err, sowdomain.ErrInvalidUpdate),
 		errors.Is(err, sowdomain.ErrInvalidCreatedBy),
-		errors.Is(err, sowdomain.ErrInvalidUpdatedBy):
+		errors.Is(err, sowdomain.ErrInvalidUpdatedBy),
+		errors.Is(err, sowdomain.ErrInactiveSowCannotUpdateDates),
+		errors.Is(err, sowdomain.ErrParityRequiresAliveState),
+		errors.Is(err, sowdomain.ErrEntryDateAfterService):
 		status = http.StatusBadRequest
 	}
 	platformhttp.WriteError(w, status, err)

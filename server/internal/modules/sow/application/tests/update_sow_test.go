@@ -18,26 +18,93 @@ func TestUpdateSow(t *testing.T) {
 	updatedBy := uuid.New()
 	sowID := uuid.New()
 
-	t.Run("updates provided fields and keeps the state and parity", func(t *testing.T) {
+	t.Run("updates provided fields and keeps the state and active flag", func(t *testing.T) {
 		repository := &fakeSowRepository{getSow: testSow(sowID)}
 		service := sowapplication.NewUpdateSowService(repository, clock)
 		code := "  C-002  "
-		active := false
+		parity := 5
 
 		sow, err := service.Execute(context.Background(), sowID, sowapplication.UpdateSowCommand{
 			Code:      &code,
-			Active:    &active,
+			Parity:    &parity,
 			UpdatedBy: updatedBy,
 		})
 
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
-		if sow.Code != "C-002" || sow.Active || sow.State != sowdomain.StateAlive || sow.Parity != 2 {
+		if sow.Code != "C-002" || !sow.Active || sow.State != sowdomain.StateAlive || sow.Parity != 5 {
 			t.Fatalf("unexpected sow: %#v", sow)
 		}
 		if sow.UpdatedBy != updatedBy || !sow.UpdatedAt.Equal(now) || repository.updated != sow {
 			t.Fatalf("unexpected sow: %#v", sow)
+		}
+	})
+
+	t.Run("rejects a date change on an inactive sow", func(t *testing.T) {
+		sow := testSow(sowID)
+		sow.Active = false
+		repository := &fakeSowRepository{getSow: sow}
+		service := sowapplication.NewUpdateSowService(repository, clock)
+		entry := sow.EntryDate.Add(-24 * time.Hour)
+
+		_, err := service.Execute(context.Background(), sowID, sowapplication.UpdateSowCommand{
+			EntryDate: &entry,
+			UpdatedBy: updatedBy,
+		})
+
+		if !errors.Is(err, sowdomain.ErrInactiveSowCannotUpdateDates) || repository.updated != nil {
+			t.Fatalf("unexpected result: err=%v updated=%#v", err, repository.updated)
+		}
+	})
+
+	t.Run("rejects a parity change when the sow is not alive", func(t *testing.T) {
+		sow := testSow(sowID)
+		sow.State = sowdomain.StatePregnant
+		repository := &fakeSowRepository{getSow: sow}
+		service := sowapplication.NewUpdateSowService(repository, clock)
+		parity := 4
+
+		_, err := service.Execute(context.Background(), sowID, sowapplication.UpdateSowCommand{
+			Parity:    &parity,
+			UpdatedBy: updatedBy,
+		})
+
+		if !errors.Is(err, sowdomain.ErrParityRequiresAliveState) || repository.updated != nil {
+			t.Fatalf("unexpected result: err=%v updated=%#v", err, repository.updated)
+		}
+	})
+
+	t.Run("rejects an entry date after the last service", func(t *testing.T) {
+		sow := testSow(sowID)
+		lastService := sow.EntryDate.Add(-24 * time.Hour)
+		repository := &fakeSowRepository{getSow: sow, lastServiceDate: &lastService}
+		service := sowapplication.NewUpdateSowService(repository, clock)
+		entry := sow.EntryDate
+
+		_, err := service.Execute(context.Background(), sowID, sowapplication.UpdateSowCommand{
+			EntryDate: &entry,
+			UpdatedBy: updatedBy,
+		})
+
+		if !errors.Is(err, sowdomain.ErrEntryDateAfterService) || repository.updated != nil {
+			t.Fatalf("unexpected result: err=%v updated=%#v", err, repository.updated)
+		}
+	})
+
+	t.Run("propagates the last service lookup error", func(t *testing.T) {
+		unexpected := errors.New("unexpected")
+		repository := &fakeSowRepository{getSow: testSow(sowID), lastServiceErr: unexpected}
+		service := sowapplication.NewUpdateSowService(repository, clock)
+		entry := testSow(sowID).EntryDate
+
+		_, err := service.Execute(context.Background(), sowID, sowapplication.UpdateSowCommand{
+			EntryDate: &entry,
+			UpdatedBy: updatedBy,
+		})
+
+		if !errors.Is(err, unexpected) || repository.updated != nil {
+			t.Fatalf("unexpected result: err=%v updated=%#v", err, repository.updated)
 		}
 	})
 

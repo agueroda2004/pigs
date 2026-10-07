@@ -270,14 +270,14 @@ func TestSowUpdate(t *testing.T) {
 		code := "  C-002  "
 		location := "  Corral B  "
 		note := "  Actualizada  "
-		active := false
+		parity := 5
 		breedID := uuid.New()
 		entry := sow.EntryDate.Add(48 * time.Hour)
 
 		err := sow.Update(sowdomain.UpdateSowParams{
 			Code:      &code,
 			Location:  &location,
-			Active:    &active,
+			Parity:    &parity,
 			EntryDate: &entry,
 			Note:      &note,
 			BreedID:   &breedID,
@@ -286,7 +286,7 @@ func TestSowUpdate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Update() error = %v", err)
 		}
-		if sow.Code != "C-002" || sow.Active {
+		if sow.Code != "C-002" || !sow.Active || sow.Parity != 5 {
 			t.Fatalf("unexpected sow: %#v", sow)
 		}
 		if sow.Location == nil || *sow.Location != "Corral B" || sow.Note == nil || *sow.Note != "Actualizada" {
@@ -344,13 +344,100 @@ func TestSowUpdate(t *testing.T) {
 		}
 	})
 
-	t.Run("never changes the parity", func(t *testing.T) {
+	t.Run("keeps the parity when omitted", func(t *testing.T) {
 		sow := newSow()
 		code := "C-010"
 
 		err := sow.Update(sowdomain.UpdateSowParams{Code: &code}, updatedBy, now)
 
 		if err != nil || sow.Parity != 2 {
+			t.Fatalf("unexpected result: err=%v sow=%#v", err, sow)
+		}
+	})
+
+	t.Run("changes the parity when the sow is alive", func(t *testing.T) {
+		sow := newSow()
+		parity := 7
+
+		err := sow.Update(sowdomain.UpdateSowParams{Parity: &parity}, updatedBy, now)
+
+		if err != nil || sow.Parity != 7 {
+			t.Fatalf("unexpected result: err=%v sow=%#v", err, sow)
+		}
+	})
+
+	t.Run("rejects parity when the sow is not alive", func(t *testing.T) {
+		sow := newSow()
+		sow.State = sowdomain.StatePregnant
+		parity := 7
+
+		err := sow.Update(sowdomain.UpdateSowParams{Parity: &parity}, updatedBy, now)
+
+		if !errors.Is(err, sowdomain.ErrParityRequiresAliveState) || sow.Parity != 2 {
+			t.Fatalf("unexpected result: err=%v sow=%#v", err, sow)
+		}
+	})
+
+	t.Run("rejects negative parity", func(t *testing.T) {
+		sow := newSow()
+		parity := -1
+
+		err := sow.Update(sowdomain.UpdateSowParams{Parity: &parity}, updatedBy, now)
+
+		if !errors.Is(err, sowdomain.ErrInvalidParity) || sow.Parity != 2 {
+			t.Fatalf("unexpected result: err=%v sow=%#v", err, sow)
+		}
+	})
+
+	t.Run("rejects a date change on an inactive sow", func(t *testing.T) {
+		sow := newSow()
+		sow.Active = false
+		entry := sow.EntryDate.Add(-24 * time.Hour)
+
+		err := sow.Update(sowdomain.UpdateSowParams{EntryDate: &entry}, updatedBy, now)
+
+		if !errors.Is(err, sowdomain.ErrInactiveSowCannotUpdateDates) {
+			t.Fatalf("unexpected result: err=%v sow=%#v", err, sow)
+		}
+	})
+
+	t.Run("rejects a birth date change on an inactive sow", func(t *testing.T) {
+		sow := newSow()
+		sow.Active = false
+
+		err := sow.Update(sowdomain.UpdateSowParams{ClearBirthDate: true}, updatedBy, now)
+
+		if !errors.Is(err, sowdomain.ErrInactiveSowCannotUpdateDates) {
+			t.Fatalf("unexpected result: err=%v sow=%#v", err, sow)
+		}
+	})
+
+	t.Run("rejects an entry date after the last service", func(t *testing.T) {
+		sow := newSow()
+		lastService := sow.EntryDate.Add(-24 * time.Hour)
+		entry := sow.EntryDate
+
+		err := sow.Update(sowdomain.UpdateSowParams{
+			EntryDate:       &entry,
+			LastServiceDate: &lastService,
+		}, updatedBy, now)
+
+		if !errors.Is(err, sowdomain.ErrEntryDateAfterService) {
+			t.Fatalf("unexpected result: err=%v sow=%#v", err, sow)
+		}
+	})
+
+	t.Run("accepts an entry date on or before the last service", func(t *testing.T) {
+		sow := newSow()
+		lastService := sow.EntryDate.Add(24 * time.Hour)
+		entry := sow.EntryDate
+
+		err := sow.Update(sowdomain.UpdateSowParams{
+			EntryDate:       &entry,
+			LastServiceDate: &lastService,
+		}, updatedBy, now)
+
+		if err != nil {
 			t.Fatalf("unexpected result: err=%v sow=%#v", err, sow)
 		}
 	})
@@ -536,6 +623,41 @@ func TestSowChangeState(t *testing.T) {
 		var sow *sowdomain.Sow
 
 		err := sow.ChangeState(sowdomain.StateDead, updatedBy, now)
+
+		if !errors.Is(err, sowdomain.ErrInvalidID) {
+			t.Fatalf("error = %v, want ErrInvalidID", err)
+		}
+	})
+}
+
+func TestSowSetActive(t *testing.T) {
+	now := time.Date(2026, time.April, 1, 2, 3, 4, 0, time.UTC)
+	updatedBy := uuid.New()
+
+	t.Run("sets the active flag and records the audit", func(t *testing.T) {
+		sow := &sowdomain.Sow{ID: uuid.New(), Code: "C-001", Active: true}
+
+		err := sow.SetActive(false, updatedBy, now)
+
+		if err != nil || sow.Active || sow.UpdatedBy != updatedBy || !sow.UpdatedAt.Equal(now) {
+			t.Fatalf("unexpected result: err=%v sow=%#v", err, sow)
+		}
+	})
+
+	t.Run("rejects nil updated by", func(t *testing.T) {
+		sow := &sowdomain.Sow{ID: uuid.New(), Code: "C-001", Active: true}
+
+		err := sow.SetActive(false, uuid.Nil, now)
+
+		if !errors.Is(err, sowdomain.ErrInvalidUpdatedBy) || !sow.Active {
+			t.Fatalf("unexpected result: err=%v sow=%#v", err, sow)
+		}
+	})
+
+	t.Run("rejects nil receiver", func(t *testing.T) {
+		var sow *sowdomain.Sow
+
+		err := sow.SetActive(false, updatedBy, now)
 
 		if !errors.Is(err, sowdomain.ErrInvalidID) {
 			t.Fatalf("error = %v, want ErrInvalidID", err)

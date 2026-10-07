@@ -33,25 +33,35 @@ type fakeListSowsUseCase struct {
 	sows   []*sowdomain.Sow
 	err    error
 	filter ports.SowFilter
+	page   int
 	called bool
 }
 
-func (f *fakeListSowsUseCase) Execute(_ context.Context, filter ports.SowFilter) ([]*sowdomain.Sow, error) {
+func (f *fakeListSowsUseCase) Execute(_ context.Context, filter ports.SowFilter, page int) (sowapplication.SowPage, error) {
 	f.called = true
 	f.filter = filter
-	return f.sows, f.err
+	f.page = page
+	return sowapplication.SowPage{
+		Items:      f.sows,
+		Total:      len(f.sows),
+		Page:       page,
+		PageSize:   20,
+		TotalPages: 1,
+	}, f.err
 }
 
-type fakeListSowOptionsUseCase struct {
-	options []sowdomain.SowOption
+type fakeListSowDropdownUseCase struct {
+	options []sowdomain.SowDropdown
 	err     error
 	active  *bool
+	states  []sowdomain.State
 	called  bool
 }
 
-func (f *fakeListSowOptionsUseCase) Execute(_ context.Context, active *bool) ([]sowdomain.SowOption, error) {
+func (f *fakeListSowDropdownUseCase) Execute(_ context.Context, active *bool, states []sowdomain.State) ([]sowdomain.SowDropdown, error) {
 	f.called = true
 	f.active = active
+	f.states = states
 	return f.options, f.err
 }
 
@@ -70,9 +80,9 @@ func (f *fakeUpdateSowUseCase) Execute(_ context.Context, sowID uuid.UUID, comma
 	return f.sow, f.err
 }
 
-func newTestHandler(create sowinfra.CreateSowUseCase, list sowinfra.ListSowsUseCase, options sowinfra.ListSowOptionsUseCase, update sowinfra.UpdateSowUseCase) *sowinfra.SowHandler {
+func newTestHandler(create sowinfra.CreateSowUseCase, list sowinfra.ListSowsUseCase, dropdown sowinfra.ListSowDropdownUseCase, update sowinfra.UpdateSowUseCase) *sowinfra.SowHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return sowinfra.NewSowHandler(create, list, options, update, passThrough, passThrough)
+	return sowinfra.NewSowHandler(create, list, dropdown, update, passThrough, passThrough)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {

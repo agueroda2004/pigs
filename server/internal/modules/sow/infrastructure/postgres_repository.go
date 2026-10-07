@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -107,9 +108,9 @@ func (r *PostgresSowRepository) ExistsByCode(ctx context.Context, code string) (
 	return exists, nil
 }
 
-// List fetches the sows matching the filter, ordered by code.
-// It returns an empty slice when no sow matches and wraps any query failure.
-func (r *PostgresSowRepository) List(ctx context.Context, filter ports.SowFilter) ([]*sowdomain.Sow, error) {
+// List fetches one page of sows matching the filter, ordered by code, plus the
+// total number of matches. It returns an empty slice when no sow matches.
+func (r *PostgresSowRepository) List(ctx context.Context, filter ports.SowFilter, limit, offset int) ([]*sowdomain.Sow, int, error) {
 	var origin *string
 	if filter.Origin != nil {
 		value := string(*filter.Origin)
@@ -122,6 +123,25 @@ func (r *PostgresSowRepository) List(ctx context.Context, filter ports.SowFilter
 		state = &value
 	}
 
+	var total int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM sows
+		WHERE ($1::text IS NULL OR code ILIKE '%' || $1 || '%')
+		  AND ($2::uuid IS NULL OR breed_id = $2)
+		  AND ($3::text IS NULL OR origin::text = $3)
+		  AND ($4::boolean IS NULL OR active = $4)
+		  AND ($5::text IS NULL OR state::text = $5)
+	`,
+		filter.Code,
+		filter.BreedID,
+		origin,
+		filter.Active,
+		state,
+	).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("No se pudo consultar las cerdas: %w", err)
+	}
+
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, code, location, active, entry_date, birth_date, note, state,
 		       origin, parity, breed_id, created_at, updated_at, created_by, updated_by
@@ -132,15 +152,18 @@ func (r *PostgresSowRepository) List(ctx context.Context, filter ports.SowFilter
 		  AND ($4::boolean IS NULL OR active = $4)
 		  AND ($5::text IS NULL OR state::text = $5)
 		ORDER BY code ASC
+		LIMIT $6 OFFSET $7
 	`,
 		filter.Code,
 		filter.BreedID,
 		origin,
 		filter.Active,
 		state,
+		limit,
+		offset,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("No se pudo consultar las cerdas: %w", err)
+		return nil, 0, fmt.Errorf("No se pudo consultar las cerdas: %w", err)
 	}
 	defer rows.Close()
 
@@ -164,35 +187,51 @@ func (r *PostgresSowRepository) List(ctx context.Context, filter ports.SowFilter
 			&result.CreatedBy,
 			&result.UpdatedBy,
 		); err != nil {
-			return nil, fmt.Errorf("No se pudo consultar las cerdas: %w", err)
+			return nil, 0, fmt.Errorf("No se pudo consultar las cerdas: %w", err)
 		}
 		sows = append(sows, result)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("No se pudo consultar las cerdas: %w", err)
+		return nil, 0, fmt.Errorf("No se pudo consultar las cerdas: %w", err)
 	}
-	return sows, nil
+	return sows, total, nil
 }
 
-// ListOptions fetches the id and code of the sows matching the active filter.
-// A true active restricts the result to serviceable states; nil or false apply
-// no filter and return every state, active or inactive.
-func (r *PostgresSowRepository) ListOptions(ctx context.Context, active *bool) ([]sowdomain.SowOption, error) {
-	rows, err := r.pool.Query(ctx, `
+// ListDropdown fetches the id and code of the sows matching the active flag and
+// state list. A nil active and an empty state list apply no filter.
+func (r *PostgresSowRepository) ListDropdown(ctx context.Context, active *bool, states []sowdomain.State) ([]sowdomain.SowDropdown, error) {
+	query := `
 		SELECT id, code
 		FROM sows
-		WHERE ($1::boolean IS NOT TRUE
-		       OR state IN ('Viva', 'Destetada', 'Abortada', 'Gestando'))
+		WHERE ($1::boolean IS NULL OR active = $1)
 		ORDER BY code ASC
-	`, active)
+	`
+	args := []any{active}
+
+	if len(states) > 0 {
+		stateValues := make([]string, 0, len(states))
+		for _, state := range states {
+			stateValues = append(stateValues, string(state))
+		}
+		query = `
+		SELECT id, code
+		FROM sows
+		WHERE ($1::boolean IS NULL OR active = $1)
+		  AND state::text = ANY($2)
+		ORDER BY code ASC
+	`
+		args = append(args, stateValues)
+	}
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("No se pudo consultar las cerdas: %w", err)
 	}
 	defer rows.Close()
 
-	options := make([]sowdomain.SowOption, 0)
+	options := make([]sowdomain.SowDropdown, 0)
 	for rows.Next() {
-		var option sowdomain.SowOption
+		var option sowdomain.SowDropdown
 		if err := rows.Scan(&option.ID, &option.Code); err != nil {
 			return nil, fmt.Errorf("No se pudo consultar las cerdas: %w", err)
 		}
@@ -204,19 +243,34 @@ func (r *PostgresSowRepository) ListOptions(ctx context.Context, active *bool) (
 	return options, nil
 }
 
-// Update persists the sow's user-mutable fields by id, never its state or parity.
+// LastServiceDate fetches the most recent mount date registered for a sow.
+// It returns nil when the sow has no service or mount yet.
+func (r *PostgresSowRepository) LastServiceDate(ctx context.Context, sowID uuid.UUID) (*time.Time, error) {
+	var lastServiceDate *time.Time
+	if err := r.pool.QueryRow(ctx, `
+		SELECT MAX(mounts.mount_date)
+		FROM mounts
+		JOIN services ON services.id = mounts.service_id
+		WHERE services.sow_id = $1
+	`, sowID).Scan(&lastServiceDate); err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el último servicio: %w", err)
+	}
+	return lastServiceDate, nil
+}
+
+// Update persists the sow's user-mutable fields by id, never its active flag or state.
 // It returns ErrSowNotFound when no row was affected.
 func (r *PostgresSowRepository) Update(ctx context.Context, sow *sowdomain.Sow) error {
 	commandTag, err := r.pool.Exec(ctx, `
 		UPDATE sows
 		SET code = $2,
 		    location = $3,
-		    active = $4,
-		    entry_date = $5,
-		    birth_date = $6,
-		    note = $7,
-		    origin = $8,
-		    breed_id = $9,
+		    entry_date = $4,
+		    birth_date = $5,
+		    note = $6,
+		    origin = $7,
+		    breed_id = $8,
+		    parity = $9,
 		    updated_at = $10,
 		    updated_by = $11
 		WHERE id = $1
@@ -224,12 +278,12 @@ func (r *PostgresSowRepository) Update(ctx context.Context, sow *sowdomain.Sow) 
 		sow.ID,
 		sow.Code,
 		sow.Location,
-		sow.Active,
 		sow.EntryDate,
 		sow.BirthDate,
 		sow.Note,
 		sow.Origin,
 		sow.BreedID,
+		sow.Parity,
 		sow.UpdatedAt,
 		sow.UpdatedBy,
 	)

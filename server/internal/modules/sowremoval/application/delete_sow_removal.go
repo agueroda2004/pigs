@@ -68,8 +68,7 @@ func (s *DeleteSowRemovalService) Execute(ctx context.Context, command DeleteSow
 	}
 
 	now := s.clock()
-	active := true
-	if err := sow.Update(sowdomain.UpdateSowParams{Active: &active}, command.DeletedBy, now); err != nil {
+	if err := sow.SetActive(true, command.DeletedBy, now); err != nil {
 		return err
 	}
 	if err := sow.ChangeState(lastState, command.DeletedBy, now); err != nil {

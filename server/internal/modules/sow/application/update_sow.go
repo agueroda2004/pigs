@@ -13,13 +13,13 @@ import (
 type UpdateSowCommand struct {
 	Code           *string
 	Location       *string
-	Active         *bool
 	EntryDate      *time.Time
 	BirthDate      *time.Time
 	ClearBirthDate bool
 	Note           *string
 	Origin         *sowdomain.Origin
 	BreedID        *uuid.UUID
+	Parity         *int
 	UpdatedBy      uuid.UUID
 }
 
@@ -35,8 +35,8 @@ func NewUpdateSowService(repository ports.SowRepository, clock func() time.Time)
 }
 
 // Execute applies the provided fields to an existing sow by its identifier.
-// It loads the sow, validates the change and persists it without touching state
-// or parity.
+// It loads the sow, resolves the most recent service date when a date changes so
+// the entry date can be validated, and persists the change without touching state.
 func (s *UpdateSowService) Execute(
 	ctx context.Context,
 	sowID uuid.UUID,
@@ -47,17 +47,27 @@ func (s *UpdateSowService) Execute(
 		return nil, err
 	}
 
-	if err := currentSow.Update(sowdomain.UpdateSowParams{
+	params := sowdomain.UpdateSowParams{
 		Code:           command.Code,
 		Location:       command.Location,
-		Active:         command.Active,
 		EntryDate:      command.EntryDate,
 		BirthDate:      command.BirthDate,
 		ClearBirthDate: command.ClearBirthDate,
 		Note:           command.Note,
 		Origin:         command.Origin,
 		BreedID:        command.BreedID,
-	}, command.UpdatedBy, s.clock()); err != nil {
+		Parity:         command.Parity,
+	}
+
+	if command.EntryDate != nil || command.BirthDate != nil || command.ClearBirthDate {
+		lastServiceDate, err := s.repository.LastServiceDate(ctx, sowID)
+		if err != nil {
+			return nil, err
+		}
+		params.LastServiceDate = lastServiceDate
+	}
+
+	if err := currentSow.Update(params, command.UpdatedBy, s.clock()); err != nil {
 		return nil, err
 	}
 

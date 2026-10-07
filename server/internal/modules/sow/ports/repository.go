@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -22,10 +23,15 @@ type SowRepository interface {
 	Create(ctx context.Context, sow *sowdomain.Sow) error
 	GetByID(ctx context.Context, id uuid.UUID) (*sowdomain.Sow, error)
 	ExistsByCode(ctx context.Context, code string) (bool, error)
-	List(ctx context.Context, filter SowFilter) ([]*sowdomain.Sow, error)
-	// ListOptions returns lightweight sow read models; a true active restricts
-	// to serviceable states while nil or false return every state.
-	ListOptions(ctx context.Context, active *bool) ([]sowdomain.SowOption, error)
+	// List returns one page of sows matching the filter plus the total count
+	// of matches, so callers can paginate the result.
+	List(ctx context.Context, filter SowFilter, limit, offset int) ([]*sowdomain.Sow, int, error)
+	// ListDropdown returns lightweight sow read models filtered by the active
+	// flag and an optional list of states; empty states apply no state filter.
+	ListDropdown(ctx context.Context, active *bool, states []sowdomain.State) ([]sowdomain.SowDropdown, error)
+	// LastServiceDate returns the most recent mount date registered for a sow
+	// or nil when the sow has no service yet.
+	LastServiceDate(ctx context.Context, sowID uuid.UUID) (*time.Time, error)
 	Update(ctx context.Context, sow *sowdomain.Sow) error
 	UpdateState(ctx context.Context, sow *sowdomain.Sow) error
 }
