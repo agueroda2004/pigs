@@ -119,7 +119,7 @@ func TestBoarHandlerCreate(t *testing.T) {
 }
 
 func TestBoarHandlerList(t *testing.T) {
-	t.Run("returns every boar", func(t *testing.T) {
+	t.Run("returns a page of boars", func(t *testing.T) {
 		list := &fakeListBoarsUseCase{boars: []*boardomain.Boar{handlerBoar(), handlerBoar()}}
 		handler := newTestHandler(&fakeCreateBoarUseCase{}, list, &fakeUpdateBoarUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars", nil))
@@ -128,7 +128,7 @@ func TestBoarHandlerList(t *testing.T) {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)
 		}
 		body := strings.TrimSpace(response.Body.String())
-		if !strings.HasPrefix(body, "[") || !strings.Contains(body, "B-001") || !strings.Contains(body, "Vivo") || !strings.Contains(body, "Propio") {
+		if !strings.HasPrefix(body, "{") || !strings.Contains(body, `"items"`) || !strings.Contains(body, `"total_pages"`) || !strings.Contains(body, "B-001") || !strings.Contains(body, "Vivo") || !strings.Contains(body, "Propio") {
 			t.Fatalf("unexpected body: %s", body)
 		}
 		if strings.Contains(body, "created_at") || strings.Contains(body, "created_by") {
@@ -136,13 +136,14 @@ func TestBoarHandlerList(t *testing.T) {
 		}
 	})
 
-	t.Run("returns an empty array when there are no boars", func(t *testing.T) {
+	t.Run("returns an empty page when there are no boars", func(t *testing.T) {
 		list := &fakeListBoarsUseCase{boars: []*boardomain.Boar{}}
 		handler := newTestHandler(&fakeCreateBoarUseCase{}, list, &fakeUpdateBoarUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars", nil))
 
-		if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "[]" {
-			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		body := strings.TrimSpace(response.Body.String())
+		if response.Code != http.StatusOK || !strings.Contains(body, `"items":[]`) || !strings.Contains(body, `"total":0`) {
+			t.Fatalf("status=%d body=%s", response.Code, body)
 		}
 	})
 
@@ -201,6 +202,38 @@ func TestBoarHandlerList(t *testing.T) {
 			"/api/v1/boars?origin=Desconocido",
 			"/api/v1/boars?active=maybe",
 		} {
+			response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
+			if response.Code != http.StatusBadRequest || list.called {
+				t.Fatalf("target=%s status=%d called=%v", target, response.Code, list.called)
+			}
+		}
+	})
+
+	t.Run("parses the page query parameter", func(t *testing.T) {
+		list := &fakeListBoarsUseCase{}
+		handler := newTestHandler(&fakeCreateBoarUseCase{}, list, &fakeUpdateBoarUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars?page=3", nil))
+
+		if response.Code != http.StatusOK || list.page != 3 {
+			t.Fatalf("status=%d page=%d", response.Code, list.page)
+		}
+	})
+
+	t.Run("defaults the page to one", func(t *testing.T) {
+		list := &fakeListBoarsUseCase{}
+		handler := newTestHandler(&fakeCreateBoarUseCase{}, list, &fakeUpdateBoarUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars", nil))
+
+		if response.Code != http.StatusOK || list.page != 1 {
+			t.Fatalf("status=%d page=%d", response.Code, list.page)
+		}
+	})
+
+	t.Run("rejects an invalid page", func(t *testing.T) {
+		list := &fakeListBoarsUseCase{}
+		handler := newTestHandler(&fakeCreateBoarUseCase{}, list, &fakeUpdateBoarUseCase{})
+
+		for _, target := range []string{"/api/v1/boars?page=0", "/api/v1/boars?page=abc"} {
 			response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
 			if response.Code != http.StatusBadRequest || list.called {
 				t.Fatalf("target=%s status=%d called=%v", target, response.Code, list.called)

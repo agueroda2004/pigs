@@ -126,13 +126,30 @@ func (r *PostgresBoarRepository) ExistsByCode(ctx context.Context, code string) 
 	return exists, nil
 }
 
-// List fetches the boars matching the filter, ordered by code.
-// It returns an empty slice when no boar matches and wraps any query failure.
-func (r *PostgresBoarRepository) List(ctx context.Context, filter ports.BoarFilter) ([]*boardomain.Boar, error) {
+// List fetches one page of boars matching the filter, ordered by code, together
+// with the total number of matches. It returns an empty slice when none matches.
+func (r *PostgresBoarRepository) List(ctx context.Context, filter ports.BoarFilter, limit, offset int) ([]*boardomain.Boar, int, error) {
 	var origin *string
 	if filter.Origin != nil {
 		value := string(*filter.Origin)
 		origin = &value
+	}
+
+	var total int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM boars
+		WHERE ($1::text IS NULL OR code ILIKE '%' || $1 || '%')
+		  AND ($2::uuid IS NULL OR breed_id = $2)
+		  AND ($3::text IS NULL OR origin::text = $3)
+		  AND ($4::boolean IS NULL OR active = $4)
+	`,
+		filter.Code,
+		filter.BreedID,
+		origin,
+		filter.Active,
+	).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("No se pudo consultar los verracos: %w", err)
 	}
 
 	rows, err := r.pool.Query(ctx, `
@@ -144,14 +161,17 @@ func (r *PostgresBoarRepository) List(ctx context.Context, filter ports.BoarFilt
 		  AND ($3::text IS NULL OR origin::text = $3)
 		  AND ($4::boolean IS NULL OR active = $4)
 		ORDER BY code ASC
+		LIMIT $5 OFFSET $6
 	`,
 		filter.Code,
 		filter.BreedID,
 		origin,
 		filter.Active,
+		limit,
+		offset,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("No se pudo consultar los verracos: %w", err)
+		return nil, 0, fmt.Errorf("No se pudo consultar los verracos: %w", err)
 	}
 	defer rows.Close()
 
@@ -174,14 +194,14 @@ func (r *PostgresBoarRepository) List(ctx context.Context, filter ports.BoarFilt
 			&result.CreatedBy,
 			&result.UpdatedBy,
 		); err != nil {
-			return nil, fmt.Errorf("No se pudo consultar los verracos: %w", err)
+			return nil, 0, fmt.Errorf("No se pudo consultar los verracos: %w", err)
 		}
 		boars = append(boars, result)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("No se pudo consultar los verracos: %w", err)
+		return nil, 0, fmt.Errorf("No se pudo consultar los verracos: %w", err)
 	}
-	return boars, nil
+	return boars, total, nil
 }
 
 // ListDropdown fetches the id, code and active flag of the boars for selection lists.

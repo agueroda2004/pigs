@@ -31,15 +31,37 @@ func (f *fakeCreateBoarUseCase) Execute(_ context.Context, command boarapplicati
 
 type fakeListBoarsUseCase struct {
 	boars  []*boardomain.Boar
+	total  int
 	err    error
 	filter ports.BoarFilter
+	page   int
 	called bool
 }
 
-func (f *fakeListBoarsUseCase) Execute(_ context.Context, filter ports.BoarFilter) ([]*boardomain.Boar, error) {
+func (f *fakeListBoarsUseCase) Execute(_ context.Context, filter ports.BoarFilter, page int) (boarapplication.BoarPage, error) {
 	f.called = true
 	f.filter = filter
-	return f.boars, f.err
+	f.page = page
+	if f.err != nil {
+		return boarapplication.BoarPage{}, f.err
+	}
+
+	total := f.total
+	if total == 0 {
+		total = len(f.boars)
+	}
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + boarapplication.DefaultBoarPageSize - 1) / boarapplication.DefaultBoarPageSize
+	}
+
+	return boarapplication.BoarPage{
+		Items:      f.boars,
+		Total:      total,
+		Page:       page,
+		PageSize:   boarapplication.DefaultBoarPageSize,
+		TotalPages: totalPages,
+	}, nil
 }
 
 type fakeUpdateBoarUseCase struct {

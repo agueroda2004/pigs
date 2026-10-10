@@ -20,6 +20,9 @@ type fakeBoarRepository struct {
 	listBoars          []*boardomain.Boar
 	listErr            error
 	listFilter         ports.BoarFilter
+	listLimit          int
+	listOffset         int
+	listTotal          int
 	listDropdown       []boardomain.BoarDropdown
 	listDropdownErr    error
 	listDropdownActive *bool
@@ -51,9 +54,15 @@ func (f *fakeBoarRepository) ExistsByCode(_ context.Context, _ string) (bool, er
 	return f.exists, f.existsErr
 }
 
-func (f *fakeBoarRepository) List(_ context.Context, filter ports.BoarFilter) ([]*boardomain.Boar, error) {
+func (f *fakeBoarRepository) List(_ context.Context, filter ports.BoarFilter, limit, offset int) ([]*boardomain.Boar, int, error) {
 	f.listFilter = filter
-	return f.listBoars, f.listErr
+	f.listLimit = limit
+	f.listOffset = offset
+	total := f.listTotal
+	if total == 0 {
+		total = len(f.listBoars)
+	}
+	return f.listBoars, total, f.listErr
 }
 
 func (f *fakeBoarRepository) ListDropdown(_ context.Context, active *bool, state *boardomain.State) ([]boardomain.BoarDropdown, error) {

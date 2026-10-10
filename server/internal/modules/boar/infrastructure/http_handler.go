@@ -24,7 +24,7 @@ type CreateBoarUseCase interface {
 }
 
 type ListBoarsUseCase interface {
-	Execute(context.Context, ports.BoarFilter) ([]*boardomain.Boar, error)
+	Execute(context.Context, ports.BoarFilter, int) (boarapplication.BoarPage, error)
 }
 
 type UpdateBoarUseCase interface {
@@ -120,6 +120,15 @@ type boarDropdownResponse struct {
 	Active bool      `json:"active"`
 }
 
+// boarPageResponse is one page of boars together with its pagination metadata.
+type boarPageResponse struct {
+	Items      []boarSummaryResponse `json:"items"`
+	Total      int                   `json:"total"`
+	Page       int                   `json:"page"`
+	PageSize   int                   `json:"page_size"`
+	TotalPages int                   `json:"total_pages"`
+}
+
 // create handles POST /api/v1/boars and creates a boar from the request body.
 // It reads the actor from the context to set CreatedBy and never accepts a state.
 func (h *BoarHandler) create(w http.ResponseWriter, r *http.Request) {
@@ -170,8 +179,8 @@ func (h *BoarHandler) create(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-// list handles GET /api/v1/boars and returns the boars matching the query filter.
-// It parses the optional code, breed_id, origin and active query parameters.
+// list handles GET /api/v1/boars and returns one page of boars matching the filter.
+// It parses the optional code, breed_id, origin and active parameters plus the page.
 func (h *BoarHandler) list(w http.ResponseWriter, r *http.Request) {
 	filter, err := parseBoarFilter(r)
 	if err != nil {
@@ -179,13 +188,19 @@ func (h *BoarHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	boars, err := h.listBoars.Execute(r.Context(), filter)
+	page, err := parseBoarPage(r)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	boars, err := h.listBoars.Execute(r.Context(), filter, page)
 	if err != nil {
 		writeBoarError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toBoarSummaries(boars))
+	platformhttp.WriteJSON(w, http.StatusOK, toBoarPageResponse(boars))
 }
 
 // listDropdown handles GET /api/v1/boars/dropdown and returns boars for a selection list.
@@ -275,6 +290,20 @@ func parseBoarFilter(r *http.Request) (ports.BoarFilter, error) {
 	}
 
 	return filter, nil
+}
+
+// parseBoarPage reads the optional page query parameter.
+// It defaults to page one and rejects non-positive or malformed values.
+func parseBoarPage(r *http.Request) (int, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get("page"))
+	if raw == "" {
+		return 1, nil
+	}
+	page, err := strconv.Atoi(raw)
+	if err != nil || page < 1 {
+		return 0, errors.New("La página no es válida")
+	}
+	return page, nil
 }
 
 // update handles PATCH /api/v1/boars/{id} and applies the provided fields.
@@ -404,6 +433,18 @@ func toBoarSummaries(boars []*boardomain.Boar) []boarSummaryResponse {
 		responses = append(responses, toBoarSummary(boar))
 	}
 	return responses
+}
+
+// toBoarPageResponse maps one page of domain boars to the paginated response shape.
+// It returns an empty items slice instead of null when there are no boars.
+func toBoarPageResponse(page boarapplication.BoarPage) boarPageResponse {
+	return boarPageResponse{
+		Items:      toBoarSummaries(page.Items),
+		Total:      page.Total,
+		Page:       page.Page,
+		PageSize:   page.PageSize,
+		TotalPages: page.TotalPages,
+	}
 }
 
 // toBoarDropdownResponses maps boar dropdown items to their HTTP response shape.

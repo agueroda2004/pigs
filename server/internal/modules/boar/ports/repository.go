@@ -23,7 +23,9 @@ type BoarRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*boardomain.Boar, error)
 	GetEarliestEventDate(ctx context.Context, boarID uuid.UUID) (time.Time, error)
 	ExistsByCode(ctx context.Context, code string) (bool, error)
-	List(ctx context.Context, filter BoarFilter) ([]*boardomain.Boar, error)
+	// List returns one page of boars matching the filter together with the total
+	// count of matches, so callers can paginate the result.
+	List(ctx context.Context, filter BoarFilter, limit, offset int) ([]*boardomain.Boar, int, error)
 	ListDropdown(ctx context.Context, active *bool, state *boardomain.State) ([]boardomain.BoarDropdown, error)
 	Update(ctx context.Context, boar *boardomain.Boar) error
 	UpdateState(ctx context.Context, boar *boardomain.Boar) error
