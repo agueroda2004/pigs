@@ -1,5 +1,6 @@
 import {
   Component,
+  DestroyRef,
   ElementRef,
   Injector,
   afterNextRender,
@@ -12,7 +13,7 @@ import {
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
-import { shouldFlipUp } from '../../utils/overlay';
+import { OverlayPlacement, computeOverlayPlacement } from '../../utils/overlay';
 
 const MONTHS = [
   'Enero',
@@ -128,13 +129,10 @@ function firstDayOfMonth(year: number, month: number): number {
           #panel
           class="z-30 rounded-md border border-border bg-card p-3 shadow-lg"
           [class.relative]="inline()"
-          [class.absolute]="!inline()"
-          [class.left-0]="!inline()"
-          [class.right-0]="!inline()"
-          [class.top-full]="!inline() && !dropUp()"
-          [class.mt-1]="!inline() && !dropUp()"
-          [class.bottom-full]="!inline() && dropUp()"
-          [class.mb-1]="!inline() && dropUp()"
+          [class.fixed]="!inline()"
+          [style.top.px]="inline() ? null : placement()?.top"
+          [style.left.px]="inline() ? null : placement()?.left"
+          [style.width.px]="inline() ? null : placement()?.width"
           [class.invisible]="!inline() && !positioned()"
         >
           @if (viewMode() === 'days') {
@@ -376,8 +374,8 @@ export class DatePicker implements ControlValueAccessor {
   protected readonly value = signal('');
   protected readonly disabled = signal(false);
   protected readonly open = signal(false);
-  protected readonly dropUp = signal(false);
   protected readonly positioned = signal(false);
+  protected readonly placement = signal<OverlayPlacement | null>(null);
   protected readonly viewMode = signal<ViewMode>('days');
   protected readonly yearPage = signal(0);
   protected readonly viewYear = signal(new Date().getFullYear());
@@ -430,6 +428,13 @@ export class DatePicker implements ControlValueAccessor {
   private onChange: (value: string) => void = () => {};
   private onTouched: () => void = () => {};
 
+  constructor() {
+    const destroyRef = inject(DestroyRef);
+    const onScroll = () => this.reposition();
+    document.addEventListener('scroll', onScroll, true);
+    destroyRef.onDestroy(() => document.removeEventListener('scroll', onScroll, true));
+  }
+
   writeValue(value: string | null): void {
     this.value.set(value ?? '');
   }
@@ -465,13 +470,13 @@ export class DatePicker implements ControlValueAccessor {
   // openPanel reveals the calendar and schedules its placement after the next render.
   // It resets the placement so the panel can be measured before it becomes visible.
   private openPanel(): void {
-    this.dropUp.set(false);
+    this.placement.set(null);
     this.positioned.set(false);
     this.open.set(true);
     afterNextRender(() => this.positionPanel(), { injector: this.injector });
   }
 
-  // positionPanel measures the trigger and panel to choose the open direction.
+  // positionPanel measures the trigger and panel to place the fixed calendar.
   // Inline panels stay in place and are marked as positioned immediately.
   private positionPanel(): void {
     if (this.inline()) {
@@ -481,21 +486,27 @@ export class DatePicker implements ControlValueAccessor {
     const trigger = this.triggerRef()?.nativeElement;
     const panel = this.panelRef()?.nativeElement;
     if (trigger && panel) {
-      this.dropUp.set(shouldFlipUp(trigger, panel));
+      this.placement.set(computeOverlayPlacement(trigger, panel));
     }
     this.positioned.set(true);
   }
 
-  protected onResize(): void {
+  // reposition updates the fixed placement while the calendar is visible.
+  // It keeps the calendar anchored to its trigger when an ancestor scrolls.
+  private reposition(): void {
     if (this.open()) {
       this.positionPanel();
     }
   }
 
+  protected onResize(): void {
+    this.reposition();
+  }
+
   protected close(): void {
     this.open.set(false);
     this.positioned.set(false);
-    this.dropUp.set(false);
+    this.placement.set(null);
   }
 
   protected prevMonth(): void {

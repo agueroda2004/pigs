@@ -155,9 +155,9 @@ describe('SearchDropdown', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const panel = fixture.nativeElement.querySelector('div.absolute') as HTMLElement;
-    expect(panel.classList.contains('top-full')).toBe(true);
-    expect(panel.classList.contains('bottom-full')).toBe(false);
+    const panel = fixture.nativeElement.querySelector('div.fixed') as HTMLElement;
+    expect(panel.classList.contains('fixed')).toBe(true);
+    expect(panel.style.top).toBe('148px');
   });
 
   it('opens upwards when the panel does not fit below the trigger', async () => {
@@ -167,8 +167,8 @@ describe('SearchDropdown', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const panel = fixture.nativeElement.querySelector('div.absolute') as HTMLElement;
-    expect(panel.classList.contains('bottom-full')).toBe(true);
-    expect(panel.classList.contains('top-full')).toBe(false);
+    const panel = fixture.nativeElement.querySelector('div.fixed') as HTMLElement;
+    expect(panel.classList.contains('fixed')).toBe(true);
+    expect(panel.style.top).toBe('372px');
   });
 });

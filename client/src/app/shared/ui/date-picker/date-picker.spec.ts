@@ -114,9 +114,9 @@ describe('DatePicker', () => {
     await currentFixture.whenStable();
     currentFixture.detectChanges();
 
-    const panel = currentFixture.nativeElement.querySelector('div.absolute') as HTMLElement;
-    expect(panel.classList.contains('top-full')).toBe(true);
-    expect(panel.classList.contains('bottom-full')).toBe(false);
+    const panel = currentFixture.nativeElement.querySelector('div.fixed') as HTMLElement;
+    expect(panel.classList.contains('fixed')).toBe(true);
+    expect(panel.style.top).toBe('148px');
   });
 
   it('opens upwards when the calendar does not fit below the trigger', async () => {
@@ -128,8 +128,8 @@ describe('DatePicker', () => {
     await currentFixture.whenStable();
     currentFixture.detectChanges();
 
-    const panel = currentFixture.nativeElement.querySelector('div.absolute') as HTMLElement;
-    expect(panel.classList.contains('bottom-full')).toBe(true);
-    expect(panel.classList.contains('top-full')).toBe(false);
+    const panel = currentFixture.nativeElement.querySelector('div.fixed') as HTMLElement;
+    expect(panel.classList.contains('fixed')).toBe(true);
+    expect(panel.style.top).toBe('352px');
   });
 });

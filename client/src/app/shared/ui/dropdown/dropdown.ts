@@ -1,5 +1,6 @@
 import {
   Component,
+  DestroyRef,
   ElementRef,
   Injector,
   afterNextRender,
@@ -12,7 +13,7 @@ import {
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
-import { shouldFlipUp } from '../../utils/overlay';
+import { OverlayPlacement, computeOverlayPlacement } from '../../utils/overlay';
 
 export interface DropdownOption {
   value: string;
@@ -66,11 +67,10 @@ export interface DropdownOption {
         <ul
           #panel
           role="listbox"
-          class="absolute z-20 max-h-60 w-full overflow-auto rounded-md border border-border bg-card p-1 shadow-lg"
-          [class.top-full]="!dropUp()"
-          [class.mt-1]="!dropUp()"
-          [class.bottom-full]="dropUp()"
-          [class.mb-1]="dropUp()"
+          class="fixed z-20 max-h-60 overflow-auto rounded-md border border-border bg-card p-1 shadow-lg"
+          [style.top.px]="placement()?.top"
+          [style.left.px]="placement()?.left"
+          [style.width.px]="placement()?.width"
           [class.invisible]="!positioned()"
         >
           @for (option of options(); track option.value) {
@@ -111,8 +111,8 @@ export class Dropdown implements ControlValueAccessor {
   protected readonly value = signal('');
   protected readonly open = signal(false);
   protected readonly disabled = signal(false);
-  protected readonly dropUp = signal(false);
   protected readonly positioned = signal(false);
+  protected readonly placement = signal<OverlayPlacement | null>(null);
 
   private readonly triggerRef = viewChild<ElementRef<HTMLButtonElement>>('trigger');
   private readonly panelRef = viewChild<ElementRef<HTMLElement>>('panel');
@@ -124,6 +124,13 @@ export class Dropdown implements ControlValueAccessor {
 
   private onChange: (value: string) => void = () => {};
   private onTouched: () => void = () => {};
+
+  constructor() {
+    const destroyRef = inject(DestroyRef);
+    const onScroll = () => this.reposition();
+    document.addEventListener('scroll', onScroll, true);
+    destroyRef.onDestroy(() => document.removeEventListener('scroll', onScroll, true));
+  }
 
   writeValue(value: string | null): void {
     this.value.set(value ?? '');
@@ -155,33 +162,39 @@ export class Dropdown implements ControlValueAccessor {
   // openPanel reveals the list and schedules its placement after the next render.
   // It resets the placement so the panel can be measured before it becomes visible.
   private openPanel(): void {
-    this.dropUp.set(false);
+    this.placement.set(null);
     this.positioned.set(false);
     this.open.set(true);
     afterNextRender(() => this.positionPanel(), { injector: this.injector });
   }
 
-  // positionPanel measures the trigger and panel to choose the open direction.
-  // It is reused when the window is resized while the panel is visible.
+  // positionPanel measures the trigger and panel to place the fixed list.
+  // It is reused on window resize and while an ancestor scrolls.
   private positionPanel(): void {
     const trigger = this.triggerRef()?.nativeElement;
     const panel = this.panelRef()?.nativeElement;
     if (trigger && panel) {
-      this.dropUp.set(shouldFlipUp(trigger, panel));
+      this.placement.set(computeOverlayPlacement(trigger, panel));
     }
     this.positioned.set(true);
   }
 
-  protected onResize(): void {
+  // reposition updates the fixed placement while the panel is visible.
+  // It keeps the list anchored to its trigger when an ancestor scrolls.
+  private reposition(): void {
     if (this.open()) {
       this.positionPanel();
     }
   }
 
+  protected onResize(): void {
+    this.reposition();
+  }
+
   protected close(): void {
     this.open.set(false);
     this.positioned.set(false);
-    this.dropUp.set(false);
+    this.placement.set(null);
   }
 
   protected select(option: DropdownOption): void {

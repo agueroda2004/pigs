@@ -51,9 +51,17 @@ describe('TimePicker', () => {
     fixture.componentInstance.registerOnChange(changed);
     toggle(fixture);
 
-    (fixture.nativeElement.querySelectorAll('.max-h-48')[0].querySelectorAll('button')[9] as HTMLButtonElement).click();
+    (
+      fixture.nativeElement
+        .querySelectorAll('.max-h-48')[0]
+        .querySelectorAll('button')[9] as HTMLButtonElement
+    ).click();
     fixture.detectChanges();
-    (fixture.nativeElement.querySelectorAll('.max-h-48')[1].querySelectorAll('button')[6] as HTMLButtonElement).click();
+    (
+      fixture.nativeElement
+        .querySelectorAll('.max-h-48')[1]
+        .querySelectorAll('button')[6] as HTMLButtonElement
+    ).click();
     fixture.detectChanges();
 
     expect(changed).toHaveBeenLastCalledWith('09:30');
@@ -67,9 +75,9 @@ describe('TimePicker', () => {
     fixture.componentInstance.registerOnChange(changed);
     toggle(fixture);
 
-    const clear = Array.from(
-      fixture.nativeElement.querySelectorAll('button'),
-    ).find((button) => (button as HTMLButtonElement).textContent?.includes('Limpiar')) as HTMLButtonElement | undefined;
+    const clear = Array.from(fixture.nativeElement.querySelectorAll('button')).find((button) =>
+      (button as HTMLButtonElement).textContent?.includes('Limpiar'),
+    ) as HTMLButtonElement | undefined;
     clear?.click();
     fixture.detectChanges();
 
