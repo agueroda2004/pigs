@@ -13,7 +13,7 @@ class AbortionsStub {
 }
 
 class SowsStub {
-  listSows = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
+  listSowDropdown = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
 }
 
 class NotificationsStub {
@@ -57,7 +57,7 @@ describe('RegisterAbortionModal', () => {
 
     await component.loadOptions();
 
-    expect(sows.listSows).toHaveBeenCalledWith({ state: 'Gestando' });
+    expect(sows.listSowDropdown).toHaveBeenCalledWith(true, ['Gestando']);
     expect(component.sowOptions()).toEqual([{ value: 'sow-1', label: 'C-001' }]);
   });
 

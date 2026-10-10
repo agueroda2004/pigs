@@ -4,14 +4,19 @@ export type AbortionCause =
 export interface Abortion {
   id: string;
   sow_id: string;
+  sow_code: string;
   service_id: string;
   abortion_date: string;
   cause: AbortionCause;
   note: string | null;
-  created_at: string;
-  updated_at: string;
-  created_by: string;
-  updated_by: string;
+}
+
+export interface AbortionPage {
+  items: Abortion[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 export interface CreateAbortionRequest {
@@ -21,6 +26,12 @@ export interface CreateAbortionRequest {
   note?: string;
 }
 
+export interface UpdateAbortionRequest {
+  abortion_date?: string;
+  cause?: AbortionCause;
+  note?: string;
+}
+
 export interface AbortionFilters {
-  sow_id?: string;
+  sow_code?: string;
 }

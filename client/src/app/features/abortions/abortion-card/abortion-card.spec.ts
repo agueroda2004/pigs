@@ -7,14 +7,11 @@ function buildAbortion(overrides: Partial<Abortion> = {}): Abortion {
   return {
     id: '1',
     sow_id: 'sow-1',
+    sow_code: 'C-001',
     service_id: 'service-1',
     abortion_date: '2026-01-15',
     cause: 'Infeccioso',
     note: null,
-    created_at: '',
-    updated_at: '',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }
@@ -51,5 +48,42 @@ describe('AbortionCard', () => {
 
     const withNote = render(buildAbortion({ note: 'aborto espontáneo' }), 'C-001');
     expect(withNote.nativeElement.textContent).toContain('aborto espontáneo');
+  });
+
+  it('hides the actions when editing is not allowed', () => {
+    const fixture = TestBed.createComponent(AbortionCard);
+    fixture.componentRef.setInput('abortion', buildAbortion());
+    fixture.componentRef.setInput('canEdit', false);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelectorAll('button')).toHaveLength(0);
+  });
+
+  it('emits the abortion when the edit button is clicked', () => {
+    const abortion = buildAbortion();
+    const fixture = TestBed.createComponent(AbortionCard);
+    fixture.componentRef.setInput('abortion', abortion);
+    fixture.componentRef.setInput('canEdit', true);
+    fixture.detectChanges();
+
+    const emitted: Abortion[] = [];
+    fixture.componentInstance.editRequested.subscribe((value) => emitted.push(value));
+    (fixture.nativeElement.querySelectorAll('button')[0] as HTMLButtonElement).click();
+
+    expect(emitted).toEqual([abortion]);
+  });
+
+  it('emits the abortion when the delete button is clicked', () => {
+    const abortion = buildAbortion();
+    const fixture = TestBed.createComponent(AbortionCard);
+    fixture.componentRef.setInput('abortion', abortion);
+    fixture.componentRef.setInput('canEdit', true);
+    fixture.detectChanges();
+
+    const emitted: Abortion[] = [];
+    fixture.componentInstance.deleteRequested.subscribe((value) => emitted.push(value));
+    (fixture.nativeElement.querySelectorAll('button')[1] as HTMLButtonElement).click();
+
+    expect(emitted).toEqual([abortion]);
   });
 });

@@ -1,15 +1,13 @@
-<app-modal [open]="open()" size="xl" title="Registrar aborto" (closed)="closed.emit()">
+<app-modal [open]="open()" size="xl" title="Editar aborto" (closed)="closed.emit()">
   <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
     <div class="space-y-1.5">
       <span class="block text-sm font-medium">Cerda</span>
-      <app-search-dropdown
-        formControlName="sow_id"
-        [options]="sowOptions()"
-        placeholder="Seleccionar cerda"
-      />
-      @if (form.controls.sow_id.touched && form.controls.sow_id.invalid) {
-        <p class="text-xs text-danger">La cerda es obligatoria.</p>
-      }
+      <p class="rounded-md border border-border bg-muted px-3 py-2 text-sm">
+        {{ abortion()?.sow_code || 'sin identificar' }}
+      </p>
+      <p class="text-xs text-muted-foreground">
+        El código de la cerda no se puede cambiar en el aborto.
+      </p>
     </div>
 
     <div class="space-y-1.5">
@@ -37,9 +35,9 @@
     </div>
 
     <div class="space-y-1.5">
-      <label for="abortion-note" class="block text-sm font-medium">Nota</label>
+      <label for="edit-abortion-note" class="block text-sm font-medium">Nota</label>
       <textarea
-        id="abortion-note"
+        id="edit-abortion-note"
         rows="2"
         formControlName="note"
         class="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
@@ -62,7 +60,7 @@
         [disabled]="loading()"
         class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {{ loading() ? 'Registrando…' : 'Registrar aborto' }}
+        {{ loading() ? 'Guardando…' : 'Guardar cambios' }}
       </button>
     </div>
   </form>
