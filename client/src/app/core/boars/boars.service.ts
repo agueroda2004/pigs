@@ -4,9 +4,9 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import {
-  Boar,
   BoarDropdown,
   BoarFilters,
+  BoarPage,
   BoarState,
   CreateBoarRequest,
   UpdateBoarRequest,
@@ -17,7 +17,7 @@ export class BoarsService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiBaseUrl}/boars`;
 
-  listBoars(filters: BoarFilters = {}): Observable<Boar[]> {
+  listBoars(filters: BoarFilters = {}, page = 1): Observable<BoarPage> {
     let params = new HttpParams();
     if (filters.code) {
       params = params.set('code', filters.code);
@@ -31,8 +31,9 @@ export class BoarsService {
     if (filters.active !== undefined) {
       params = params.set('active', String(filters.active));
     }
+    params = params.set('page', String(page));
 
-    return this.http.get<Boar[]>(this.baseUrl, { params });
+    return this.http.get<BoarPage>(this.baseUrl, { params });
   }
 
   createBoar(request: CreateBoarRequest): Observable<void> {

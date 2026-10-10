@@ -15,6 +15,14 @@ export interface Boar {
   breed_id: string;
 }
 
+export interface BoarPage {
+  items: Boar[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
 export interface CreateBoarRequest {
   code: string;
   location?: string;

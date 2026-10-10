@@ -45,6 +45,9 @@ export class BoarsPage implements OnInit {
   protected readonly editingBoar = signal<Boar | null>(null);
   protected readonly deleteOpen = signal(false);
   protected readonly deletingBoar = signal<Boar | null>(null);
+  protected readonly page = signal(1);
+  protected readonly totalPages = signal(0);
+  protected readonly total = signal(0);
 
   protected readonly originOptions: DropdownOption[] = [
     { value: '', label: 'Todos' },
@@ -82,6 +85,7 @@ export class BoarsPage implements OnInit {
   protected async onCreated(code: string): Promise<void> {
     this.modalOpen.set(false);
     this.notifications.success(`Verraco "${code}" creado correctamente`);
+    this.page.set(1);
     await this.loadBoars();
   }
 
@@ -136,6 +140,7 @@ export class BoarsPage implements OnInit {
       filters.active = active === 'true';
     }
     this.appliedFilters.set(filters);
+    this.page.set(1);
     await this.loadBoars();
   }
 
@@ -144,6 +149,21 @@ export class BoarsPage implements OnInit {
     this.filterForm.reset();
     this.appliedFilters.set({});
     if (hadFilters) {
+      this.page.set(1);
+      await this.loadBoars();
+    }
+  }
+
+  protected async previousPage(): Promise<void> {
+    if (this.page() > 1) {
+      this.page.update((page) => page - 1);
+      await this.loadBoars();
+    }
+  }
+
+  protected async nextPage(): Promise<void> {
+    if (this.page() < this.totalPages()) {
+      this.page.update((page) => page + 1);
       await this.loadBoars();
     }
   }
@@ -152,7 +172,12 @@ export class BoarsPage implements OnInit {
     this.loading.set(true);
     this.error.set(false);
     try {
-      this.boars.set(await firstValueFrom(this.boarsService.listBoars(this.appliedFilters())));
+      const result = await firstValueFrom(
+        this.boarsService.listBoars(this.appliedFilters(), this.page()),
+      );
+      this.boars.set(result.items);
+      this.total.set(result.total);
+      this.totalPages.set(result.total_pages);
     } catch {
       this.error.set(true);
     } finally {

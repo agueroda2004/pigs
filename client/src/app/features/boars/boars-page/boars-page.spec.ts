@@ -1,10 +1,10 @@
 import { WritableSignal, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
-import { vi } from 'vitest';
+import { Mock, vi } from 'vitest';
 
 import { AuthService } from '../../../core/auth/auth.service';
-import { Boar } from '../../../core/boars/boar.models';
+import { Boar, BoarPage } from '../../../core/boars/boar.models';
 import { BoarsService } from '../../../core/boars/boars.service';
 import { BreedsService } from '../../../core/breeds/breeds.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
@@ -25,8 +25,12 @@ function buildBoar(id: string): Boar {
   };
 }
 
+function buildPage(items: Boar[], page = 1, totalPages = 1, total = items.length): BoarPage {
+  return { items, total, page, page_size: 10, total_pages: totalPages };
+}
+
 class BoarsStub {
-  listBoars = vi.fn(() => of([buildBoar('1'), buildBoar('2')]));
+  listBoars: Mock = vi.fn(() => of(buildPage([buildBoar('1'), buildBoar('2')])));
 }
 
 class BreedsStub {
@@ -83,7 +87,7 @@ describe('BoarsPage', () => {
     await component.loadBoars();
     expect(component.error()).toBe(true);
 
-    stub.listBoars = vi.fn(() => of([buildBoar('1')]));
+    stub.listBoars = vi.fn(() => of(buildPage([buildBoar('1')])));
     await component.loadBoars();
 
     expect(component.error()).toBe(false);
@@ -94,7 +98,7 @@ describe('BoarsPage', () => {
     const component = create();
     await component.loadBoars();
 
-    stub.listBoars = vi.fn(() => of([buildBoar('1'), buildBoar('2'), buildBoar('3')]));
+    stub.listBoars = vi.fn(() => of(buildPage([buildBoar('1'), buildBoar('2'), buildBoar('3')])));
     await component.onCreated('B-004');
 
     expect(notifications.success).toHaveBeenCalledWith('Verraco "B-004" creado correctamente');
@@ -106,7 +110,7 @@ describe('BoarsPage', () => {
     const component = create();
     await component.loadBoars();
 
-    stub.listBoars = vi.fn(() => of([buildBoar('9')]));
+    stub.listBoars = vi.fn(() => of(buildPage([buildBoar('9')])));
     await component.onUpdated();
 
     expect(notifications.success).toHaveBeenCalledWith('Verraco actualizado correctamente');
@@ -128,7 +132,7 @@ describe('BoarsPage', () => {
     const component = create();
     await component.loadBoars();
 
-    stub.listBoars = vi.fn(() => of([buildBoar('2')]));
+    stub.listBoars = vi.fn(() => of(buildPage([buildBoar('2')])));
     await component.onDeleted(buildBoar('9'));
 
     expect(notifications.success).toHaveBeenCalledWith('Verraco "B-009" eliminado correctamente');
@@ -183,12 +187,15 @@ describe('BoarsPage', () => {
 
     await component.search();
 
-    expect(stub.listBoars).toHaveBeenLastCalledWith({
-      code: 'B-001',
-      breed_id: 'breed-1',
-      origin: 'Externo',
-      active: false,
-    });
+    expect(stub.listBoars).toHaveBeenLastCalledWith(
+      {
+        code: 'B-001',
+        breed_id: 'breed-1',
+        origin: 'Externo',
+        active: false,
+      },
+      1,
+    );
   });
 
   it('clears the filters and reloads without them', async () => {
@@ -201,10 +208,10 @@ describe('BoarsPage', () => {
     });
     await component.search();
 
-    stub.listBoars = vi.fn(() => of([buildBoar('1')]));
+    stub.listBoars = vi.fn(() => of(buildPage([buildBoar('1')])));
     await component.clearFilters();
 
-    expect(stub.listBoars).toHaveBeenCalledWith({});
+    expect(stub.listBoars).toHaveBeenCalledWith({}, 1);
     expect(component.filterForm.getRawValue()).toEqual({
       code: '',
       breed_id: '',
@@ -233,14 +240,14 @@ describe('BoarsPage', () => {
     component.filterForm.patchValue({ code: 'B-001' });
     await component.search();
 
-    stub.listBoars = vi.fn(() => of([buildBoar('1')]));
+    stub.listBoars = vi.fn(() => of(buildPage([buildBoar('1')])));
     await component.onCreated('B-005');
 
-    expect(stub.listBoars).toHaveBeenCalledWith({ code: 'B-001' });
+    expect(stub.listBoars).toHaveBeenCalledWith({ code: 'B-001' }, 1);
   });
 
   it('shows a filtered empty message when filters match nothing', async () => {
-    stub.listBoars = vi.fn(() => of([]));
+    stub.listBoars = vi.fn(() => of(buildPage([])));
     const fixture = TestBed.createComponent(BoarsPage);
     const component = fixture.componentInstance as any;
     fixture.detectChanges();
@@ -253,5 +260,52 @@ describe('BoarsPage', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'No hay verracos que coincidan con los filtros',
     );
+  });
+
+  it('resets to the first page when searching', async () => {
+    stub.listBoars = vi.fn(() => of(buildPage([buildBoar('1')], 2, 3, 21)));
+    const component = create();
+    component.page.set(2);
+
+    component.filterForm.patchValue({ code: 'B-001' });
+    await component.search();
+
+    expect(component.page()).toBe(1);
+    expect(stub.listBoars).toHaveBeenLastCalledWith({ code: 'B-001' }, 1);
+  });
+
+  it('navigates between pages', async () => {
+    stub.listBoars = vi.fn((_filters: unknown, page: number) =>
+      of(buildPage([buildBoar('1')], page, 3, 21)),
+    );
+    const component = create();
+    await component.loadBoars();
+
+    await component.nextPage();
+    expect(component.page()).toBe(2);
+    expect(stub.listBoars).toHaveBeenLastCalledWith({}, 2);
+
+    await component.previousPage();
+    expect(component.page()).toBe(1);
+    expect(stub.listBoars).toHaveBeenLastCalledWith({}, 1);
+  });
+
+  it('does not navigate past the first or last page', async () => {
+    stub.listBoars = vi.fn((_filters: unknown, page: number) =>
+      of(buildPage([buildBoar('1')], page, 2, 11)),
+    );
+    const component = create();
+    await component.loadBoars();
+
+    await component.previousPage();
+    expect(component.page()).toBe(1);
+
+    await component.nextPage();
+    expect(component.page()).toBe(2);
+    stub.listBoars.mockClear();
+
+    await component.nextPage();
+    expect(component.page()).toBe(2);
+    expect(stub.listBoars).not.toHaveBeenCalled();
   });
 });

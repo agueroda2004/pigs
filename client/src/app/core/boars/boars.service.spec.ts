@@ -38,20 +38,27 @@ describe('BoarsService', () => {
     const call = http.expectOne(
       (request) => request.url.endsWith('/boars') && request.method === 'GET',
     );
-    expect(call.request.params.keys()).toHaveLength(0);
-    call.flush([boarPayload]);
+    expect(call.request.params.get('page')).toBe('1');
+    call.flush({ items: [boarPayload], total: 1, page: 1, page_size: 10, total_pages: 1 });
 
-    await expect(promise).resolves.toHaveLength(1);
+    await expect(promise).resolves.toMatchObject({
+      items: [boarPayload],
+      total: 1,
+      total_pages: 1,
+    });
   });
 
-  it('lists boars with filters', async () => {
+  it('lists boars with filters and a page', async () => {
     const promise = firstValueFrom(
-      service.listBoars({
-        code: 'B-001',
-        breed_id: 'breed-1',
-        origin: 'Externo',
-        active: false,
-      }),
+      service.listBoars(
+        {
+          code: 'B-001',
+          breed_id: 'breed-1',
+          origin: 'Externo',
+          active: false,
+        },
+        3,
+      ),
     );
 
     const call = http.expectOne(
@@ -61,9 +68,10 @@ describe('BoarsService', () => {
     expect(call.request.params.get('breed_id')).toBe('breed-1');
     expect(call.request.params.get('origin')).toBe('Externo');
     expect(call.request.params.get('active')).toBe('false');
-    call.flush([boarPayload]);
+    expect(call.request.params.get('page')).toBe('3');
+    call.flush({ items: [boarPayload], total: 21, page: 3, page_size: 10, total_pages: 3 });
 
-    await expect(promise).resolves.toHaveLength(1);
+    await expect(promise).resolves.toMatchObject({ items: [boarPayload], total: 21, page: 3 });
   });
 
   it('creates a boar', async () => {
