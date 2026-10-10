@@ -80,9 +80,31 @@ func (f *fakeUpdateSowUseCase) Execute(_ context.Context, sowID uuid.UUID, comma
 	return f.sow, f.err
 }
 
-func newTestHandler(create sowinfra.CreateSowUseCase, list sowinfra.ListSowsUseCase, dropdown sowinfra.ListSowDropdownUseCase, update sowinfra.UpdateSowUseCase) *sowinfra.SowHandler {
+type fakeDeleteSowUseCase struct {
+	err    error
+	sowID  uuid.UUID
+	called bool
+}
+
+func (f *fakeDeleteSowUseCase) Execute(_ context.Context, sowID uuid.UUID) error {
+	f.called = true
+	f.sowID = sowID
+	return f.err
+}
+
+func newTestHandler(create sowinfra.CreateSowUseCase, list sowinfra.ListSowsUseCase, dropdown sowinfra.ListSowDropdownUseCase, update sowinfra.UpdateSowUseCase, remove sowinfra.DeleteSowUseCase) *sowinfra.SowHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return sowinfra.NewSowHandler(create, list, dropdown, update, passThrough, passThrough)
+	return sowinfra.NewSowHandler(create, list, dropdown, update, remove, passThrough, passThrough)
+}
+
+func newAdminGuardHandler(remove sowinfra.DeleteSowUseCase) *sowinfra.SowHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	adminGuard := func(_ http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		})
+	}
+	return sowinfra.NewSowHandler(&fakeCreateSowUseCase{}, &fakeListSowsUseCase{}, &fakeListSowDropdownUseCase{}, &fakeUpdateSowUseCase{}, remove, passThrough, adminGuard)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {

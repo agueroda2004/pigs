@@ -320,6 +320,27 @@ func (r *PostgresSowRepository) UpdateState(ctx context.Context, sow *sowdomain.
 	return nil
 }
 
+// Delete removes a sow by its identifier.
+// It returns ErrSowNotFound when no row was affected and ErrSowInUse when the sow
+// still has linked records, detected through a foreign key violation.
+func (r *PostgresSowRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	commandTag, err := r.pool.Exec(ctx, `
+		DELETE FROM sows
+		WHERE id = $1
+	`, id)
+	if err != nil {
+		var postgresError *pgconn.PgError
+		if errors.As(err, &postgresError) && postgresError.Code == "23503" {
+			return ports.ErrSowInUse
+		}
+		return fmt.Errorf("No se pudo eliminar la cerda: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ErrSowNotFound
+	}
+	return nil
+}
+
 // mapPostgresError translates PostgreSQL errors into domain port errors.
 // Unique violations become ErrSowCodeAlreadyUsed; others are wrapped.
 func mapPostgresError(err error) error {

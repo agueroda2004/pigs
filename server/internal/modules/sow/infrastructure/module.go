@@ -13,6 +13,7 @@ type Module struct {
 	ListSows        *sowapplication.ListSowsService
 	ListSowDropdown *sowapplication.ListSowDropdownService
 	UpdateSow       *sowapplication.UpdateSowService
+	DeleteSow       *sowapplication.DeleteSowService
 	ChangeSowState  *sowapplication.ChangeSowStateService
 	Handler         *SowHandler
 }
@@ -30,6 +31,7 @@ func NewModule(
 	listSows := sowapplication.NewListSowsService(repository)
 	listSowDropdown := sowapplication.NewListSowDropdownService(repository)
 	updateSow := sowapplication.NewUpdateSowService(repository, clock)
+	deleteSow := sowapplication.NewDeleteSowService(repository)
 	changeSowState := sowapplication.NewChangeSowStateService(repository, clock)
 
 	return &Module{
@@ -37,7 +39,8 @@ func NewModule(
 		ListSows:        listSows,
 		ListSowDropdown: listSowDropdown,
 		UpdateSow:       updateSow,
+		DeleteSow:       deleteSow,
 		ChangeSowState:  changeSowState,
-		Handler:         NewSowHandler(createSow, listSows, listSowDropdown, updateSow, authMiddleware, adminMiddleware),
+		Handler:         NewSowHandler(createSow, listSows, listSowDropdown, updateSow, deleteSow, authMiddleware, adminMiddleware),
 	}
 }

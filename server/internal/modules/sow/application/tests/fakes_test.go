@@ -30,9 +30,11 @@ type fakeSowRepository struct {
 	createErr       error
 	updateErr       error
 	updateStateErr  error
+	deleteErr       error
 	created         *sowdomain.Sow
 	updated         *sowdomain.Sow
 	updatedState    *sowdomain.Sow
+	deletedID       uuid.UUID
 }
 
 func (f *fakeSowRepository) Create(_ context.Context, sow *sowdomain.Sow) error {
@@ -73,4 +75,9 @@ func (f *fakeSowRepository) Update(_ context.Context, sow *sowdomain.Sow) error 
 func (f *fakeSowRepository) UpdateState(_ context.Context, sow *sowdomain.Sow) error {
 	f.updatedState = sow
 	return f.updateStateErr
+}
+
+func (f *fakeSowRepository) Delete(_ context.Context, id uuid.UUID) error {
+	f.deletedID = id
+	return f.deleteErr
 }

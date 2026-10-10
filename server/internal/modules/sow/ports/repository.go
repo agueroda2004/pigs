@@ -34,4 +34,7 @@ type SowRepository interface {
 	LastServiceDate(ctx context.Context, sowID uuid.UUID) (*time.Time, error)
 	Update(ctx context.Context, sow *sowdomain.Sow) error
 	UpdateState(ctx context.Context, sow *sowdomain.Sow) error
+	// Delete removes a sow by its identifier. It returns ErrSowInUse when the
+	// sow still has linked records such as services, abortions or farrowings.
+	Delete(ctx context.Context, id uuid.UUID) error
 }

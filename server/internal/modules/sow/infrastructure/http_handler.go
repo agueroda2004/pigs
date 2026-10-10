@@ -35,11 +35,16 @@ type UpdateSowUseCase interface {
 	Execute(context.Context, uuid.UUID, sowapplication.UpdateSowCommand) (*sowdomain.Sow, error)
 }
 
+type DeleteSowUseCase interface {
+	Execute(context.Context, uuid.UUID) error
+}
+
 type SowHandler struct {
 	createSow       CreateSowUseCase
 	listSows        ListSowsUseCase
 	listSowDropdown ListSowDropdownUseCase
 	updateSow       UpdateSowUseCase
+	deleteSow       DeleteSowUseCase
 	authMiddleware  func(http.Handler) http.Handler
 	adminMiddleware func(http.Handler) http.Handler
 }
@@ -51,6 +56,7 @@ func NewSowHandler(
 	listSows ListSowsUseCase,
 	listSowDropdown ListSowDropdownUseCase,
 	updateSow UpdateSowUseCase,
+	deleteSow DeleteSowUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *SowHandler {
@@ -59,12 +65,13 @@ func NewSowHandler(
 		listSows:        listSows,
 		listSowDropdown: listSowDropdown,
 		updateSow:       updateSow,
+		deleteSow:       deleteSow,
 		authMiddleware:  authMiddleware,
 		adminMiddleware: adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the sow create, list, dropdown and update endpoints on the mux.
+// RegisterRoutes registers the sow create, list, dropdown, update and delete endpoints on the mux.
 // Write routes are admin-only while the read routes only require authentication;
 // no state route is exposed because the state is server-managed.
 func (h *SowHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -72,6 +79,7 @@ func (h *SowHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/sows", h.authMiddleware(http.HandlerFunc(h.list)))
 	mux.Handle("GET /api/v1/sows/dropdown", h.authMiddleware(http.HandlerFunc(h.listDropdown)))
 	mux.Handle("PATCH /api/v1/sows/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
+	mux.Handle("DELETE /api/v1/sows/{id}", h.adminMiddleware(http.HandlerFunc(h.delete)))
 }
 
 type createSowRequest struct {
@@ -398,6 +406,23 @@ func (h *SowHandler) update(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// delete handles DELETE /api/v1/sows/{id} and removes a sow.
+// It parses the id path value and maps linked records to a 409 conflict.
+func (h *SowHandler) delete(w http.ResponseWriter, r *http.Request) {
+	sowID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador de la cerda no es válido"))
+		return
+	}
+
+	if err := h.deleteSow.Execute(r.Context(), sowID); err != nil {
+		writeSowError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // parseOptionalDate parses an optional date pointer using the shared layout.
 // It returns nil when value is nil and an error for an unparseable date.
 func parseOptionalDate(value *string) (*time.Time, error) {
@@ -470,7 +495,8 @@ func formatOptionalDate(value *time.Time) *string {
 func writeSowError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, ports.ErrSowCodeAlreadyUsed):
+	case errors.Is(err, ports.ErrSowCodeAlreadyUsed),
+		errors.Is(err, ports.ErrSowInUse):
 		status = http.StatusConflict
 	case errors.Is(err, ports.ErrSowNotFound):
 		status = http.StatusNotFound
