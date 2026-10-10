@@ -14,7 +14,7 @@ class PigletDeathsStub {
 }
 
 class SowsStub {
-  listSows = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
+  listSowDropdown = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
 }
 
 class OperatorsStub {
@@ -69,7 +69,7 @@ describe('RegisterPigletDeathModal', () => {
 
     await component.loadOptions();
 
-    expect(sows.listSows).toHaveBeenCalledWith({ state: 'Lactando' });
+    expect(sows.listSowDropdown).toHaveBeenCalledWith(true, ['Lactando']);
     expect(component.sowOptions()).toEqual([{ value: 'sow-1', label: 'C-001' }]);
     expect(component.operatorOptions()).toEqual([{ value: 'operator-1', label: 'Operador' }]);
   });

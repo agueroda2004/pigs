@@ -115,7 +115,7 @@ export class WeagingsPage implements OnInit {
 
   private async loadLookups(): Promise<void> {
     try {
-      const sows = await firstValueFrom(this.sowsService.listSows());
+      const sows = await firstValueFrom(this.sowsService.listSowDropdown());
       this.sowCodes.set(new Map(sows.map((sow) => [sow.id, sow.code])));
       this.sowOptions.set(sows.map((sow) => ({ value: sow.id, label: sow.code })));
     } catch {

@@ -33,7 +33,7 @@ class PigletFosteringsStub {
 }
 
 class SowsStub {
-  listSows = vi.fn(() =>
+  listSowDropdown = vi.fn(() =>
     of([
       { id: 'sow-1', code: 'C-001' },
       { id: 'sow-2', code: 'C-002' },

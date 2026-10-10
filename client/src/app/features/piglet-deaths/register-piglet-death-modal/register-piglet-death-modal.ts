@@ -121,7 +121,7 @@ export class RegisterPigletDeathModal {
   private async loadOptions(): Promise<void> {
     try {
       const [sows, operators] = await Promise.all([
-        firstValueFrom(this.sows.listSows({ state: 'Lactando' })),
+        firstValueFrom(this.sows.listSowDropdown(true, ['Lactando'])),
         firstValueFrom(this.operators.listOperators()),
       ]);
       this.sowOptions.set(sows.map((sow) => ({ value: sow.id, label: sow.code })));

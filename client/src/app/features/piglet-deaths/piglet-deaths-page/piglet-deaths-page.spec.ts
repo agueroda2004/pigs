@@ -37,7 +37,7 @@ class PigletDeathsStub {
 }
 
 class SowsStub {
-  listSows = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
+  listSowDropdown = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
 }
 
 class OperatorsStub {

@@ -202,7 +202,7 @@ export class RegisterFarrowingModal {
   private async loadLookups(): Promise<void> {
     try {
       const [sows, operators, medications] = await Promise.all([
-        firstValueFrom(this.sows.listSows({ state: 'Gestando' })),
+        firstValueFrom(this.sows.listSowDropdown(true, ['Gestando'])),
         firstValueFrom(this.operators.listOperators()),
         firstValueFrom(this.medications.listMedicationOptions()),
       ]);

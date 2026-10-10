@@ -10,6 +10,7 @@ import {
 } from '../../../core/sow-removals/sow-removal.models';
 import { SowRemovalsService } from '../../../core/sow-removals/sow-removals.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
+import { REMOVABLE_SOW_STATES } from '../../../core/sows/sow.models';
 import { SowsService } from '../../../core/sows/sows.service';
 import { DatePicker } from '../../../shared/ui/date-picker/date-picker';
 import { Dropdown, DropdownOption } from '../../../shared/ui/dropdown/dropdown';
@@ -105,7 +106,7 @@ export class RegisterSowRemovalModal {
 
   private async loadOptions(): Promise<void> {
     try {
-      const sows = await firstValueFrom(this.sows.listSowOptions(true));
+      const sows = await firstValueFrom(this.sows.listSowDropdown(true, REMOVABLE_SOW_STATES));
       this.sowOptions.set(sows.map((sow) => ({ value: sow.id, label: sow.code })));
     } catch {
       this.notifications.error('No se pudieron cargar las cerdas disponibles');

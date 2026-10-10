@@ -105,7 +105,7 @@ export class RegisterPartialWeagingModal {
 
   private async loadOptions(): Promise<void> {
     try {
-      const sows = await firstValueFrom(this.sows.listSows({ state: 'Lactando' }));
+      const sows = await firstValueFrom(this.sows.listSowDropdown(true, ['Lactando']));
       this.sowOptions.set(sows.map((sow) => ({ value: sow.id, label: sow.code })));
     } catch {
       this.notifications.error('No se pudieron cargar las cerdas');
