@@ -34,8 +34,18 @@
     (ngSubmit)="search()"
   >
     <div class="space-y-1.5">
-      <span class="block text-xs font-medium text-muted-foreground">Cerda</span>
-      <app-search-dropdown formControlName="sow_id" [options]="sowOptions()" placeholder="Todas" />
+      <label for="farrowing-sow-code" class="block text-xs font-medium text-muted-foreground"
+        >Cerda</label
+      >
+      <input
+        id="farrowing-sow-code"
+        type="text"
+        formControlName="sow_code"
+        maxlength="50"
+        autocomplete="off"
+        placeholder="Código de la cerda"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      />
     </div>
 
     <div class="space-y-1.5">
@@ -118,9 +128,39 @@
   } @else {
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       @for (farrowing of farrowings(); track farrowing.id) {
-        <app-farrowing-card [farrowing]="farrowing" [sowCode]="sowCode(farrowing)" />
+        <app-farrowing-card
+          [farrowing]="farrowing"
+          [sowCode]="farrowing.sow_code"
+          [canEdit]="isAdmin()"
+          (editRequested)="openEdit($event)"
+          (deleteRequested)="openDelete($event)"
+        />
       }
     </div>
+
+    @if (totalPages() > 1) {
+      <div class="flex items-center justify-center gap-4">
+        <button
+          type="button"
+          (click)="previousPage()"
+          [disabled]="page() === 1"
+          class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Anterior
+        </button>
+        <span class="text-sm text-muted-foreground">
+          Página {{ page() }} de {{ totalPages() }} ({{ total() }} partos)
+        </span>
+        <button
+          type="button"
+          (click)="nextPage()"
+          [disabled]="page() === totalPages()"
+          class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Siguiente
+        </button>
+      </div>
+    }
   }
 </div>
 
@@ -128,4 +168,18 @@
   [open]="modalOpen()"
   (closed)="closeModal()"
   (created)="onCreated($event)"
+/>
+
+<app-edit-farrowing-modal
+  [open]="editOpen()"
+  [farrowing]="editingFarrowing()"
+  (closed)="closeEdit()"
+  (updated)="onUpdated()"
+/>
+
+<app-delete-farrowing-modal
+  [open]="deleteOpen()"
+  [farrowing]="deletingFarrowing()"
+  (closed)="closeDelete()"
+  (deleted)="onDeleted($event)"
 />

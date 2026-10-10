@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
 
 import { Farrowing } from '../../../core/farrowings/farrowing.models';
 import { FarrowingCard } from './farrowing-card';
@@ -7,6 +8,7 @@ function buildFarrowing(overrides: Partial<Farrowing> = {}): Farrowing {
   return {
     id: '1',
     sow_id: 'sow-1',
+    sow_code: 'C-001',
     service_id: 'service-1',
     farrow_date: '2026-04-20',
     start_time: '22:00',
@@ -24,19 +26,16 @@ function buildFarrowing(overrides: Partial<Farrowing> = {}): Farrowing {
     note: null,
     operators: [],
     medications: [],
-    created_at: '',
-    updated_at: '',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }
 
 describe('FarrowingCard', () => {
-  const render = (farrowing: Farrowing, sowCode: string | null) => {
+  const render = (farrowing: Farrowing, sowCode: string | null, canEdit = false) => {
     const fixture = TestBed.createComponent(FarrowingCard);
     fixture.componentRef.setInput('farrowing', farrowing);
     fixture.componentRef.setInput('sowCode', sowCode);
+    fixture.componentRef.setInput('canEdit', canEdit);
     fixture.detectChanges();
     return fixture;
   };
@@ -125,5 +124,41 @@ describe('FarrowingCard', () => {
     );
     expect(withExtras.nativeElement.textContent).toContain('Peso nacidos muertos: 2.5 kg');
     expect(withExtras.nativeElement.textContent).toContain('Parto sin complicaciones');
+  });
+
+  it('does not show the edit and delete actions by default', () => {
+    const fixture = render(buildFarrowing(), 'C-001');
+    const text = fixture.nativeElement.textContent;
+
+    expect(text).not.toContain('Editar');
+    expect(text).not.toContain('Eliminar');
+  });
+
+  it('emits the farrowing when the edit action is used', () => {
+    const farrowing = buildFarrowing();
+    const fixture = render(farrowing, 'C-001', true);
+    const emitted = vi.fn();
+    fixture.componentInstance.editRequested.subscribe(emitted);
+
+    const editButton = [...fixture.nativeElement.querySelectorAll('button')].find(
+      (button: Element) => button.textContent?.includes('Editar'),
+    ) as HTMLButtonElement;
+    editButton.click();
+
+    expect(emitted).toHaveBeenCalledWith(farrowing);
+  });
+
+  it('emits the farrowing when the delete action is used', () => {
+    const farrowing = buildFarrowing();
+    const fixture = render(farrowing, 'C-001', true);
+    const emitted = vi.fn();
+    fixture.componentInstance.deleteRequested.subscribe(emitted);
+
+    const deleteButton = [...fixture.nativeElement.querySelectorAll('button')].find(
+      (button: Element) => button.textContent?.includes('Eliminar'),
+    ) as HTMLButtonElement;
+    deleteButton.click();
+
+    expect(emitted).toHaveBeenCalledWith(farrowing);
   });
 });

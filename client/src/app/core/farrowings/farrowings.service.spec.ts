@@ -8,6 +8,7 @@ import { FarrowingsService } from './farrowings.service';
 const farrowingPayload = {
   id: '1',
   sow_id: 'sow-1',
+  sow_code: 'C-001',
   service_id: 'service-1',
   farrow_date: '2026-04-20',
   start_time: '22:00',
@@ -25,10 +26,14 @@ const farrowingPayload = {
   note: null,
   operators: [],
   medications: [],
-  created_at: '',
-  updated_at: '',
-  created_by: 'admin',
-  updated_by: 'admin',
+};
+
+const pagePayload = {
+  items: [farrowingPayload],
+  total: 1,
+  page: 1,
+  page_size: 10,
+  total_pages: 1,
 };
 
 describe('FarrowingsService', () => {
@@ -45,31 +50,29 @@ describe('FarrowingsService', () => {
 
   afterEach(() => http.verify());
 
-  it('lists farrowings', async () => {
+  it('lists farrowings with the default page', async () => {
     const promise = firstValueFrom(service.listFarrowings());
 
     const call = http.expectOne(
       (request) => request.url.endsWith('/farrowings') && request.method === 'GET',
     );
-    expect(call.request.params.keys()).toHaveLength(0);
-    call.flush([farrowingPayload]);
+    expect(call.request.params.get('page')).toBe('1');
+    call.flush(pagePayload);
 
-    await expect(promise).resolves.toHaveLength(1);
+    await expect(promise).resolves.toMatchObject({ items: [farrowingPayload], total: 1 });
   });
 
-  it('lists farrowings with the sow and service filters', async () => {
-    const promise = firstValueFrom(
-      service.listFarrowings({ sow_id: 'sow-1', service_id: 'service-1' }),
-    );
+  it('lists farrowings with the sow code filter and a page', async () => {
+    const promise = firstValueFrom(service.listFarrowings({ sow_code: 'C-001' }, 2));
 
     const call = http.expectOne(
       (request) => request.url.endsWith('/farrowings') && request.method === 'GET',
     );
-    expect(call.request.params.get('sow_id')).toBe('sow-1');
-    expect(call.request.params.get('service_id')).toBe('service-1');
-    call.flush([farrowingPayload]);
+    expect(call.request.params.get('sow_code')).toBe('C-001');
+    expect(call.request.params.get('page')).toBe('2');
+    call.flush(pagePayload);
 
-    await expect(promise).resolves.toHaveLength(1);
+    await expect(promise).resolves.toMatchObject({ items: [farrowingPayload] });
   });
 
   it('lists farrowings with the date range filters', async () => {
@@ -82,9 +85,9 @@ describe('FarrowingsService', () => {
     );
     expect(call.request.params.get('from')).toBe('2026-04-01');
     expect(call.request.params.get('to')).toBe('2026-04-30');
-    call.flush([farrowingPayload]);
+    call.flush(pagePayload);
 
-    await expect(promise).resolves.toHaveLength(1);
+    await expect(promise).resolves.toMatchObject({ total: 1 });
   });
 
   it('creates a farrowing', async () => {
@@ -104,8 +107,32 @@ describe('FarrowingsService', () => {
       (request) => request.url.endsWith('/farrowings') && request.method === 'POST',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush(farrowingPayload);
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ sow_id: 'sow-1' });
+    await expect(promise).resolves.toBeNull();
+  });
+
+  it('updates a farrowing', async () => {
+    const payload = { live_born: 12, clear_litter_weight: true };
+    const promise = firstValueFrom(service.updateFarrowing('7', payload));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/farrowings/7') && request.method === 'PATCH',
+    );
+    expect(call.request.body).toEqual(payload);
+    call.flush(null);
+
+    await expect(promise).resolves.toBeNull();
+  });
+
+  it('deletes a farrowing', async () => {
+    const promise = firstValueFrom(service.deleteFarrowing('7'));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/farrowings/7') && request.method === 'DELETE',
+    );
+    call.flush(null);
+
+    await expect(promise).resolves.toBeNull();
   });
 });

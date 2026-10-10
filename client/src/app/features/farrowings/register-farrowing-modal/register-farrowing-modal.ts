@@ -22,14 +22,7 @@ import { toISODate } from '../../../shared/utils/date';
 
 @Component({
   selector: 'app-register-farrowing-modal',
-  imports: [
-    ReactiveFormsModule,
-    Modal,
-    Dropdown,
-    SearchDropdown,
-    DatePicker,
-    TimePicker,
-  ],
+  imports: [ReactiveFormsModule, Modal, Dropdown, SearchDropdown, DatePicker, TimePicker],
   styleUrl: './register-farrowing-modal.css',
   templateUrl: './register-farrowing-modal.html',
 })
@@ -126,13 +119,11 @@ export class RegisterFarrowingModal {
       operators: value.operators.map((operator): CreateFarrowingOperatorRequest => ({
         operator_id: operator.operator_id,
       })),
-      medications: value.medications.map(
-        (medication): CreateFarrowingMedicationRequest => ({
-          medication_id: medication.medication_id,
-          dose: medication.dose,
-          applied_by: medication.applied_by,
-        }),
-      ),
+      medications: value.medications.map((medication): CreateFarrowingMedicationRequest => ({
+        medication_id: medication.medication_id,
+        dose: medication.dose,
+        applied_by: medication.applied_by,
+      })),
     };
     if (value.start_time) {
       request.start_time = value.start_time;
@@ -203,14 +194,12 @@ export class RegisterFarrowingModal {
     try {
       const [sows, operators, medications] = await Promise.all([
         firstValueFrom(this.sows.listSowDropdown(true, ['Gestando'])),
-        firstValueFrom(this.operators.listOperators()),
+        firstValueFrom(this.operators.listOperatorDropdown(true)),
         firstValueFrom(this.medications.listMedicationOptions()),
       ]);
       this.sowOptions.set(sows.map((sow) => ({ value: sow.id, label: sow.code })));
       this.operatorOptions.set(
-        operators
-          .filter((operator) => operator.active)
-          .map((operator) => ({ value: operator.id, label: operator.name })),
+        operators.map((operator) => ({ value: operator.id, label: operator.name })),
       );
       this.medicationOptions.set(
         medications.map((medication) => ({ value: medication.id, label: medication.name })),

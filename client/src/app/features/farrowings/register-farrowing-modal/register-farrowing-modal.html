@@ -214,7 +214,10 @@
       }
 
       @for (group of medicationsArray.controls; track $index; let index = $index) {
-        <div class="grid items-end gap-2 sm:grid-cols-[1fr_5rem_1fr_2.25rem]" [formGroupName]="index">
+        <div
+          class="grid items-end gap-2 sm:grid-cols-[1fr_5rem_1fr_2.25rem]"
+          [formGroupName]="index"
+        >
           <div class="space-y-1.5">
             <app-dropdown
               formControlName="medication_id"

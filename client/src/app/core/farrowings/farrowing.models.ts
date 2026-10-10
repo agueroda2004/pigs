@@ -1,7 +1,6 @@
 export interface FarrowingOperatorLink {
   id: string;
   operator_id: string;
-  created_at: string;
 }
 
 export interface FarrowingMedicationLink {
@@ -9,12 +8,12 @@ export interface FarrowingMedicationLink {
   medication_id: string;
   dose: number;
   applied_by: string;
-  created_at: string;
 }
 
 export interface Farrowing {
   id: string;
   sow_id: string;
+  sow_code: string;
   service_id: string;
   farrow_date: string;
   start_time: string | null;
@@ -32,10 +31,14 @@ export interface Farrowing {
   note: string | null;
   operators: FarrowingOperatorLink[];
   medications: FarrowingMedicationLink[];
-  created_at: string;
-  updated_at: string;
-  created_by: string;
-  updated_by: string;
+}
+
+export interface FarrowingPage {
+  items: Farrowing[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 export interface CreateFarrowingOperatorRequest {
@@ -65,9 +68,26 @@ export interface CreateFarrowingRequest {
   medications: CreateFarrowingMedicationRequest[];
 }
 
+export interface UpdateFarrowingRequest {
+  farrow_date?: string;
+  start_time?: string;
+  end_time?: string;
+  location?: string;
+  live_born?: number;
+  stillborn?: number;
+  mummified?: number;
+  litter_weight?: number;
+  clear_litter_weight?: boolean;
+  stillborn_weight?: number;
+  clear_stillborn_weight?: boolean;
+  is_manipulated?: boolean;
+  note?: string;
+  operators?: CreateFarrowingOperatorRequest[];
+  medications?: CreateFarrowingMedicationRequest[];
+}
+
 export interface FarrowingFilters {
-  sow_id?: string;
-  service_id?: string;
+  sow_code?: string;
   from?: string;
   to?: string;
 }

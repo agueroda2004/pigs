@@ -1,4 +1,4 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, input, output } from '@angular/core';
 
 import { Farrowing } from '../../../core/farrowings/farrowing.models';
 
@@ -10,6 +10,9 @@ import { Farrowing } from '../../../core/farrowings/farrowing.models';
 export class FarrowingCard {
   readonly farrowing = input.required<Farrowing>();
   readonly sowCode = input<string | null>(null);
+  readonly canEdit = input(false);
+  readonly editRequested = output<Farrowing>();
+  readonly deleteRequested = output<Farrowing>();
 
   protected readonly totalBorn = computed(
     () => this.farrowing().live_born + this.farrowing().stillborn + this.farrowing().mummified,

@@ -19,7 +19,7 @@ class SowsStub {
 }
 
 class OperatorsStub {
-  listOperators = vi.fn(() => of([{ id: 'op-1', name: 'Ana', active: true }]));
+  listOperatorDropdown = vi.fn(() => of([{ id: 'op-1', name: 'Ana', active: true }]));
 }
 
 class MedicationsStub {

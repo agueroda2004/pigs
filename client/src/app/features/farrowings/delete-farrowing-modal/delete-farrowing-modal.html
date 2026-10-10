@@ -1,0 +1,33 @@
+<app-modal [open]="open()" size="xl" title="Eliminar parto" (closed)="closed.emit()">
+  <div class="space-y-4">
+    <p class="text-sm text-muted-foreground">
+      ¿Seguro que quieres eliminar el parto de la cerda
+      <span class="font-medium text-foreground">{{ farrowing()?.sow_code }}</span>
+      del
+      <span class="font-medium text-foreground">{{ farrowing()?.farrow_date }}</span
+      >?
+    </p>
+    <p class="text-sm text-muted-foreground">
+      Esta acción no se puede deshacer y restaurará el estado de la cerda y del servicio. No se
+      puede eliminar un parto que tenga muertes, adopciones o destetes de lechones enlazados.
+    </p>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="button"
+        (click)="confirm()"
+        [disabled]="loading()"
+        class="rounded-md bg-danger px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Eliminando…' : 'Eliminar' }}
+      </button>
+    </div>
+  </div>
+</app-modal>
