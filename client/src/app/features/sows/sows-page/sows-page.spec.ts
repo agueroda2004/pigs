@@ -23,19 +23,20 @@ function buildSow(id: string): Sow {
     origin: 'Propio',
     parity: 2,
     breed_id: 'breed-1',
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
   };
 }
 
+function pageOf(items: Sow[], total = items.length, totalPages = 1) {
+  return { items, total, page: 1, page_size: 20, total_pages: totalPages };
+}
+
 class SowsStub {
-  listSows = vi.fn(() => of([buildSow('1'), buildSow('2')]));
+  listSows = vi.fn((_filters?: unknown, _page?: number) =>
+    of(pageOf([buildSow('1'), buildSow('2')])),
+  );
 }
 
 class BreedsStub {
-  listBreeds = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc', active: true }]));
   listBreedDropdown = vi.fn(() => of([{ id: 'breed-1', name: 'Duroc', active: true }]));
 }
 
@@ -84,13 +85,13 @@ describe('SowsPage', () => {
   });
 
   it('shows the error state and retries', async () => {
-    stub.listSows = vi.fn(() => throwError(() => new Error('failed')));
+    stub.listSows.mockReturnValue(throwError(() => new Error('failed')));
     const component = create();
 
     await component.loadSows();
     expect(component.error()).toBe(true);
 
-    stub.listSows = vi.fn(() => of([buildSow('1')]));
+    stub.listSows.mockReturnValue(of(pageOf([buildSow('1')])));
     await component.loadSows();
 
     expect(component.error()).toBe(false);
@@ -101,23 +102,46 @@ describe('SowsPage', () => {
     const component = create();
     await component.loadSows();
 
-    stub.listSows = vi.fn(() => of([buildSow('1'), buildSow('2'), buildSow('3')]));
+    stub.listSows.mockReturnValue(of(pageOf([buildSow('1'), buildSow('2'), buildSow('3')])));
     await component.onCreated('C-004');
 
     expect(notifications.success).toHaveBeenCalledWith('Cerda "C-004" creada correctamente');
     expect(component.modalOpen()).toBe(false);
     expect(component.sows()).toHaveLength(3);
+    expect(stub.listSows).toHaveBeenCalledWith({}, 1);
   });
 
   it('reloads the list after updating a sow', async () => {
     const component = create();
     await component.loadSows();
 
-    stub.listSows = vi.fn(() => of([buildSow('9')]));
-    await component.onUpdated(buildSow('9'));
+    stub.listSows.mockReturnValue(of(pageOf([buildSow('9')])));
+    await component.onUpdated('C-009');
 
     expect(notifications.success).toHaveBeenCalledWith('Cerda "C-009" actualizada correctamente');
     expect(component.editOpen()).toBe(false);
+    expect(component.sows()).toHaveLength(1);
+  });
+
+  it('opens the delete modal for the selected sow', () => {
+    const component = create();
+    const sow = buildSow('9');
+
+    component.openDelete(sow);
+
+    expect(component.deleteOpen()).toBe(true);
+    expect(component.deletingSow()).toEqual(sow);
+  });
+
+  it('reloads the list after deleting a sow', async () => {
+    const component = create();
+    await component.loadSows();
+
+    stub.listSows.mockReturnValue(of(pageOf([buildSow('2')])));
+    await component.onDeleted(buildSow('9'));
+
+    expect(notifications.success).toHaveBeenCalledWith('Cerda "C-009" eliminada correctamente');
+    expect(component.deleteOpen()).toBe(false);
     expect(component.sows()).toHaveLength(1);
   });
 
@@ -137,13 +161,7 @@ describe('SowsPage', () => {
     expect(component.breedOptions()).toEqual([{ value: 'breed-1', label: 'Duroc' }]);
   });
 
-  it('builds the filter options from the dropdown and names from every breed', async () => {
-    breeds.listBreeds = vi.fn(() =>
-      of([
-        { id: 'breed-1', name: 'Duroc', active: true },
-        { id: 'breed-2', name: 'Retired', active: false },
-      ]),
-    );
+  it('builds the filter options and names from the dropdown breeds', async () => {
     breeds.listBreedDropdown = vi.fn(() =>
       of([
         { id: 'breed-1', name: 'Duroc', active: true },
@@ -183,13 +201,16 @@ describe('SowsPage', () => {
 
     await component.search();
 
-    expect(stub.listSows).toHaveBeenLastCalledWith({
-      code: 'C-001',
-      breed_id: 'breed-1',
-      origin: 'Externo',
-      state: 'Gestando',
-      active: false,
-    });
+    expect(stub.listSows).toHaveBeenLastCalledWith(
+      {
+        code: 'C-001',
+        breed_id: 'breed-1',
+        origin: 'Externo',
+        state: 'Gestando',
+        active: false,
+      },
+      1,
+    );
   });
 
   it('clears the filters and reloads without them', async () => {
@@ -203,10 +224,10 @@ describe('SowsPage', () => {
     });
     await component.search();
 
-    stub.listSows = vi.fn(() => of([buildSow('1')]));
+    stub.listSows.mockReturnValue(of(pageOf([buildSow('1')])));
     await component.clearFilters();
 
-    expect(stub.listSows).toHaveBeenCalledWith({});
+    expect(stub.listSows).toHaveBeenCalledWith({}, 1);
     expect(component.filterForm.getRawValue()).toEqual({
       code: '',
       breed_id: '',
@@ -237,14 +258,33 @@ describe('SowsPage', () => {
     component.filterForm.patchValue({ code: 'C-001' });
     await component.search();
 
-    stub.listSows = vi.fn(() => of([buildSow('1')]));
+    stub.listSows.mockReturnValue(of(pageOf([buildSow('1')])));
     await component.onCreated('C-005');
 
-    expect(stub.listSows).toHaveBeenCalledWith({ code: 'C-001' });
+    expect(stub.listSows).toHaveBeenCalledWith({ code: 'C-001' }, 1);
+  });
+
+  it('paginates forward and backward', async () => {
+    stub.listSows.mockImplementation((_filters, page) =>
+      of(pageOf([buildSow(String(page))], 40, 2)),
+    );
+    const component = create();
+    await component.loadSows();
+
+    expect(component.page()).toBe(1);
+    expect(component.totalPages()).toBe(2);
+
+    await component.nextPage();
+    expect(component.page()).toBe(2);
+    expect(stub.listSows).toHaveBeenLastCalledWith({}, 2);
+
+    await component.previousPage();
+    expect(component.page()).toBe(1);
+    expect(stub.listSows).toHaveBeenLastCalledWith({}, 1);
   });
 
   it('shows a filtered empty message when filters match nothing', async () => {
-    stub.listSows = vi.fn(() => of([]));
+    stub.listSows.mockReturnValue(of(pageOf([], 0, 0)));
     const fixture = TestBed.createComponent(SowsPage);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const component = fixture.componentInstance as any;

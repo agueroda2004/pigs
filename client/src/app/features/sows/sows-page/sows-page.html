@@ -128,9 +128,34 @@
           [breedName]="breedName(sow)"
           [canEdit]="isAdmin()"
           (editRequested)="openEdit($event)"
+          (deleteRequested)="openDelete($event)"
         />
       }
     </div>
+
+    @if (totalPages() > 1) {
+      <div class="flex items-center justify-center gap-4">
+        <button
+          type="button"
+          (click)="previousPage()"
+          [disabled]="page() === 1"
+          class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Anterior
+        </button>
+        <span class="text-sm text-muted-foreground">
+          Página {{ page() }} de {{ totalPages() }} ({{ total() }} cerdas)
+        </span>
+        <button
+          type="button"
+          (click)="nextPage()"
+          [disabled]="page() === totalPages()"
+          class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Siguiente
+        </button>
+      </div>
+    }
   }
 </div>
 
@@ -141,4 +166,11 @@
   [sow]="editingSow()"
   (closed)="closeEdit()"
   (updated)="onUpdated($event)"
+/>
+
+<app-delete-sow-modal
+  [open]="deleteOpen()"
+  [sow]="deletingSow()"
+  (closed)="closeDelete()"
+  (deleted)="onDeleted($event)"
 />

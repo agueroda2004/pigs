@@ -22,16 +22,12 @@ function buildSow(overrides: Partial<Sow> = {}): Sow {
     origin: 'Propio',
     parity: 3,
     breed_id: 'breed-1',
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }
 
 class SowsStub {
-  updateSow = vi.fn((_id: string, _request: Record<string, unknown>) => of(buildSow()));
+  updateSow = vi.fn((_id: string, _request: Record<string, unknown>) => of(undefined));
 }
 
 class BreedsStub {
@@ -98,21 +94,40 @@ describe('EditSowModal', () => {
       code: 'C-001',
       breed_id: 'breed-1',
       origin: 'Propio',
+      parity: 3,
       location: 'Corral A',
-      active: true,
       entry_date: '2026-01-10',
       birth_date: '2025-12-01',
       note: 'Nota original',
     });
   });
 
-  it('shows the parity read-only', async () => {
-    const fixture = await openWith(buildSow({ parity: 5 }));
+  it('enables parity when the sow is alive', async () => {
+    const fixture = await openWith(buildSow({ state: 'Viva' }));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const component = fixture.componentInstance as any;
 
-    expect(component.parity()).toBe(5);
-    expect(fixture.nativeElement.textContent).toContain('Paridad');
+    expect(component.canEditParity()).toBe(true);
+    expect(component.form.controls.parity.enabled).toBe(true);
+  });
+
+  it('disables parity when the sow is not alive', async () => {
+    const fixture = await openWith(buildSow({ state: 'Gestando' }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+
+    expect(component.canEditParity()).toBe(false);
+    expect(component.form.controls.parity.disabled).toBe(true);
+  });
+
+  it('disables the dates when the sow is inactive', async () => {
+    const fixture = await openWith(buildSow({ active: false }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+
+    expect(component.canEditDates()).toBe(false);
+    expect(component.form.controls.entry_date.disabled).toBe(true);
+    expect(component.form.controls.birth_date.disabled).toBe(true);
   });
 
   it('sends the origin when it changes', async () => {
@@ -124,6 +139,17 @@ describe('EditSowModal', () => {
     await component.submit();
 
     expect(stub.updateSow).toHaveBeenCalledWith('1', { origin: 'Externo' });
+  });
+
+  it('sends the parity when it changes on an alive sow', async () => {
+    const fixture = await openWith(buildSow({ state: 'Viva' }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+    component.form.patchValue({ parity: 5 });
+
+    await component.submit();
+
+    expect(stub.updateSow).toHaveBeenCalledWith('1', { parity: 5 });
   });
 
   it('sends only the changed fields', async () => {
@@ -152,7 +178,7 @@ describe('EditSowModal', () => {
     });
   });
 
-  it('never sends the state or parity', async () => {
+  it('never sends the state or the active flag', async () => {
     const fixture = await openWith(buildSow());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const component = fixture.componentInstance as any;
@@ -162,12 +188,11 @@ describe('EditSowModal', () => {
 
     const request = stub.updateSow.mock.calls[0][1] as Record<string, unknown>;
     expect(request).not.toHaveProperty('state');
-    expect(request).not.toHaveProperty('parity');
+    expect(request).not.toHaveProperty('active');
   });
 
-  it('emits the current sow when nothing changed', async () => {
-    const sow = buildSow();
-    const fixture = await openWith(sow);
+  it('emits the current code when nothing changed', async () => {
+    const fixture = await openWith(buildSow());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const component = fixture.componentInstance as any;
     const updated = vi.fn();
@@ -176,7 +201,20 @@ describe('EditSowModal', () => {
     await component.submit();
 
     expect(stub.updateSow).not.toHaveBeenCalled();
-    expect(updated).toHaveBeenCalledWith(sow);
+    expect(updated).toHaveBeenCalledWith('C-001');
+  });
+
+  it('emits the resulting code after a successful update', async () => {
+    const fixture = await openWith(buildSow());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+    const updated = vi.fn();
+    component.updated.subscribe(updated);
+    component.form.patchValue({ code: 'C-002' });
+
+    await component.submit();
+
+    expect(updated).toHaveBeenCalledWith('C-002');
   });
 
   it('shows an error toast when the sow is missing', async () => {

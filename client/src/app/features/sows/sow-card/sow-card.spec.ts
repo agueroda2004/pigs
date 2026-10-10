@@ -16,10 +16,6 @@ function buildSow(overrides: Partial<Sow> = {}): Sow {
     origin: 'Propio',
     parity: 3,
     breed_id: 'breed-1',
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }
@@ -94,5 +90,30 @@ describe('SowCard', () => {
     (fixture.nativeElement.querySelector('button') as HTMLButtonElement).click();
 
     expect(emitted).toEqual([sow]);
+  });
+
+  it('emits the sow when the delete button is clicked', () => {
+    const sow = buildSow();
+    const fixture = TestBed.createComponent(SowCard);
+    fixture.componentRef.setInput('sow', sow);
+    fixture.componentRef.setInput('canEdit', true);
+    fixture.detectChanges();
+
+    const emitted: Sow[] = [];
+    fixture.componentInstance.deleteRequested.subscribe((value) => emitted.push(value));
+    (fixture.nativeElement.querySelectorAll('button')[1] as HTMLButtonElement).click();
+
+    expect(emitted).toEqual([sow]);
+  });
+
+  it('hides the delete button for non-Viva sows but keeps edit', () => {
+    const fixture = TestBed.createComponent(SowCard);
+    fixture.componentRef.setInput('sow', buildSow({ state: 'Gestando' }));
+    fixture.componentRef.setInput('canEdit', true);
+    fixture.detectChanges();
+
+    const buttons = fixture.nativeElement.querySelectorAll('button');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0].textContent).toContain('Editar');
   });
 });

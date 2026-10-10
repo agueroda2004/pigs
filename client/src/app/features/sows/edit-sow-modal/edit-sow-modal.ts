@@ -23,7 +23,7 @@ export class EditSowModal {
   readonly open = input(false);
   readonly sow = input<Sow | null>(null);
   readonly closed = output<void>();
-  readonly updated = output<Sow>();
+  readonly updated = output<string>();
 
   private readonly sows = inject(SowsService);
   private readonly breeds = inject(BreedsService);
@@ -48,14 +48,15 @@ export class EditSowModal {
     return current ? SOW_STATE_CLASSES[current.state] : '';
   });
 
-  protected readonly parity = computed(() => this.sow()?.parity ?? 0);
+  protected readonly canEditDates = computed(() => this.sow()?.active ?? false);
+  protected readonly canEditParity = computed(() => this.sow()?.state === 'Viva');
 
   protected readonly form = this.formBuilder.nonNullable.group({
     code: ['', [Validators.required, Validators.maxLength(50)]],
     breed_id: ['', [Validators.required]],
     origin: ['', [Validators.required]],
+    parity: [0, [Validators.required, Validators.min(0)]],
     location: ['', [Validators.maxLength(100)]],
-    active: [true],
     entry_date: ['', [Validators.required]],
     birth_date: [''],
     note: ['', [Validators.maxLength(500)]],
@@ -69,12 +70,14 @@ export class EditSowModal {
           code: current.code,
           breed_id: current.breed_id,
           origin: current.origin,
+          parity: current.parity,
           location: current.location ?? '',
-          active: current.active,
           entry_date: current.entry_date,
           birth_date: current.birth_date ?? '',
           note: current.note ?? '',
         });
+        this.applyDateEditability(current.active);
+        this.applyParityEditability(current.state === 'Viva');
         void this.loadBreeds();
       }
     });
@@ -91,7 +94,7 @@ export class EditSowModal {
       return;
     }
 
-    const { code, breed_id, origin, location, active, entry_date, birth_date, note } =
+    const { code, breed_id, origin, parity, location, entry_date, birth_date, note } =
       this.form.getRawValue();
     const request: UpdateSowRequest = {};
 
@@ -104,11 +107,14 @@ export class EditSowModal {
     if (origin !== current.origin) {
       request.origin = origin as SowOrigin;
     }
-    if (entry_date !== current.entry_date) {
+    if (this.canEditParity() && parity !== current.parity) {
+      request.parity = parity;
+    }
+    if (this.canEditDates() && entry_date !== current.entry_date) {
       request.entry_date = entry_date;
     }
-    if (active !== current.active) {
-      request.active = active;
+    if (this.canEditDates() && birth_date !== (current.birth_date ?? '')) {
+      request.birth_date = birth_date;
     }
     if (location !== (current.location ?? '')) {
       request.location = location;
@@ -116,25 +122,33 @@ export class EditSowModal {
     if (note !== (current.note ?? '')) {
       request.note = note;
     }
-    if (birth_date !== (current.birth_date ?? '')) {
-      request.birth_date = birth_date;
-    }
 
     if (Object.keys(request).length === 0) {
-      this.updated.emit(current);
+      this.updated.emit(current.code);
       return;
     }
 
     this.loading.set(true);
 
     try {
-      const updated = await firstValueFrom(this.sows.updateSow(current.id, request));
-      this.updated.emit(updated);
+      await firstValueFrom(this.sows.updateSow(current.id, request));
+      this.updated.emit(request.code ?? current.code);
     } catch (error) {
       this.notifications.error(this.mapError(error));
     } finally {
       this.loading.set(false);
     }
+  }
+
+  private applyDateEditability(editable: boolean): void {
+    const action = editable ? 'enable' : 'disable';
+    this.form.controls.entry_date[action]({ emitEvent: false });
+    this.form.controls.birth_date[action]({ emitEvent: false });
+  }
+
+  private applyParityEditability(editable: boolean): void {
+    const action = editable ? 'enable' : 'disable';
+    this.form.controls.parity[action]({ emitEvent: false });
   }
 
   private async loadBreeds(): Promise<void> {

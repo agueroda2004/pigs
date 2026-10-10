@@ -17,10 +17,14 @@ const sowPayload = {
   origin: 'Propio',
   parity: 3,
   breed_id: 'breed-1',
-  created_at: '',
-  updated_at: '',
-  created_by: 'admin',
-  updated_by: 'admin',
+};
+
+const pagePayload = {
+  items: [sowPayload],
+  total: 1,
+  page: 1,
+  page_size: 20,
+  total_pages: 1,
 };
 
 describe('SowsService', () => {
@@ -37,27 +41,30 @@ describe('SowsService', () => {
 
   afterEach(() => http.verify());
 
-  it('lists sows', async () => {
+  it('lists the first page of sows', async () => {
     const promise = firstValueFrom(service.listSows());
 
     const call = http.expectOne(
       (request) => request.url.endsWith('/sows') && request.method === 'GET',
     );
-    expect(call.request.params.keys()).toHaveLength(0);
-    call.flush([sowPayload]);
+    expect(call.request.params.get('page')).toBe('1');
+    call.flush(pagePayload);
 
-    await expect(promise).resolves.toHaveLength(1);
+    await expect(promise).resolves.toEqual(pagePayload);
   });
 
-  it('lists sows with filters', async () => {
+  it('lists sows with filters and page', async () => {
     const promise = firstValueFrom(
-      service.listSows({
-        code: 'C-001',
-        breed_id: 'breed-1',
-        origin: 'Externo',
-        active: false,
-        state: 'Gestando',
-      }),
+      service.listSows(
+        {
+          code: 'C-001',
+          breed_id: 'breed-1',
+          origin: 'Externo',
+          active: false,
+          state: 'Gestando',
+        },
+        3,
+      ),
     );
 
     const call = http.expectOne(
@@ -68,16 +75,17 @@ describe('SowsService', () => {
     expect(call.request.params.get('origin')).toBe('Externo');
     expect(call.request.params.get('active')).toBe('false');
     expect(call.request.params.get('state')).toBe('Gestando');
-    call.flush([sowPayload]);
+    expect(call.request.params.get('page')).toBe('3');
+    call.flush({ ...pagePayload, page: 3, total: 40, total_pages: 2 });
 
-    await expect(promise).resolves.toHaveLength(1);
+    await expect(promise).resolves.toMatchObject({ page: 3, total: 40, total_pages: 2 });
   });
 
-  it('lists sow options without a filter', async () => {
-    const promise = firstValueFrom(service.listSowOptions());
+  it('lists the sow dropdown without filters', async () => {
+    const promise = firstValueFrom(service.listSowDropdown());
 
     const call = http.expectOne(
-      (request) => request.url.endsWith('/sows/options') && request.method === 'GET',
+      (request) => request.url.endsWith('/sows/dropdown') && request.method === 'GET',
     );
     expect(call.request.params.keys()).toHaveLength(0);
     call.flush([{ id: 'sow-1', code: 'C-001' }]);
@@ -85,31 +93,20 @@ describe('SowsService', () => {
     await expect(promise).resolves.toEqual([{ id: 'sow-1', code: 'C-001' }]);
   });
 
-  it('lists sow options filtered by active', async () => {
-    const promise = firstValueFrom(service.listSowOptions(true));
+  it('lists the sow dropdown filtered by active and states', async () => {
+    const promise = firstValueFrom(service.listSowDropdown(true, ['Viva', 'Gestando']));
 
     const call = http.expectOne(
-      (request) => request.url.endsWith('/sows/options') && request.method === 'GET',
+      (request) => request.url.endsWith('/sows/dropdown') && request.method === 'GET',
     );
     expect(call.request.params.get('active')).toBe('true');
+    expect(call.request.params.getAll('states')).toEqual(['Viva', 'Gestando']);
     call.flush([{ id: 'sow-1', code: 'C-001' }]);
 
     await expect(promise).resolves.toHaveLength(1);
   });
 
-  it('lists sow options with active false', async () => {
-    const promise = firstValueFrom(service.listSowOptions(false));
-
-    const call = http.expectOne(
-      (request) => request.url.endsWith('/sows/options') && request.method === 'GET',
-    );
-    expect(call.request.params.get('active')).toBe('false');
-    call.flush([]);
-
-    await expect(promise).resolves.toEqual([]);
-  });
-
-  it('creates a sow', async () => {
+  it('creates a sow without expecting a body', async () => {
     const payload = {
       code: 'C-001',
       entry_date: '2026-01-10',
@@ -123,12 +120,12 @@ describe('SowsService', () => {
       (request) => request.url.endsWith('/sows') && request.method === 'POST',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush(sowPayload);
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ code: 'C-001' });
+    await expect(promise).resolves.toBeNull();
   });
 
-  it('updates a sow', async () => {
+  it('updates a sow without expecting a body', async () => {
     const payload = { code: 'C-002', note: '' };
     const promise = firstValueFrom(service.updateSow('7', payload));
 
@@ -136,8 +133,19 @@ describe('SowsService', () => {
       (request) => request.url.endsWith('/sows/7') && request.method === 'PATCH',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush({ ...sowPayload, code: 'C-002' });
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ code: 'C-002' });
+    await expect(promise).resolves.toBeNull();
+  });
+
+  it('deletes a sow', async () => {
+    const promise = firstValueFrom(service.deleteSow('7'));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/sows/7') && request.method === 'DELETE',
+    );
+    call.flush(null);
+
+    await expect(promise).resolves.toBeNull();
   });
 });

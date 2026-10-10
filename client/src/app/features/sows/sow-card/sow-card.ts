@@ -14,6 +14,7 @@ export class SowCard {
   readonly breedName = input<string | null>(null);
   readonly canEdit = input(false);
   readonly editRequested = output<Sow>();
+  readonly deleteRequested = output<Sow>();
 
   protected readonly stateLabel = computed(() => SOW_STATE_LABELS[this.sow().state]);
   protected readonly stateClass = computed(() => SOW_STATE_CLASSES[this.sow().state]);
@@ -23,4 +24,5 @@ export class SowCard {
   protected readonly activeClass = computed(() =>
     this.sow().active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground',
   );
+  protected readonly deletable = computed(() => this.canEdit() && this.sow().state === 'Viva');
 }

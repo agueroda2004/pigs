@@ -9,13 +9,14 @@ import { Sow, SowFilters, SowOrigin, SowState } from '../../../core/sows/sow.mod
 import { SowsService } from '../../../core/sows/sows.service';
 import { Dropdown, DropdownOption } from '../../../shared/ui/dropdown/dropdown';
 import { CreateSowModal } from '../create-sow-modal/create-sow-modal';
+import { DeleteSowModal } from '../delete-sow-modal/delete-sow-modal';
 import { EditSowModal } from '../edit-sow-modal/edit-sow-modal';
 import { SowCard } from '../sow-card/sow-card';
 import { SOW_STATE_LABELS } from '../sow-state';
 
 @Component({
   selector: 'app-sows-page',
-  imports: [ReactiveFormsModule, SowCard, CreateSowModal, EditSowModal, Dropdown],
+  imports: [ReactiveFormsModule, SowCard, CreateSowModal, EditSowModal, DeleteSowModal, Dropdown],
   styleUrl: './sows-page.css',
   templateUrl: './sows-page.html',
 })
@@ -36,6 +37,11 @@ export class SowsPage implements OnInit {
   protected readonly modalOpen = signal(false);
   protected readonly editOpen = signal(false);
   protected readonly editingSow = signal<Sow | null>(null);
+  protected readonly deleteOpen = signal(false);
+  protected readonly deletingSow = signal<Sow | null>(null);
+  protected readonly page = signal(1);
+  protected readonly totalPages = signal(0);
+  protected readonly total = signal(0);
 
   protected readonly originOptions: DropdownOption[] = [
     { value: '', label: 'Todos' },
@@ -82,6 +88,7 @@ export class SowsPage implements OnInit {
   protected async onCreated(code: string): Promise<void> {
     this.modalOpen.set(false);
     this.notifications.success(`Cerda "${code}" creada correctamente`);
+    this.page.set(1);
     await this.loadSows();
   }
 
@@ -94,10 +101,39 @@ export class SowsPage implements OnInit {
     this.editOpen.set(false);
   }
 
-  protected async onUpdated(sow: Sow): Promise<void> {
+  protected async onUpdated(code: string): Promise<void> {
     this.editOpen.set(false);
-    this.notifications.success(`Cerda "${sow.code}" actualizada correctamente`);
+    this.notifications.success(`Cerda "${code}" actualizada correctamente`);
     await this.loadSows();
+  }
+
+  protected openDelete(sow: Sow): void {
+    this.deletingSow.set(sow);
+    this.deleteOpen.set(true);
+  }
+
+  protected closeDelete(): void {
+    this.deleteOpen.set(false);
+  }
+
+  protected async onDeleted(sow: Sow): Promise<void> {
+    this.deleteOpen.set(false);
+    this.notifications.success(`Cerda "${sow.code}" eliminada correctamente`);
+    await this.loadSows();
+  }
+
+  protected async previousPage(): Promise<void> {
+    if (this.page() > 1) {
+      this.page.update((page) => page - 1);
+      await this.loadSows();
+    }
+  }
+
+  protected async nextPage(): Promise<void> {
+    if (this.page() < this.totalPages()) {
+      this.page.update((page) => page + 1);
+      await this.loadSows();
+    }
   }
 
   protected breedName(sow: Sow): string | null {
@@ -124,6 +160,7 @@ export class SowsPage implements OnInit {
       filters.active = active === 'true';
     }
     this.appliedFilters.set(filters);
+    this.page.set(1);
     await this.loadSows();
   }
 
@@ -132,6 +169,7 @@ export class SowsPage implements OnInit {
     this.filterForm.reset();
     this.appliedFilters.set({});
     if (hadFilters) {
+      this.page.set(1);
       await this.loadSows();
     }
   }
@@ -140,7 +178,12 @@ export class SowsPage implements OnInit {
     this.loading.set(true);
     this.error.set(false);
     try {
-      this.sows.set(await firstValueFrom(this.sowsService.listSows(this.appliedFilters())));
+      const result = await firstValueFrom(
+        this.sowsService.listSows(this.appliedFilters(), this.page()),
+      );
+      this.sows.set(result.items);
+      this.total.set(result.total);
+      this.totalPages.set(result.total_pages);
     } catch {
       this.error.set(true);
     } finally {
@@ -150,15 +193,12 @@ export class SowsPage implements OnInit {
 
   protected async loadBreeds(): Promise<void> {
     try {
-      const [breeds, options] = await Promise.all([
-        firstValueFrom(this.breedsService.listBreeds()),
-        firstValueFrom(this.breedsService.listBreedDropdown(false)),
-      ]);
+      const breeds = await firstValueFrom(this.breedsService.listBreedDropdown(false));
       this.breedNames.set(new Map(breeds.map((breed) => [breed.id, breed.name])));
       this.breedOptions.set(
-        options.map((option) => ({
-          value: option.id,
-          label: option.active ? option.name : `${option.name} (inactiva)`,
+        breeds.map((breed) => ({
+          value: breed.id,
+          label: breed.active ? breed.name : `${breed.name} (inactiva)`,
         })),
       );
     } catch {

@@ -1,4 +1,4 @@
-<app-modal [open]="open()" title="Editar cerda" (closed)="closed.emit()">
+<app-modal [open]="open()" size="xl" title="Editar cerda" (closed)="closed.emit()">
   <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
     <div class="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
       <span class="text-sm font-medium">Estado</span>
@@ -7,9 +7,23 @@
       </span>
     </div>
 
-    <div class="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
-      <span class="text-sm font-medium">Paridad</span>
-      <span class="text-sm text-muted-foreground">{{ parity() }}</span>
+    <div class="space-y-1.5">
+      <label for="edit-sow-parity" class="block text-sm font-medium">Paridad</label>
+      <input
+        id="edit-sow-parity"
+        type="number"
+        min="0"
+        formControlName="parity"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+      />
+      @if (!canEditParity()) {
+        <p class="text-xs text-muted-foreground">
+          Solo las cerdas vivas pueden modificar la paridad.
+        </p>
+      }
+      @if (form.controls.parity.touched && form.controls.parity.invalid) {
+        <p class="text-xs text-danger">La paridad no puede ser negativa.</p>
+      }
     </div>
 
     <div class="space-y-1.5">
@@ -71,6 +85,11 @@
         [maxDate]="today"
         placeholder="Seleccionar fecha"
       />
+      @if (!canEditDates()) {
+        <p class="text-xs text-muted-foreground">
+          Solo las cerdas activas pueden modificar la fecha de ingreso y de nacimiento.
+        </p>
+      }
       @if (form.controls.entry_date.touched && form.controls.entry_date.invalid) {
         <p class="text-xs text-danger">La fecha de ingreso es obligatoria.</p>
       }
@@ -97,14 +116,6 @@
         <p class="text-xs text-danger">La nota debe tener como máximo 500 caracteres.</p>
       }
     </div>
-
-    <label class="flex cursor-pointer items-center justify-between gap-3">
-      <span class="text-sm font-medium">Cerda activa</span>
-      <input type="checkbox" formControlName="active" class="peer sr-only" />
-      <span
-        class="relative h-6 w-11 shrink-0 rounded-full bg-muted transition peer-checked:bg-success after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-background after:transition peer-checked:after:translate-x-5"
-      ></span>
-    </label>
 
     <div class="flex justify-end gap-2 pt-2">
       <button

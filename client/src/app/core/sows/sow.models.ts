@@ -10,6 +10,9 @@ export type SowState =
 
 export type SowOrigin = 'Propio' | 'Externo';
 
+export const SERVICEABLE_SOW_STATES: SowState[] = ['Viva', 'Destetada', 'Abortada', 'Gestando'];
+export const REMOVABLE_SOW_STATES: SowState[] = ['Viva', 'Destetada', 'Abortada', 'Gestando'];
+
 export interface Sow {
   id: string;
   code: string;
@@ -22,15 +25,19 @@ export interface Sow {
   origin: SowOrigin;
   parity: number;
   breed_id: string;
-  created_at: string;
-  updated_at: string;
-  created_by: string;
-  updated_by: string;
 }
 
-export interface SowOption {
+export interface SowDropdown {
   id: string;
   code: string;
+}
+
+export interface SowPage {
+  items: Sow[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 export interface CreateSowRequest {
@@ -47,12 +54,12 @@ export interface CreateSowRequest {
 export interface UpdateSowRequest {
   code?: string;
   location?: string;
-  active?: boolean;
   entry_date?: string;
   birth_date?: string;
   note?: string;
   origin?: SowOrigin;
   breed_id?: string;
+  parity?: number;
 }
 
 export interface SowFilters {
