@@ -42,10 +42,14 @@ type Mount struct {
 	MountDate   time.Time
 	Type        MountType
 	Note        *string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	CreatedBy   uuid.UUID
-	UpdatedBy   uuid.UUID
+	// BoarCode and OperatorName are read-model fields filled only by the list
+	// query and never persisted by the write paths.
+	BoarCode     string
+	OperatorName string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	CreatedBy    uuid.UUID
+	UpdatedBy    uuid.UUID
 }
 
 // NewMountParams holds the fields required to build a new mount.
@@ -120,6 +124,49 @@ func NewMount(
 		CreatedBy:   createdBy,
 		UpdatedBy:   createdBy,
 	}, nil
+}
+
+// Update applies the editable fields of a mount and records the audit.
+// It revalidates every provided value and never changes the service, the mount
+// number or the created audit fields.
+func (m *Mount) Update(params UpdateMountParams, updatedBy uuid.UUID, now time.Time) error {
+	if m == nil || m.ID == uuid.Nil {
+		return ErrInvalidMountID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if params.BoarID == uuid.Nil {
+		return ErrInvalidMountBoar
+	}
+	if params.OperatorID == uuid.Nil {
+		return ErrInvalidMountOperator
+	}
+	if params.MountDate.IsZero() {
+		return ErrInvalidMountDate
+	}
+
+	mountType := params.Type
+	if mountType == "" {
+		mountType = MountTypeArtificial
+	}
+	if !isValidMountType(mountType) {
+		return ErrInvalidMountType
+	}
+
+	note, err := validateMountNote(params.Note)
+	if err != nil {
+		return err
+	}
+
+	m.BoarID = params.BoarID
+	m.OperatorID = params.OperatorID
+	m.MountDate = params.MountDate
+	m.Type = mountType
+	m.Note = note
+	m.UpdatedAt = now
+	m.UpdatedBy = updatedBy
+	return nil
 }
 
 // validateMountNote trims the optional note and checks its length.

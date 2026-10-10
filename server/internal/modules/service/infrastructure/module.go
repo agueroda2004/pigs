@@ -11,6 +11,8 @@ import (
 type Module struct {
 	CreateService *serviceapplication.CreateServiceService
 	ListServices  *serviceapplication.ListServicesService
+	DeleteService *serviceapplication.DeleteServiceService
+	UpdateService *serviceapplication.UpdateServiceService
 	Handler       *ServiceHandler
 }
 
@@ -24,10 +26,14 @@ func NewModule(
 ) *Module {
 	createService := serviceapplication.NewCreateServiceService(repository, clock)
 	listServices := serviceapplication.NewListServicesService(repository)
+	deleteService := serviceapplication.NewDeleteServiceService(repository, clock)
+	updateService := serviceapplication.NewUpdateServiceService(repository, clock)
 
 	return &Module{
 		CreateService: createService,
 		ListServices:  listServices,
-		Handler:       NewServiceHandler(createService, listServices, authMiddleware, adminMiddleware),
+		DeleteService: deleteService,
+		UpdateService: updateService,
+		Handler:       NewServiceHandler(createService, listServices, deleteService, updateService, authMiddleware, adminMiddleware),
 	}
 }

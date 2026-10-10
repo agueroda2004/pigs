@@ -92,14 +92,20 @@ func (s *CreateServiceService) Execute(ctx context.Context, command CreateServic
 		})
 	}
 
+	reference, err := s.buildReference(ctx, sow)
+	if err != nil {
+		return nil, err
+	}
+
 	now := s.clock()
 	newService, err := servicedomain.NewService(servicedomain.NewServiceParams{
 		ID:        uuid.New(),
 		SowID:     command.SowID,
 		Note:      command.Note,
 		Location:  command.Location,
+		LastState: string(sow.State),
 		CreatedBy: command.CreatedBy,
-	}, mountParams, now)
+	}, mountParams, reference, now)
 	if err != nil {
 		return nil, err
 	}
@@ -130,4 +136,41 @@ func isServiceableSowState(state sowdomain.State) bool {
 func truncateToDay(value time.Time) time.Time {
 	value = value.UTC()
 	return time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// buildReference gathers the dates a new service must respect for a sow.
+// It reads the sow entry date, the previous service's latest mount date and the
+// last abortion date; missing previous events are left as zero values.
+func (s *CreateServiceService) buildReference(ctx context.Context, sow *sowdomain.Sow) (servicedomain.Reference, error) {
+	reference := servicedomain.Reference{EntryDate: sow.EntryDate}
+
+	previous, err := s.repository.GetLastService(ctx, sow.ID)
+	if err != nil && !errors.Is(err, ports.ErrServiceNotFound) {
+		return servicedomain.Reference{}, err
+	}
+	if err == nil && previous != nil {
+		reference.PreviousMountDate = latestMountDate(previous)
+	}
+
+	lastAbortion, err := s.repository.GetLastAbortionDate(ctx, sow.ID)
+	if err != nil {
+		return servicedomain.Reference{}, err
+	}
+	if lastAbortion != nil {
+		reference.LastAbortionDate = *lastAbortion
+	}
+
+	return reference, nil
+}
+
+// latestMountDate returns the most recent mount date of a service.
+// It returns the zero time when the service has no mounts.
+func latestMountDate(service *servicedomain.Service) time.Time {
+	var latest time.Time
+	for _, mount := range service.Mounts {
+		if mount.MountDate.After(latest) {
+			latest = mount.MountDate
+		}
+	}
+	return latest
 }

@@ -33,18 +33,67 @@ type fakeListServicesUseCase struct {
 	services []*servicedomain.Service
 	err      error
 	filter   ports.ServiceFilter
+	page     int
 	called   bool
 }
 
-func (f *fakeListServicesUseCase) Execute(_ context.Context, filter ports.ServiceFilter) ([]*servicedomain.Service, error) {
+func (f *fakeListServicesUseCase) Execute(_ context.Context, filter ports.ServiceFilter, page int) (serviceapplication.ServicePage, error) {
 	f.called = true
 	f.filter = filter
-	return f.services, f.err
+	f.page = page
+	total := len(f.services)
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + serviceapplication.DefaultServicePageSize - 1) / serviceapplication.DefaultServicePageSize
+	}
+	return serviceapplication.ServicePage{
+		Items:      f.services,
+		Total:      total,
+		Page:       page,
+		PageSize:   serviceapplication.DefaultServicePageSize,
+		TotalPages: totalPages,
+	}, f.err
 }
 
-func newTestHandler(create serviceinfra.CreateServiceUseCase, list serviceinfra.ListServicesUseCase) *serviceinfra.ServiceHandler {
+type fakeDeleteServiceUseCase struct {
+	err     error
+	command serviceapplication.DeleteServiceCommand
+	called  bool
+}
+
+func (f *fakeDeleteServiceUseCase) Execute(_ context.Context, command serviceapplication.DeleteServiceCommand) error {
+	f.called = true
+	f.command = command
+	return f.err
+}
+
+type fakeUpdateServiceUseCase struct {
+	err     error
+	id      uuid.UUID
+	command serviceapplication.UpdateServiceCommand
+	called  bool
+}
+
+func (f *fakeUpdateServiceUseCase) Execute(_ context.Context, id uuid.UUID, command serviceapplication.UpdateServiceCommand) error {
+	f.called = true
+	f.id = id
+	f.command = command
+	return f.err
+}
+
+func newTestHandler(create serviceinfra.CreateServiceUseCase, list serviceinfra.ListServicesUseCase, remove serviceinfra.DeleteServiceUseCase, update serviceinfra.UpdateServiceUseCase) *serviceinfra.ServiceHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return serviceinfra.NewServiceHandler(create, list, passThrough, passThrough)
+	return serviceinfra.NewServiceHandler(create, list, remove, update, passThrough, passThrough)
+}
+
+func newAdminGuardHandler(remove serviceinfra.DeleteServiceUseCase, update serviceinfra.UpdateServiceUseCase) *serviceinfra.ServiceHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	adminGuard := func(_ http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		})
+	}
+	return serviceinfra.NewServiceHandler(&fakeCreateServiceUseCase{}, &fakeListServicesUseCase{}, remove, update, passThrough, adminGuard)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {
@@ -71,6 +120,7 @@ func handlerService() *servicedomain.Service {
 	return &servicedomain.Service{
 		ID:                    serviceID,
 		SowID:                 uuid.New(),
+		SowCode:               "C-001",
 		ExpectedFarrowingDate: &farrowing,
 		State:                 servicedomain.StateConfirmed,
 		CreatedAt:             createdAt,
@@ -78,17 +128,19 @@ func handlerService() *servicedomain.Service {
 		CreatedBy:             actor,
 		UpdatedBy:             actor,
 		Mounts: []*servicedomain.Mount{{
-			ID:          uuid.New(),
-			ServiceID:   serviceID,
-			BoarID:      uuid.New(),
-			OperatorID:  uuid.New(),
-			MountNumber: 1,
-			MountDate:   mountDate,
-			Type:        servicedomain.MountTypeArtificial,
-			CreatedAt:   createdAt,
-			UpdatedAt:   createdAt,
-			CreatedBy:   actor,
-			UpdatedBy:   actor,
+			ID:           uuid.New(),
+			ServiceID:    serviceID,
+			BoarID:       uuid.New(),
+			BoarCode:     "V-001",
+			OperatorID:   uuid.New(),
+			OperatorName: "Ana",
+			MountNumber:  1,
+			MountDate:    mountDate,
+			Type:         servicedomain.MountTypeArtificial,
+			CreatedAt:    createdAt,
+			UpdatedAt:    createdAt,
+			CreatedBy:    actor,
+			UpdatedBy:    actor,
 		}},
 	}
 }

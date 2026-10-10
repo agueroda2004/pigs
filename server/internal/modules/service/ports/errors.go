@@ -7,4 +7,5 @@ var (
 	ErrSowNotFound      = errors.New("Cerda no encontrada")
 	ErrBoarNotFound     = errors.New("Verraco no encontrado")
 	ErrOperatorNotFound = errors.New("Operador no encontrado")
+	ErrServiceInUse     = errors.New("El servicio tiene registros enlazados y no se puede eliminar")
 )

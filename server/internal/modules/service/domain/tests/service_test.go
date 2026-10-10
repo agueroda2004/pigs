@@ -25,6 +25,7 @@ func validServiceParams() servicedomain.NewServiceParams {
 		SowID:     uuid.New(),
 		Note:      &note,
 		Location:  &location,
+		LastState: "Viva",
 		CreatedBy: uuid.New(),
 	}
 }
@@ -44,7 +45,7 @@ func TestNewService(t *testing.T) {
 	t.Run("creates a valid service with a single mount", func(t *testing.T) {
 		params := validServiceParams()
 
-		service, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, now)
+		service, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, servicedomain.Reference{}, now)
 
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
@@ -79,7 +80,7 @@ func TestNewService(t *testing.T) {
 		params := validServiceParams()
 		mounts := []servicedomain.NewMountParams{mountAt(mountDayOne), mountAt(mountDayTwo)}
 
-		service, err := servicedomain.NewService(params, mounts, now)
+		service, err := servicedomain.NewService(params, mounts, servicedomain.Reference{}, now)
 
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
@@ -98,7 +99,7 @@ func TestNewService(t *testing.T) {
 			mountAt(mountDayTwo),
 		}
 
-		service, err := servicedomain.NewService(params, mounts, now)
+		service, err := servicedomain.NewService(params, mounts, servicedomain.Reference{}, now)
 
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
@@ -119,7 +120,7 @@ func TestNewService(t *testing.T) {
 	t.Run("defaults mount types to artificial", func(t *testing.T) {
 		params := validServiceParams()
 
-		service, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, now)
+		service, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, servicedomain.Reference{}, now)
 
 		if err != nil || service.Mounts[0].Type != servicedomain.MountTypeArtificial {
 			t.Fatalf("unexpected result: err=%v service=%#v", err, service)
@@ -130,7 +131,7 @@ func TestNewService(t *testing.T) {
 		params := validServiceParams()
 		mounts := []servicedomain.NewMountParams{mountAt(mountDayOne), mountAt(mountDayOne), mountAt(mountDayTwo)}
 
-		_, err := servicedomain.NewService(params, mounts, now)
+		_, err := servicedomain.NewService(params, mounts, servicedomain.Reference{}, now)
 
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
@@ -142,7 +143,7 @@ func TestNewService(t *testing.T) {
 		params.Location = nil
 		params.Note = nil
 
-		service, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, now)
+		service, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, servicedomain.Reference{}, now)
 
 		if err != nil || service.Location != nil || service.Note != nil {
 			t.Fatalf("unexpected result: err=%v service=%#v", err, service)
@@ -155,7 +156,7 @@ func TestNewService(t *testing.T) {
 		params.Location = &empty
 		params.Note = &empty
 
-		service, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, now)
+		service, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, servicedomain.Reference{}, now)
 
 		if err != nil || service.Location != nil || service.Note != nil {
 			t.Fatalf("unexpected result: err=%v service=%#v", err, service)
@@ -166,7 +167,7 @@ func TestNewService(t *testing.T) {
 		params := validServiceParams()
 		params.ID = uuid.Nil
 
-		_, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, now)
+		_, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, servicedomain.Reference{}, now)
 		if !errors.Is(err, servicedomain.ErrInvalidID) {
 			t.Fatalf("error = %v, want ErrInvalidID", err)
 		}
@@ -176,7 +177,7 @@ func TestNewService(t *testing.T) {
 		params := validServiceParams()
 		params.SowID = uuid.Nil
 
-		_, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, now)
+		_, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, servicedomain.Reference{}, now)
 		if !errors.Is(err, servicedomain.ErrInvalidSow) {
 			t.Fatalf("error = %v, want ErrInvalidSow", err)
 		}
@@ -187,7 +188,7 @@ func TestNewService(t *testing.T) {
 		longLocation := strings.Repeat("a", 101)
 		params.Location = &longLocation
 
-		_, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, now)
+		_, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, servicedomain.Reference{}, now)
 		if !errors.Is(err, servicedomain.ErrInvalidLocation) {
 			t.Fatalf("error = %v, want ErrInvalidLocation", err)
 		}
@@ -196,7 +197,7 @@ func TestNewService(t *testing.T) {
 		longNote := strings.Repeat("a", 501)
 		params.Note = &longNote
 
-		_, err = servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, now)
+		_, err = servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, servicedomain.Reference{}, now)
 		if !errors.Is(err, servicedomain.ErrInvalidNote) {
 			t.Fatalf("error = %v, want ErrInvalidNote", err)
 		}
@@ -206,16 +207,37 @@ func TestNewService(t *testing.T) {
 		params := validServiceParams()
 		params.CreatedBy = uuid.Nil
 
-		_, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, now)
+		_, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, servicedomain.Reference{}, now)
 		if !errors.Is(err, servicedomain.ErrInvalidCreatedBy) {
 			t.Fatalf("error = %v, want ErrInvalidCreatedBy", err)
+		}
+	})
+
+	t.Run("stores the previous sow state", func(t *testing.T) {
+		params := validServiceParams()
+		params.LastState = "Gestando"
+
+		service, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, servicedomain.Reference{}, now)
+
+		if err != nil || service.LastState != "Gestando" {
+			t.Fatalf("unexpected result: err=%v lastState=%q", err, service.LastState)
+		}
+	})
+
+	t.Run("rejects an invalid previous sow state", func(t *testing.T) {
+		params := validServiceParams()
+		params.LastState = "Desconocido"
+
+		_, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, servicedomain.Reference{}, now)
+		if !errors.Is(err, servicedomain.ErrInvalidLastState) {
+			t.Fatalf("error = %v, want ErrInvalidLastState", err)
 		}
 	})
 
 	t.Run("rejects an empty mount list", func(t *testing.T) {
 		params := validServiceParams()
 
-		_, err := servicedomain.NewService(params, nil, now)
+		_, err := servicedomain.NewService(params, nil, servicedomain.Reference{}, now)
 		if !errors.Is(err, servicedomain.ErrInvalidMounts) {
 			t.Fatalf("error = %v, want ErrInvalidMounts", err)
 		}
@@ -230,7 +252,7 @@ func TestNewService(t *testing.T) {
 			mountAt(mountDayOne),
 		}
 
-		_, err := servicedomain.NewService(params, mounts, now)
+		_, err := servicedomain.NewService(params, mounts, servicedomain.Reference{}, now)
 		if !errors.Is(err, servicedomain.ErrInvalidMounts) {
 			t.Fatalf("error = %v, want ErrInvalidMounts", err)
 		}
@@ -240,7 +262,7 @@ func TestNewService(t *testing.T) {
 		params := validServiceParams()
 		mounts := []servicedomain.NewMountParams{mountAt(mountDayTwo), mountAt(mountDayOne)}
 
-		_, err := servicedomain.NewService(params, mounts, now)
+		_, err := servicedomain.NewService(params, mounts, servicedomain.Reference{}, now)
 		if !errors.Is(err, servicedomain.ErrMountDatesNotAscending) {
 			t.Fatalf("error = %v, want ErrMountDatesNotAscending", err)
 		}
@@ -250,7 +272,7 @@ func TestNewService(t *testing.T) {
 		params := validServiceParams()
 		mounts := []servicedomain.NewMountParams{mountAt(mountDayOne), mountAt(mountDayLate)}
 
-		_, err := servicedomain.NewService(params, mounts, now)
+		_, err := servicedomain.NewService(params, mounts, servicedomain.Reference{}, now)
 		if !errors.Is(err, servicedomain.ErrMountDateGapTooLarge) {
 			t.Fatalf("error = %v, want ErrMountDateGapTooLarge", err)
 		}
@@ -261,7 +283,7 @@ func TestNewService(t *testing.T) {
 		today := time.Date(2026, time.January, 10, 18, 0, 0, 0, time.UTC)
 		mounts := []servicedomain.NewMountParams{mountAt(mountDayTwo)}
 
-		_, err := servicedomain.NewService(params, mounts, today)
+		_, err := servicedomain.NewService(params, mounts, servicedomain.Reference{}, today)
 		if !errors.Is(err, servicedomain.ErrMountDateInFuture) {
 			t.Fatalf("error = %v, want ErrMountDateInFuture", err)
 		}
@@ -271,7 +293,7 @@ func TestNewService(t *testing.T) {
 		params := validServiceParams()
 		today := time.Date(2026, time.January, 10, 18, 0, 0, 0, time.UTC)
 
-		_, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, today)
+		_, err := servicedomain.NewService(params, []servicedomain.NewMountParams{mountAt(mountDayOne)}, servicedomain.Reference{}, today)
 
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
@@ -316,12 +338,47 @@ func validService() *servicedomain.Service {
 	service, err := servicedomain.NewService(
 		validServiceParams(),
 		[]servicedomain.NewMountParams{mountAt(mountDayOne)},
+		servicedomain.Reference{},
 		now,
 	)
 	if err != nil {
 		panic(err)
 	}
 	return service
+}
+
+func TestServiceEnsureDeletable(t *testing.T) {
+	t.Run("allows a confirmed service", func(t *testing.T) {
+		service := validService()
+
+		if err := service.EnsureDeletable(); err != nil {
+			t.Fatalf("EnsureDeletable() error = %v", err)
+		}
+	})
+
+	t.Run("blocks every non-confirmed state", func(t *testing.T) {
+		for _, state := range []servicedomain.State{
+			servicedomain.StateFailed,
+			servicedomain.StateAborted,
+			servicedomain.StateFinished,
+		} {
+			service := validService()
+			service.State = state
+
+			if err := service.EnsureDeletable(); !errors.Is(err, servicedomain.ErrServiceNotDeletable) {
+				t.Fatalf("state=%v error = %v, want ErrServiceNotDeletable", state, err)
+			}
+		}
+	})
+
+	t.Run("rejects a nil identifier", func(t *testing.T) {
+		service := validService()
+		service.ID = uuid.Nil
+
+		if err := service.EnsureDeletable(); !errors.Is(err, servicedomain.ErrInvalidID) {
+			t.Fatalf("error = %v, want ErrInvalidID", err)
+		}
+	})
 }
 
 func TestServiceChangeState(t *testing.T) {
