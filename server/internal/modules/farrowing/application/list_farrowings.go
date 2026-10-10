@@ -7,6 +7,18 @@ import (
 	"server/internal/modules/farrowing/ports"
 )
 
+// DefaultFarrowingPageSize is the fixed number of farrowings returned per page.
+const DefaultFarrowingPageSize = 10
+
+// FarrowingPage is a page of farrowings together with its pagination metadata.
+type FarrowingPage struct {
+	Items      []*farrowingdomain.Farrowing
+	Total      int
+	Page       int
+	PageSize   int
+	TotalPages int
+}
+
 type ListFarrowingsService struct {
 	repository ports.FarrowingRepository
 }
@@ -17,8 +29,29 @@ func NewListFarrowingsService(repository ports.FarrowingRepository) *ListFarrowi
 	return &ListFarrowingsService{repository: repository}
 }
 
-// Execute returns the farrowings matching the filter.
-// A zero-value filter returns every registered farrowing.
-func (s *ListFarrowingsService) Execute(ctx context.Context, filter ports.FarrowingFilter) ([]*farrowingdomain.Farrowing, error) {
-	return s.repository.List(ctx, filter)
+// Execute returns one page of farrowings matching the filter.
+// Pages start at one and always contain DefaultFarrowingPageSize farrowings.
+func (s *ListFarrowingsService) Execute(ctx context.Context, filter ports.FarrowingFilter, page int) (FarrowingPage, error) {
+	if page < 1 {
+		page = 1
+	}
+
+	offset := (page - 1) * DefaultFarrowingPageSize
+	items, total, err := s.repository.List(ctx, filter, DefaultFarrowingPageSize, offset)
+	if err != nil {
+		return FarrowingPage{}, err
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + DefaultFarrowingPageSize - 1) / DefaultFarrowingPageSize
+	}
+
+	return FarrowingPage{
+		Items:      items,
+		Total:      total,
+		Page:       page,
+		PageSize:   DefaultFarrowingPageSize,
+		TotalPages: totalPages,
+	}, nil
 }

@@ -15,12 +15,12 @@ import (
 
 // FarrowingFilter narrows the farrowings returned by the list operation.
 // A nil field is ignored so an empty filter returns every farrowing; the date
-// range is inclusive on both ends.
+// range is inclusive on both ends and SowCode matches the related sow code
+// ignoring case.
 type FarrowingFilter struct {
-	SowID     *uuid.UUID
-	ServiceID *uuid.UUID
-	FromDate  *time.Time
-	ToDate    *time.Time
+	SowCode  *string
+	FromDate *time.Time
+	ToDate   *time.Time
 }
 
 // FarrowingRepository defines the persistence operations of the farrowing module.
@@ -30,8 +30,26 @@ type FarrowingFilter struct {
 type FarrowingRepository interface {
 	GetSow(ctx context.Context, id uuid.UUID) (*sowdomain.Sow, error)
 	GetLastService(ctx context.Context, sowID uuid.UUID) (*servicedomain.Service, error)
+	// GetByID fetches a farrowing by its identifier with its sow code and links.
+	// It returns ErrFarrowingNotFound when no row matches.
+	GetByID(ctx context.Context, id uuid.UUID) (*farrowingdomain.Farrowing, error)
+	// GetService fetches a service by its identifier with its mounts.
+	// It returns ErrServiceNotFound when no row matches.
+	GetService(ctx context.Context, id uuid.UUID) (*servicedomain.Service, error)
 	GetOperator(ctx context.Context, id uuid.UUID) (*operatordomain.Operator, error)
 	GetMedication(ctx context.Context, id uuid.UUID) (*medicationdomain.Medication, error)
+	// GetEarliestRelatedDate returns the earliest date among the deaths, fosterings,
+	// partial weagings and weagings linked to a farrowing, or nil when it has none.
+	GetEarliestRelatedDate(ctx context.Context, farrowingID uuid.UUID) (*time.Time, error)
 	Create(ctx context.Context, farrowing *farrowingdomain.Farrowing, sow *sowdomain.Sow, service *servicedomain.Service) error
-	List(ctx context.Context, filter FarrowingFilter) ([]*farrowingdomain.Farrowing, error)
+	// Update persists the editable fields of a farrowing and optionally replaces
+	// its operator and medication links.
+	Update(ctx context.Context, farrowing *farrowingdomain.Farrowing, replaceOperators, replaceMedications bool) error
+	// Delete removes a farrowing and, in the same transaction, persists the
+	// restored sow and service states. It returns ErrFarrowingHasRelatedRecords
+	// when the farrowing still has linked deaths, fosterings or weagings.
+	Delete(ctx context.Context, farrowing *farrowingdomain.Farrowing, sow *sowdomain.Sow, service *servicedomain.Service) error
+	// List returns one page of farrowings matching the filter together with the
+	// total count of matches, so callers can paginate the result.
+	List(ctx context.Context, filter FarrowingFilter, limit, offset int) ([]*farrowingdomain.Farrowing, int, error)
 }

@@ -86,7 +86,7 @@ func (s *CreateFarrowingService) Execute(ctx context.Context, command CreateFarr
 		return nil, ErrServiceNotConfirmed
 	}
 
-	if err := s.checkOperatorsExist(ctx, command.Operators, command.Medications); err != nil {
+	if err := ensureReferencesExist(ctx, s.repository, command.Operators, command.Medications); err != nil {
 		return nil, err
 	}
 
@@ -118,6 +118,9 @@ func (s *CreateFarrowingService) Execute(ctx context.Context, command CreateFarr
 		return nil, err
 	}
 
+	if err := sow.RegisterFarrowing(command.CreatedBy, now); err != nil {
+		return nil, err
+	}
 	if err := sow.ChangeState(sowdomain.StateLactating, command.CreatedBy, now); err != nil {
 		return nil, err
 	}
@@ -131,11 +134,12 @@ func (s *CreateFarrowingService) Execute(ctx context.Context, command CreateFarr
 	return newFarrowing, nil
 }
 
-// checkOperatorsExist verifies that every referenced operator and medication exists.
+// ensureReferencesExist verifies that every referenced operator and medication exists.
 // It also verifies each medication's applying operator, returning the repository
 // not-found error of the missing entity.
-func (s *CreateFarrowingService) checkOperatorsExist(
+func ensureReferencesExist(
 	ctx context.Context,
+	repository ports.FarrowingRepository,
 	operators []CreateFarrowingOperatorInput,
 	medications []CreateFarrowingMedicationInput,
 ) error {
@@ -145,7 +149,7 @@ func (s *CreateFarrowingService) checkOperatorsExist(
 			continue
 		}
 		seen[input.OperatorID] = struct{}{}
-		if _, err := s.repository.GetOperator(ctx, input.OperatorID); err != nil {
+		if _, err := repository.GetOperator(ctx, input.OperatorID); err != nil {
 			return err
 		}
 	}
@@ -154,7 +158,7 @@ func (s *CreateFarrowingService) checkOperatorsExist(
 	for _, input := range medications {
 		if _, checked := seenMedications[input.MedicationID]; !checked {
 			seenMedications[input.MedicationID] = struct{}{}
-			if _, err := s.repository.GetMedication(ctx, input.MedicationID); err != nil {
+			if _, err := repository.GetMedication(ctx, input.MedicationID); err != nil {
 				return err
 			}
 		}
@@ -162,7 +166,7 @@ func (s *CreateFarrowingService) checkOperatorsExist(
 			continue
 		}
 		seen[input.AppliedBy] = struct{}{}
-		if _, err := s.repository.GetOperator(ctx, input.AppliedBy); err != nil {
+		if _, err := repository.GetOperator(ctx, input.AppliedBy); err != nil {
 			return err
 		}
 	}

@@ -58,6 +58,9 @@ func TestCreateFarrowingExecute(t *testing.T) {
 		if repository.createdSow.State != sowdomain.StateLactating {
 			t.Fatalf("sow state = %v, want %v", repository.createdSow.State, sowdomain.StateLactating)
 		}
+		if repository.createdSow.Parity != 3 {
+			t.Fatalf("sow parity = %d, want 3", repository.createdSow.Parity)
+		}
 		if repository.createdService.State != servicedomain.StateFinished {
 			t.Fatalf("service state = %v, want %v", repository.createdService.State, servicedomain.StateFinished)
 		}

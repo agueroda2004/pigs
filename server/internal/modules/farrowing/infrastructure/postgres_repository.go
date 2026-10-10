@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -100,6 +101,114 @@ func (r *PostgresFarrowingRepository) GetLastService(ctx context.Context, sowID 
 		return nil, err
 	}
 	return result, nil
+}
+
+// GetByID fetches a farrowing by its identifier with its sow code, operators
+// and medications loaded. It returns ports.ErrFarrowingNotFound when missing.
+func (r *PostgresFarrowingRepository) GetByID(ctx context.Context, id uuid.UUID) (*farrowingdomain.Farrowing, error) {
+	result := &farrowingdomain.Farrowing{}
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT f.id, f.service_id, f.sow_id, s.code, f.farrow_date, f.start_time, f.end_time,
+		       f.location, f.live_born, f.stillborn, f.mummified, f.current_piglets,
+		       f.litter_weight, f.stillborn_weight, f.is_manipulated, f.is_nurse,
+		       f.nurse_start_date, f.note, f.created_at, f.updated_at, f.created_by, f.updated_by
+		FROM farrowings f
+		JOIN sows s ON s.id = f.sow_id
+		WHERE f.id = $1
+	`, id).Scan(
+		&result.ID,
+		&result.ServiceID,
+		&result.SowID,
+		&result.SowCode,
+		&result.FarrowDate,
+		&result.StartTime,
+		&result.EndTime,
+		&result.Location,
+		&result.LiveBorn,
+		&result.Stillborn,
+		&result.Mummified,
+		&result.CurrentPiglets,
+		&result.LitterWeight,
+		&result.StillbornWeight,
+		&result.IsManipulated,
+		&result.IsNurse,
+		&result.NurseStartDate,
+		&result.Note,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.CreatedBy,
+		&result.UpdatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrFarrowingNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el parto: %w", err)
+	}
+
+	if result.Operators, err = r.listOperators(ctx, result.ID); err != nil {
+		return nil, err
+	}
+	if result.Medications, err = r.listMedications(ctx, result.ID); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// GetService fetches a service by its identifier with its mounts loaded.
+// It returns ports.ErrServiceNotFound when no row matches.
+func (r *PostgresFarrowingRepository) GetService(ctx context.Context, id uuid.UUID) (*servicedomain.Service, error) {
+	result := &servicedomain.Service{}
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, sow_id, expected_farrowing_date, note, state, location,
+		       created_at, updated_at, created_by, updated_by
+		FROM services
+		WHERE id = $1
+	`, id).Scan(
+		&result.ID,
+		&result.SowID,
+		&result.ExpectedFarrowingDate,
+		&result.Note,
+		&result.State,
+		&result.Location,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.CreatedBy,
+		&result.UpdatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrServiceNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el servicio: %w", err)
+	}
+
+	result.Mounts, err = r.listMounts(ctx, result.ID)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// GetEarliestRelatedDate returns the earliest date among the deaths, fosterings,
+// partial weagings and weagings linked to the farrowing. It returns nil when the
+// farrowing has none of those records.
+func (r *PostgresFarrowingRepository) GetEarliestRelatedDate(ctx context.Context, farrowingID uuid.UUID) (*time.Time, error) {
+	var earliest *time.Time
+	if err := r.pool.QueryRow(ctx, `
+		SELECT LEAST(
+			(SELECT MIN(death_date) FROM piglet_deaths WHERE farrowing_id = $1),
+			(SELECT MIN(movement_date) FROM piglet_fosterings
+			 WHERE donor_farrowing_id = $1 OR receiver_farrowing_id = $1),
+			(SELECT MIN(weaging_date) FROM partial_weagings WHERE farrowing_id = $1),
+			(SELECT MIN(weaging_date) FROM weagings WHERE farrowing_id = $1)
+		)
+	`, farrowingID).Scan(&earliest); err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los registros del parto: %w", err)
+	}
+	return earliest, nil
 }
 
 // listMounts fetches every mount of a service ordered by mount number.
@@ -278,12 +387,14 @@ func (r *PostgresFarrowingRepository) Create(
 	commandTag, err := transaction.Exec(ctx, `
 		UPDATE sows
 		SET state = $2,
-		    updated_at = $3,
-		    updated_by = $4
+		    parity = $3,
+		    updated_at = $4,
+		    updated_by = $5
 		WHERE id = $1
 	`,
 		sow.ID,
 		sow.State,
+		sow.Parity,
 		sow.UpdatedAt,
 		sow.UpdatedBy,
 	)
@@ -319,23 +430,212 @@ func (r *PostgresFarrowingRepository) Create(
 	return nil
 }
 
-// List fetches the farrowings matching the filter, newest first, with their
-// operators and medications loaded.
-// It returns an empty slice when no farrowing matches.
-func (r *PostgresFarrowingRepository) List(ctx context.Context, filter ports.FarrowingFilter) ([]*farrowingdomain.Farrowing, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT id, service_id, sow_id, farrow_date, start_time, end_time, location,
-		       live_born, stillborn, mummified, current_piglets, litter_weight, stillborn_weight,
-		       is_manipulated, is_nurse, nurse_start_date, note, created_at, updated_at, created_by, updated_by
-		FROM farrowings
-		WHERE ($1::uuid IS NULL OR sow_id = $1)
-		  AND ($2::uuid IS NULL OR service_id = $2)
-		  AND ($3::date IS NULL OR farrow_date >= $3)
-		  AND ($4::date IS NULL OR farrow_date <= $4)
-		ORDER BY farrow_date DESC, created_at DESC
-	`, filter.SowID, filter.ServiceID, filter.FromDate, filter.ToDate)
+// Update persists the editable fields of a farrowing and optionally replaces its
+// operator and medication links. All writes run in a single transaction.
+func (r *PostgresFarrowingRepository) Update(ctx context.Context, farrowing *farrowingdomain.Farrowing, replaceOperators, replaceMedications bool) error {
+	transaction, err := r.pool.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar los partos: %w", err)
+		return fmt.Errorf("No se pudo guardar el parto: %w", err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	commandTag, err := transaction.Exec(ctx, `
+		UPDATE farrowings
+		SET farrow_date = $2,
+		    start_time = $3,
+		    end_time = $4,
+		    location = $5,
+		    live_born = $6,
+		    stillborn = $7,
+		    mummified = $8,
+		    current_piglets = $9,
+		    litter_weight = $10,
+		    stillborn_weight = $11,
+		    is_manipulated = $12,
+		    note = $13,
+		    updated_at = $14,
+		    updated_by = $15
+		WHERE id = $1
+	`,
+		farrowing.ID,
+		farrowing.FarrowDate,
+		farrowing.StartTime,
+		farrowing.EndTime,
+		farrowing.Location,
+		farrowing.LiveBorn,
+		farrowing.Stillborn,
+		farrowing.Mummified,
+		farrowing.CurrentPiglets,
+		farrowing.LitterWeight,
+		farrowing.StillbornWeight,
+		farrowing.IsManipulated,
+		farrowing.Note,
+		farrowing.UpdatedAt,
+		farrowing.UpdatedBy,
+	)
+	if err != nil {
+		return mapPostgresError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrFarrowingNotFound
+	}
+
+	if replaceOperators {
+		if _, err := transaction.Exec(ctx, `
+			DELETE FROM farrowing_operators
+			WHERE farrowing_id = $1
+		`, farrowing.ID); err != nil {
+			return mapPostgresError(err)
+		}
+		for _, operator := range farrowing.Operators {
+			if _, err := transaction.Exec(ctx, `
+				INSERT INTO farrowing_operators (id, farrowing_id, operator_id, created_at)
+				VALUES ($1, $2, $3, $4)
+			`, operator.ID, operator.FarrowingID, operator.OperatorID, operator.CreatedAt); err != nil {
+				return mapPostgresError(err)
+			}
+		}
+	}
+
+	if replaceMedications {
+		if _, err := transaction.Exec(ctx, `
+			DELETE FROM farrowing_medications
+			WHERE farrowing_id = $1
+		`, farrowing.ID); err != nil {
+			return mapPostgresError(err)
+		}
+		for _, medication := range farrowing.Medications {
+			if _, err := transaction.Exec(ctx, `
+				INSERT INTO farrowing_medications (
+					id, farrowing_id, medication_id, dose, applied_by, created_at
+				) VALUES ($1, $2, $3, $4, $5, $6)
+			`,
+				medication.ID,
+				medication.FarrowingID,
+				medication.MedicationID,
+				medication.Dose,
+				medication.AppliedBy,
+				medication.CreatedAt,
+			); err != nil {
+				return mapPostgresError(err)
+			}
+		}
+	}
+
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("No se pudo guardar el parto: %w", err)
+	}
+	return nil
+}
+
+// Delete removes a farrowing and, in the same transaction, persists the restored
+// sow state (including its parity) and service state.
+// A linked-records foreign key violation becomes ports.ErrFarrowingHasRelatedRecords.
+func (r *PostgresFarrowingRepository) Delete(ctx context.Context, farrowing *farrowingdomain.Farrowing, sow *sowdomain.Sow, service *servicedomain.Service) error {
+	transaction, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar el parto: %w", err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	commandTag, err := transaction.Exec(ctx, `
+		UPDATE sows
+		SET state = $2,
+		    parity = $3,
+		    updated_at = $4,
+		    updated_by = $5
+		WHERE id = $1
+	`,
+		sow.ID,
+		sow.State,
+		sow.Parity,
+		sow.UpdatedAt,
+		sow.UpdatedBy,
+	)
+	if err != nil {
+		return mapPostgresError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrSowNotFound
+	}
+
+	commandTag, err = transaction.Exec(ctx, `
+		UPDATE services
+		SET state = $2,
+		    updated_at = $3,
+		    updated_by = $4
+		WHERE id = $1
+	`,
+		service.ID,
+		service.State,
+		service.UpdatedAt,
+		service.UpdatedBy,
+	)
+	if err != nil {
+		return mapPostgresError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrServiceNotFound
+	}
+
+	commandTag, err = transaction.Exec(ctx, `
+		DELETE FROM farrowings
+		WHERE id = $1
+	`, farrowing.ID)
+	if err != nil {
+		return mapDeleteError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrFarrowingNotFound
+	}
+
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("No se pudo eliminar el parto: %w", err)
+	}
+	return nil
+}
+
+// mapDeleteError translates a linked-records foreign key violation into
+// ports.ErrFarrowingHasRelatedRecords and wraps any other error with context.
+func mapDeleteError(err error) error {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) && postgresError.Code == "23503" {
+		return ports.ErrFarrowingHasRelatedRecords
+	}
+	return fmt.Errorf("No se pudo eliminar el parto: %w", err)
+}
+
+// List fetches one page of farrowings matching the filter, newest first, with
+// their sow code, operators and medications loaded. It returns the items, the
+// total number of matches and an error.
+func (r *PostgresFarrowingRepository) List(ctx context.Context, filter ports.FarrowingFilter, limit, offset int) ([]*farrowingdomain.Farrowing, int, error) {
+	var total int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM farrowings f
+		JOIN sows s ON s.id = f.sow_id
+		WHERE ($1::text IS NULL OR LOWER(s.code) = LOWER($1))
+		  AND ($2::date IS NULL OR f.farrow_date >= $2)
+		  AND ($3::date IS NULL OR f.farrow_date <= $3)
+	`, filter.SowCode, filter.FromDate, filter.ToDate).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("No se pudieron consultar los partos: %w", err)
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT f.id, f.service_id, f.sow_id, s.code, f.farrow_date, f.start_time, f.end_time,
+		       f.location, f.live_born, f.stillborn, f.mummified, f.current_piglets,
+		       f.litter_weight, f.stillborn_weight, f.is_manipulated, f.is_nurse,
+		       f.nurse_start_date, f.note, f.created_at, f.updated_at, f.created_by, f.updated_by
+		FROM farrowings f
+		JOIN sows s ON s.id = f.sow_id
+		WHERE ($1::text IS NULL OR LOWER(s.code) = LOWER($1))
+		  AND ($2::date IS NULL OR f.farrow_date >= $2)
+		  AND ($3::date IS NULL OR f.farrow_date <= $3)
+		ORDER BY f.farrow_date DESC, f.created_at DESC
+		LIMIT $4 OFFSET $5
+	`, filter.SowCode, filter.FromDate, filter.ToDate, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("No se pudieron consultar los partos: %w", err)
 	}
 	defer rows.Close()
 
@@ -346,6 +646,7 @@ func (r *PostgresFarrowingRepository) List(ctx context.Context, filter ports.Far
 			&result.ID,
 			&result.ServiceID,
 			&result.SowID,
+			&result.SowCode,
 			&result.FarrowDate,
 			&result.StartTime,
 			&result.EndTime,
@@ -365,23 +666,23 @@ func (r *PostgresFarrowingRepository) List(ctx context.Context, filter ports.Far
 			&result.CreatedBy,
 			&result.UpdatedBy,
 		); err != nil {
-			return nil, fmt.Errorf("No se pudieron consultar los partos: %w", err)
+			return nil, 0, fmt.Errorf("No se pudieron consultar los partos: %w", err)
 		}
 		farrowings = append(farrowings, result)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar los partos: %w", err)
+		return nil, 0, fmt.Errorf("No se pudieron consultar los partos: %w", err)
 	}
 
 	for _, farrowing := range farrowings {
 		if farrowing.Operators, err = r.listOperators(ctx, farrowing.ID); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if farrowing.Medications, err = r.listMedications(ctx, farrowing.ID); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
-	return farrowings, nil
+	return farrowings, total, nil
 }
 
 // listOperators fetches the operator links of a farrowing.

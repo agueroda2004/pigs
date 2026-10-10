@@ -57,11 +57,8 @@ func TestFarrowingHandlerCreate(t *testing.T) {
 		if len(create.command.Medications) != 1 || create.command.Medications[0].MedicationID != medicationID {
 			t.Fatalf("unexpected medications: %#v", create.command.Medications)
 		}
-		if response.Header().Get("Content-Type") != "application/json" {
-			t.Fatalf("unexpected content type: %q", response.Header().Get("Content-Type"))
-		}
-		if !strings.Contains(response.Body.String(), "Corral 3") {
-			t.Fatalf("unexpected body: %s", response.Body.String())
+		if response.Body.Len() != 0 {
+			t.Fatalf("expected an empty body, got %s", response.Body.String())
 		}
 	})
 
@@ -176,7 +173,7 @@ func TestFarrowingHandlerCreate(t *testing.T) {
 }
 
 func TestFarrowingHandlerList(t *testing.T) {
-	t.Run("returns every farrowing", func(t *testing.T) {
+	t.Run("returns a page of farrowings", func(t *testing.T) {
 		list := &fakeListFarrowingsUseCase{farrowings: []*farrowingdomain.Farrowing{handlerFarrowing()}}
 		handler := newTestHandler(&fakeCreateFarrowingUseCase{}, list)
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/farrowings", nil))
@@ -185,42 +182,43 @@ func TestFarrowingHandlerList(t *testing.T) {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)
 		}
 		body := response.Body.String()
-		for _, want := range []string{"2026-04-20", "Corral 3", "operators", "medications", "current_piglets"} {
+		for _, want := range []string{`"items"`, `"total_pages"`, "2026-04-20", "Corral 3", "operators", "medications", "current_piglets", `"sow_code"`} {
 			if !strings.Contains(body, want) {
 				t.Fatalf("body missing %q: %s", want, body)
 			}
 		}
+		for _, audit := range []string{"created_at", "updated_at", "created_by", "updated_by"} {
+			if strings.Contains(body, audit) {
+				t.Fatalf("audit field %q must be omitted: %s", audit, body)
+			}
+		}
 	})
 
-	t.Run("returns an empty array when there are no farrowings", func(t *testing.T) {
+	t.Run("returns an empty page when there are no farrowings", func(t *testing.T) {
 		list := &fakeListFarrowingsUseCase{farrowings: []*farrowingdomain.Farrowing{}}
 		handler := newTestHandler(&fakeCreateFarrowingUseCase{}, list)
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/farrowings", nil))
 
-		if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "[]" {
-			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		body := strings.TrimSpace(response.Body.String())
+		if response.Code != http.StatusOK || !strings.Contains(body, `"items":[]`) || !strings.Contains(body, `"total":0`) {
+			t.Fatalf("status=%d body=%s", response.Code, body)
 		}
 	})
 
-	t.Run("parses the sow_id and service_id filters", func(t *testing.T) {
-		sowID := uuid.New()
-		serviceID := uuid.New()
+	t.Run("parses the sow_code filter", func(t *testing.T) {
 		list := &fakeListFarrowingsUseCase{}
 		handler := newTestHandler(&fakeCreateFarrowingUseCase{}, list)
 		response := serve(handler, httptest.NewRequest(
 			http.MethodGet,
-			"/api/v1/farrowings?sow_id="+sowID.String()+"&service_id="+serviceID.String(),
+			"/api/v1/farrowings?sow_code=C-001",
 			nil,
 		))
 
 		if response.Code != http.StatusOK || !list.called {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)
 		}
-		if list.filter.SowID == nil || *list.filter.SowID != sowID {
-			t.Fatalf("unexpected sow id: %#v", list.filter.SowID)
-		}
-		if list.filter.ServiceID == nil || *list.filter.ServiceID != serviceID {
-			t.Fatalf("unexpected service id: %#v", list.filter.ServiceID)
+		if list.filter.SowCode == nil || *list.filter.SowCode != "C-001" {
+			t.Fatalf("unexpected sow code: %#v", list.filter.SowCode)
 		}
 	})
 
@@ -249,9 +247,28 @@ func TestFarrowingHandlerList(t *testing.T) {
 		handler := newTestHandler(&fakeCreateFarrowingUseCase{}, list)
 		serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/farrowings", nil))
 
-		if list.filter.SowID != nil || list.filter.ServiceID != nil ||
-			list.filter.FromDate != nil || list.filter.ToDate != nil {
+		if list.filter.SowCode != nil || list.filter.FromDate != nil || list.filter.ToDate != nil {
 			t.Fatalf("unexpected filter: %#v", list.filter)
+		}
+	})
+
+	t.Run("parses the page query parameter", func(t *testing.T) {
+		list := &fakeListFarrowingsUseCase{}
+		handler := newTestHandler(&fakeCreateFarrowingUseCase{}, list)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/farrowings?page=3", nil))
+
+		if response.Code != http.StatusOK || list.page != 3 {
+			t.Fatalf("status=%d page=%d", response.Code, list.page)
+		}
+	})
+
+	t.Run("defaults the page to one", func(t *testing.T) {
+		list := &fakeListFarrowingsUseCase{}
+		handler := newTestHandler(&fakeCreateFarrowingUseCase{}, list)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/farrowings", nil))
+
+		if response.Code != http.StatusOK || list.page != 1 {
+			t.Fatalf("status=%d page=%d", response.Code, list.page)
 		}
 	})
 
@@ -260,11 +277,11 @@ func TestFarrowingHandlerList(t *testing.T) {
 		handler := newTestHandler(&fakeCreateFarrowingUseCase{}, list)
 
 		for _, query := range []string{
-			"sow_id=not-a-uuid",
-			"service_id=not-a-uuid",
 			"from=not-a-date",
 			"to=not-a-date",
 			"from=2026-04-30&to=2026-04-01",
+			"page=0",
+			"page=abc",
 		} {
 			response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/farrowings?"+query, nil))
 			if response.Code != http.StatusBadRequest || list.called {
@@ -280,6 +297,227 @@ func TestFarrowingHandlerList(t *testing.T) {
 
 		if response.Code != http.StatusInternalServerError {
 			t.Fatalf("status=%d, want %d", response.Code, http.StatusInternalServerError)
+		}
+	})
+}
+
+func TestFarrowingHandlerUpdate(t *testing.T) {
+	farrowingID := uuid.New()
+	actorID := uuid.New()
+	operatorID := uuid.New()
+	medicationID := uuid.New()
+
+	body := fmt.Sprintf(
+		`{"farrow_date":"2026-05-01","live_born":12,"stillborn":0,"mummified":0,`+
+			`"location":"Corral 5","clear_litter_weight":true,"is_manipulated":true,`+
+			`"operators":[{"operator_id":"%s"}],`+
+			`"medications":[{"medication_id":"%s","dose":2,"applied_by":"%s"}]}`,
+		operatorID, medicationID, operatorID,
+	)
+	target := "/api/v1/farrowings/" + farrowingID.String()
+
+	t.Run("applies the provided fields and returns 200 without a body", func(t *testing.T) {
+		update := &fakeUpdateFarrowingUseCase{}
+		handler := newUpdateHandler(update)
+		request := authenticatedRequest(httptest.NewRequest(http.MethodPatch, target, strings.NewReader(body)), actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusOK || !update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+		if update.id != farrowingID || update.command.UpdatedBy != actorID {
+			t.Fatalf("unexpected command: %#v", update.command)
+		}
+		if update.command.FarrowDate == nil || !update.command.FarrowDate.Equal(time.Date(2026, time.May, 1, 0, 0, 0, 0, time.UTC)) {
+			t.Fatalf("unexpected date: %#v", update.command.FarrowDate)
+		}
+		if update.command.LiveBorn == nil || *update.command.LiveBorn != 12 {
+			t.Fatalf("unexpected live born: %#v", update.command.LiveBorn)
+		}
+		if update.command.IsManipulated == nil || !*update.command.IsManipulated || !update.command.ClearLitterWeight {
+			t.Fatalf("unexpected flags: %#v", update.command)
+		}
+		if !update.command.UpdateOperators || len(update.command.Operators) != 1 {
+			t.Fatalf("unexpected operators: %#v", update.command)
+		}
+		if !update.command.UpdateMedications || len(update.command.Medications) != 1 {
+			t.Fatalf("unexpected medications: %#v", update.command)
+		}
+		if response.Body.Len() != 0 {
+			t.Fatalf("expected an empty body, got %s", response.Body.String())
+		}
+	})
+
+	t.Run("accepts a partial body", func(t *testing.T) {
+		update := &fakeUpdateFarrowingUseCase{}
+		handler := newUpdateHandler(update)
+		request := authenticatedRequest(
+			httptest.NewRequest(http.MethodPatch, target, strings.NewReader(`{"location":"Corral 5"}`)),
+			actorID,
+		)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusOK || !update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+		if update.command.Location == nil || *update.command.Location != "Corral 5" {
+			t.Fatalf("unexpected location: %#v", update.command.Location)
+		}
+		if update.command.FarrowDate != nil || update.command.UpdateOperators || update.command.UpdateMedications {
+			t.Fatalf("unexpected command: %#v", update.command)
+		}
+	})
+
+	t.Run("rejects an invalid farrowing id", func(t *testing.T) {
+		update := &fakeUpdateFarrowingUseCase{}
+		handler := newUpdateHandler(update)
+		request := authenticatedRequest(
+			httptest.NewRequest(http.MethodPatch, "/api/v1/farrowings/not-a-uuid", strings.NewReader(`{"location":"X"}`)),
+			actorID,
+		)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusBadRequest || update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+	})
+
+	t.Run("rejects invalid fields", func(t *testing.T) {
+		update := &fakeUpdateFarrowingUseCase{}
+		handler := newUpdateHandler(update)
+
+		for _, invalid := range []string{
+			`{"farrow_date":"not-a-date"}`,
+			`{"operators":[{"operator_id":"bad"}]}`,
+			`{"medications":[{"medication_id":"bad","dose":1,"applied_by":"bad"}]}`,
+		} {
+			request := authenticatedRequest(httptest.NewRequest(http.MethodPatch, target, strings.NewReader(invalid)), actorID)
+			response := serve(handler, request)
+			if response.Code != http.StatusBadRequest || update.called {
+				t.Fatalf("status=%d called=%v body=%s", response.Code, update.called, invalid)
+			}
+		}
+	})
+
+	t.Run("returns unauthorized when actor is missing", func(t *testing.T) {
+		update := &fakeUpdateFarrowingUseCase{}
+		handler := newUpdateHandler(update)
+		response := serve(handler, httptest.NewRequest(http.MethodPatch, target, strings.NewReader(body)))
+
+		if response.Code != http.StatusUnauthorized || update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+	})
+
+	t.Run("blocks the update for non-admins", func(t *testing.T) {
+		update := &fakeUpdateFarrowingUseCase{}
+		handler := newAdminGuardUpdateHandler(update)
+		request := authenticatedRequest(httptest.NewRequest(http.MethodPatch, target, strings.NewReader(body)), actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusForbidden || update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+	})
+
+	t.Run("maps errors", func(t *testing.T) {
+		for _, test := range []struct {
+			name   string
+			err    error
+			status int
+		}{
+			{"not found", ports.ErrFarrowingNotFound, http.StatusNotFound},
+			{"invalid update", farrowingdomain.ErrInvalidUpdate, http.StatusBadRequest},
+			{"live born locked", farrowingdomain.ErrLiveBornLocked, http.StatusBadRequest},
+			{"date after related", farrowingdomain.ErrFarrowDateAfterRelatedRecords, http.StatusBadRequest},
+			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				update := &fakeUpdateFarrowingUseCase{err: test.err}
+				handler := newUpdateHandler(update)
+				request := authenticatedRequest(httptest.NewRequest(http.MethodPatch, target, strings.NewReader(body)), actorID)
+				response := serve(handler, request)
+				if response.Code != test.status {
+					t.Fatalf("status=%d, want %d", response.Code, test.status)
+				}
+			})
+		}
+	})
+}
+
+func TestFarrowingHandlerDelete(t *testing.T) {
+	farrowingID := uuid.New()
+	actorID := uuid.New()
+	target := "/api/v1/farrowings/" + farrowingID.String()
+
+	t.Run("deletes the farrowing and returns 204 without a body", func(t *testing.T) {
+		remove := &fakeDeleteFarrowingUseCase{}
+		handler := newDeleteHandler(remove)
+		request := authenticatedRequest(httptest.NewRequest(http.MethodDelete, target, nil), actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusNoContent || !remove.called {
+			t.Fatalf("status=%d called=%v", response.Code, remove.called)
+		}
+		if remove.command.ID != farrowingID || remove.command.DeletedBy != actorID {
+			t.Fatalf("unexpected command: %#v", remove.command)
+		}
+		if response.Body.Len() != 0 {
+			t.Fatalf("expected an empty body, got %s", response.Body.String())
+		}
+	})
+
+	t.Run("rejects an invalid id", func(t *testing.T) {
+		remove := &fakeDeleteFarrowingUseCase{}
+		handler := newDeleteHandler(remove)
+		request := authenticatedRequest(httptest.NewRequest(http.MethodDelete, "/api/v1/farrowings/not-a-uuid", nil), actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusBadRequest || remove.called {
+			t.Fatalf("status=%d called=%v", response.Code, remove.called)
+		}
+	})
+
+	t.Run("returns unauthorized when actor is missing", func(t *testing.T) {
+		remove := &fakeDeleteFarrowingUseCase{}
+		handler := newDeleteHandler(remove)
+		response := serve(handler, httptest.NewRequest(http.MethodDelete, target, nil))
+
+		if response.Code != http.StatusUnauthorized || remove.called {
+			t.Fatalf("status=%d called=%v", response.Code, remove.called)
+		}
+	})
+
+	t.Run("blocks the delete for non-admins", func(t *testing.T) {
+		remove := &fakeDeleteFarrowingUseCase{}
+		handler := newAdminGuardDeleteHandler(remove)
+		request := authenticatedRequest(httptest.NewRequest(http.MethodDelete, target, nil), actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusForbidden || remove.called {
+			t.Fatalf("status=%d called=%v", response.Code, remove.called)
+		}
+	})
+
+	t.Run("maps errors", func(t *testing.T) {
+		for _, test := range []struct {
+			name   string
+			err    error
+			status int
+		}{
+			{"not found", ports.ErrFarrowingNotFound, http.StatusNotFound},
+			{"related records", ports.ErrFarrowingHasRelatedRecords, http.StatusConflict},
+			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				remove := &fakeDeleteFarrowingUseCase{err: test.err}
+				handler := newDeleteHandler(remove)
+				request := authenticatedRequest(httptest.NewRequest(http.MethodDelete, target, nil), actorID)
+				response := serve(handler, request)
+				if response.Code != test.status {
+					t.Fatalf("status=%d, want %d", response.Code, test.status)
+				}
+			})
 		}
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,12 +24,22 @@ type CreateFarrowingUseCase interface {
 }
 
 type ListFarrowingsUseCase interface {
-	Execute(context.Context, ports.FarrowingFilter) ([]*farrowingdomain.Farrowing, error)
+	Execute(context.Context, ports.FarrowingFilter, int) (farrowingapplication.FarrowingPage, error)
+}
+
+type UpdateFarrowingUseCase interface {
+	Execute(context.Context, uuid.UUID, farrowingapplication.UpdateFarrowingCommand) error
+}
+
+type DeleteFarrowingUseCase interface {
+	Execute(context.Context, farrowingapplication.DeleteFarrowingCommand) error
 }
 
 type FarrowingHandler struct {
 	createFarrowing CreateFarrowingUseCase
 	listFarrowings  ListFarrowingsUseCase
+	updateFarrowing UpdateFarrowingUseCase
+	deleteFarrowing DeleteFarrowingUseCase
 	authMiddleware  func(http.Handler) http.Handler
 	adminMiddleware func(http.Handler) http.Handler
 }
@@ -38,22 +49,28 @@ type FarrowingHandler struct {
 func NewFarrowingHandler(
 	createFarrowing CreateFarrowingUseCase,
 	listFarrowings ListFarrowingsUseCase,
+	updateFarrowing UpdateFarrowingUseCase,
+	deleteFarrowing DeleteFarrowingUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *FarrowingHandler {
 	return &FarrowingHandler{
 		createFarrowing: createFarrowing,
 		listFarrowings:  listFarrowings,
+		updateFarrowing: updateFarrowing,
+		deleteFarrowing: deleteFarrowing,
 		authMiddleware:  authMiddleware,
 		adminMiddleware: adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the farrowing create and list endpoints on the mux.
-// Creation is admin-only while the list route only requires authentication.
+// RegisterRoutes registers the farrowing create, list, update and delete endpoints.
+// Write routes are admin-only while the list route only requires authentication.
 func (h *FarrowingHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/farrowings", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/v1/farrowings", h.authMiddleware(http.HandlerFunc(h.list)))
+	mux.Handle("PATCH /api/v1/farrowings/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
+	mux.Handle("DELETE /api/v1/farrowings/{id}", h.adminMiddleware(http.HandlerFunc(h.delete)))
 }
 
 type farrowingOperatorRequest struct {
@@ -83,10 +100,27 @@ type createFarrowingRequest struct {
 	Medications     []farrowingMedicationRequest `json:"medications"`
 }
 
+type updateFarrowingRequest struct {
+	FarrowDate           *string                       `json:"farrow_date"`
+	StartTime            *string                       `json:"start_time"`
+	EndTime              *string                       `json:"end_time"`
+	Location             *string                       `json:"location"`
+	LiveBorn             *int                          `json:"live_born"`
+	Stillborn            *int                          `json:"stillborn"`
+	Mummified            *int                          `json:"mummified"`
+	LitterWeight         *float64                      `json:"litter_weight"`
+	ClearLitterWeight    *bool                         `json:"clear_litter_weight"`
+	StillbornWeight      *float64                      `json:"stillborn_weight"`
+	ClearStillbornWeight *bool                         `json:"clear_stillborn_weight"`
+	IsManipulated        *bool                         `json:"is_manipulated"`
+	Note                 *string                       `json:"note"`
+	Operators            *[]farrowingOperatorRequest   `json:"operators"`
+	Medications          *[]farrowingMedicationRequest `json:"medications"`
+}
+
 type farrowingOperatorResponse struct {
 	ID         uuid.UUID `json:"id"`
 	OperatorID uuid.UUID `json:"operator_id"`
-	CreatedAt  string    `json:"created_at"`
 }
 
 type farrowingMedicationResponse struct {
@@ -94,12 +128,12 @@ type farrowingMedicationResponse struct {
 	MedicationID uuid.UUID `json:"medication_id"`
 	Dose         float64   `json:"dose"`
 	AppliedBy    uuid.UUID `json:"applied_by"`
-	CreatedAt    string    `json:"created_at"`
 }
 
 type farrowingResponse struct {
 	ID              uuid.UUID                     `json:"id"`
 	SowID           uuid.UUID                     `json:"sow_id"`
+	SowCode         string                        `json:"sow_code"`
 	ServiceID       uuid.UUID                     `json:"service_id"`
 	FarrowDate      string                        `json:"farrow_date"`
 	StartTime       *string                       `json:"start_time"`
@@ -117,10 +151,15 @@ type farrowingResponse struct {
 	Note            *string                       `json:"note"`
 	Operators       []farrowingOperatorResponse   `json:"operators"`
 	Medications     []farrowingMedicationResponse `json:"medications"`
-	CreatedAt       string                        `json:"created_at"`
-	UpdatedAt       string                        `json:"updated_at"`
-	CreatedBy       uuid.UUID                     `json:"created_by"`
-	UpdatedBy       uuid.UUID                     `json:"updated_by"`
+}
+
+// farrowingPageResponse is one page of farrowings together with its pagination metadata.
+type farrowingPageResponse struct {
+	Items      []farrowingResponse `json:"items"`
+	Total      int                 `json:"total"`
+	Page       int                 `json:"page"`
+	PageSize   int                 `json:"page_size"`
+	TotalPages int                 `json:"total_pages"`
 }
 
 // create handles POST /api/v1/farrowings and registers a farrowing.
@@ -164,7 +203,7 @@ func (h *FarrowingHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdFarrowing, err := h.createFarrowing.Execute(r.Context(), farrowingapplication.CreateFarrowingCommand{
+	if _, err := h.createFarrowing.Execute(r.Context(), farrowingapplication.CreateFarrowingCommand{
 		SowID:           sowID,
 		FarrowDate:      farrowDate,
 		StartTime:       request.StartTime,
@@ -180,17 +219,16 @@ func (h *FarrowingHandler) create(w http.ResponseWriter, r *http.Request) {
 		Operators:       operators,
 		Medications:     medications,
 		CreatedBy:       actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeFarrowingError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusCreated, toFarrowingResponse(createdFarrowing))
+	w.WriteHeader(http.StatusCreated)
 }
 
-// list handles GET /api/v1/farrowings and returns the farrowings matching the filter.
-// It parses the optional sow_id and service_id query parameters.
+// list handles GET /api/v1/farrowings and returns one page of farrowings matching the filter.
+// It parses the optional sow_code, from and to query parameters plus the page parameter.
 func (h *FarrowingHandler) list(w http.ResponseWriter, r *http.Request) {
 	filter, err := parseFarrowingFilter(r)
 	if err != nil {
@@ -198,13 +236,125 @@ func (h *FarrowingHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	farrowings, err := h.listFarrowings.Execute(r.Context(), filter)
+	page, err := parseFarrowingPage(r)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	farrowings, err := h.listFarrowings.Execute(r.Context(), filter, page)
 	if err != nil {
 		writeFarrowingError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toFarrowingResponses(farrowings))
+	platformhttp.WriteJSON(w, http.StatusOK, toFarrowingPageResponse(farrowings))
+}
+
+// update handles PATCH /api/v1/farrowings/{id} and applies the provided fields.
+// It parses the id path value, decodes the partial body, reads the actor and
+// returns 200 without a body.
+func (h *FarrowingHandler) update(w http.ResponseWriter, r *http.Request) {
+	farrowingID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador del parto no es válido"))
+		return
+	}
+
+	var request updateFarrowingRequest
+	if err := platformhttp.DecodeJSON(w, r, &request); err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	var farrowDate *time.Time
+	if request.FarrowDate != nil {
+		parsed, err := time.Parse(dateLayout, *request.FarrowDate)
+		if err != nil {
+			platformhttp.WriteError(w, http.StatusBadRequest, errors.New("La fecha del parto no es válida"))
+			return
+		}
+		farrowDate = &parsed
+	}
+
+	command := farrowingapplication.UpdateFarrowingCommand{
+		FarrowDate:      farrowDate,
+		StartTime:       request.StartTime,
+		EndTime:         request.EndTime,
+		Location:        request.Location,
+		LiveBorn:        request.LiveBorn,
+		Stillborn:       request.Stillborn,
+		Mummified:       request.Mummified,
+		LitterWeight:    request.LitterWeight,
+		StillbornWeight: request.StillbornWeight,
+		IsManipulated:   request.IsManipulated,
+		Note:            request.Note,
+	}
+	if request.ClearLitterWeight != nil {
+		command.ClearLitterWeight = *request.ClearLitterWeight
+	}
+	if request.ClearStillbornWeight != nil {
+		command.ClearStillbornWeight = *request.ClearStillbornWeight
+	}
+
+	if request.Operators != nil {
+		operators, err := parseOperators(*request.Operators)
+		if err != nil {
+			platformhttp.WriteError(w, http.StatusBadRequest, err)
+			return
+		}
+		command.Operators = operators
+		command.UpdateOperators = true
+	}
+	if request.Medications != nil {
+		medications, err := parseMedications(*request.Medications)
+		if err != nil {
+			platformhttp.WriteError(w, http.StatusBadRequest, err)
+			return
+		}
+		command.Medications = medications
+		command.UpdateMedications = true
+	}
+
+	actor, ok := authdomain.AuthenticatedUserFromContext(r.Context())
+	if !ok {
+		platformhttp.WriteError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
+		return
+	}
+	command.UpdatedBy = actor.UserID
+
+	if err := h.updateFarrowing.Execute(r.Context(), farrowingID, command); err != nil {
+		writeFarrowingError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// delete handles DELETE /api/v1/farrowings/{id} and removes a farrowing.
+// It parses the id path value, reads the actor and returns 204 without a body.
+func (h *FarrowingHandler) delete(w http.ResponseWriter, r *http.Request) {
+	farrowingID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador del parto no es válido"))
+		return
+	}
+
+	actor, ok := authdomain.AuthenticatedUserFromContext(r.Context())
+	if !ok {
+		platformhttp.WriteError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
+		return
+	}
+
+	if err := h.deleteFarrowing.Execute(r.Context(), farrowingapplication.DeleteFarrowingCommand{
+		ID:        farrowingID,
+		DeletedBy: actor.UserID,
+	}); err != nil {
+		writeFarrowingError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // parseOperators parses the operator identifiers of a create request.
@@ -244,26 +394,14 @@ func parseMedications(requests []farrowingMedicationRequest) ([]farrowingapplica
 }
 
 // parseFarrowingFilter reads the optional list filters from the query string.
-// It returns an error for a malformed sow_id, service_id, from or to value and
-// rejects a date range whose start is later than its end.
+// It returns an error for a malformed from or to value and rejects a date range
+// whose start is later than its end; sow_code narrows by the related sow code.
 func parseFarrowingFilter(r *http.Request) (ports.FarrowingFilter, error) {
 	query := r.URL.Query()
 	var filter ports.FarrowingFilter
 
-	if sow := strings.TrimSpace(query.Get("sow_id")); sow != "" {
-		sowID, err := uuid.Parse(sow)
-		if err != nil {
-			return ports.FarrowingFilter{}, errors.New("El identificador de la cerda no es válido")
-		}
-		filter.SowID = &sowID
-	}
-
-	if service := strings.TrimSpace(query.Get("service_id")); service != "" {
-		serviceID, err := uuid.Parse(service)
-		if err != nil {
-			return ports.FarrowingFilter{}, errors.New("El identificador del servicio no es válido")
-		}
-		filter.ServiceID = &serviceID
+	if sowCode := strings.TrimSpace(query.Get("sow_code")); sowCode != "" {
+		filter.SowCode = &sowCode
 	}
 
 	if from := strings.TrimSpace(query.Get("from")); from != "" {
@@ -289,12 +427,27 @@ func parseFarrowingFilter(r *http.Request) (ports.FarrowingFilter, error) {
 	return filter, nil
 }
 
+// parseFarrowingPage reads the optional page query parameter.
+// It defaults to page one and rejects non-positive or malformed values.
+func parseFarrowingPage(r *http.Request) (int, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get("page"))
+	if raw == "" {
+		return 1, nil
+	}
+	page, err := strconv.Atoi(raw)
+	if err != nil || page < 1 {
+		return 0, errors.New("La página no es válida")
+	}
+	return page, nil
+}
+
 // toFarrowingResponse maps a domain farrowing to the HTTP response shape.
-// It formats the date as YYYY-MM-DD and the timestamps in UTC.
+// It formats the date as YYYY-MM-DD and omits the audit fields.
 func toFarrowingResponse(farrowing *farrowingdomain.Farrowing) farrowingResponse {
 	return farrowingResponse{
 		ID:              farrowing.ID,
 		SowID:           farrowing.SowID,
+		SowCode:         farrowing.SowCode,
 		ServiceID:       farrowing.ServiceID,
 		FarrowDate:      farrowing.FarrowDate.UTC().Format(dateLayout),
 		StartTime:       farrowing.StartTime,
@@ -312,10 +465,18 @@ func toFarrowingResponse(farrowing *farrowingdomain.Farrowing) farrowingResponse
 		Note:            farrowing.Note,
 		Operators:       toOperatorResponses(farrowing.Operators),
 		Medications:     toMedicationResponses(farrowing.Medications),
-		CreatedAt:       farrowing.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt:       farrowing.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		CreatedBy:       farrowing.CreatedBy,
-		UpdatedBy:       farrowing.UpdatedBy,
+	}
+}
+
+// toFarrowingPageResponse maps one page of domain farrowings to the paginated shape.
+// It returns an empty items slice instead of null when there are no farrowings.
+func toFarrowingPageResponse(page farrowingapplication.FarrowingPage) farrowingPageResponse {
+	return farrowingPageResponse{
+		Items:      toFarrowingResponses(page.Items),
+		Total:      page.Total,
+		Page:       page.Page,
+		PageSize:   page.PageSize,
+		TotalPages: page.TotalPages,
 	}
 }
 
@@ -347,7 +508,6 @@ func toOperatorResponses(operators []*farrowingdomain.FarrowingOperator) []farro
 		responses = append(responses, farrowingOperatorResponse{
 			ID:         operator.ID,
 			OperatorID: operator.OperatorID,
-			CreatedAt:  operator.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
 		})
 	}
 	return responses
@@ -363,7 +523,6 @@ func toMedicationResponses(medications []*farrowingdomain.FarrowingMedication) [
 			MedicationID: medication.MedicationID,
 			Dose:         medication.Dose,
 			AppliedBy:    medication.AppliedBy,
-			CreatedAt:    medication.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
 		})
 	}
 	return responses
@@ -382,7 +541,8 @@ func writeFarrowingError(w http.ResponseWriter, err error) {
 		status = http.StatusNotFound
 	case errors.Is(err, farrowingapplication.ErrSowNotGestating),
 		errors.Is(err, farrowingapplication.ErrServiceNotConfirmed),
-		errors.Is(err, ports.ErrFarrowingAlreadyExists):
+		errors.Is(err, ports.ErrFarrowingAlreadyExists),
+		errors.Is(err, ports.ErrFarrowingHasRelatedRecords):
 		status = http.StatusConflict
 	case errors.Is(err, farrowingdomain.ErrInvalidID),
 		errors.Is(err, farrowingdomain.ErrInvalidService),
@@ -403,6 +563,9 @@ func writeFarrowingError(w http.ResponseWriter, err error) {
 		errors.Is(err, farrowingdomain.ErrInvalidUpdatedBy),
 		errors.Is(err, farrowingdomain.ErrFarrowDateInFuture),
 		errors.Is(err, farrowingdomain.ErrFarrowDateBeforeMount),
+		errors.Is(err, farrowingdomain.ErrInvalidUpdate),
+		errors.Is(err, farrowingdomain.ErrFarrowDateAfterRelatedRecords),
+		errors.Is(err, farrowingdomain.ErrLiveBornLocked),
 		errors.Is(err, farrowingdomain.ErrDuplicateOperator),
 		errors.Is(err, farrowingdomain.ErrDuplicateMedication),
 		errors.Is(err, farrowingdomain.ErrInvalidFarrowingOperatorID),

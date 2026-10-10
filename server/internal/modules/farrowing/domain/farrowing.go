@@ -42,6 +42,15 @@ var (
 	ErrInvalidPigletQuantity   = errors.New("La cantidad de lechones debe ser mayor a cero")
 	ErrInsufficientPiglets     = errors.New("La cantidad supera los lechones actuales")
 	ErrWeagingQuantityMismatch = errors.New("La cantidad del destete debe coincidir con los lechones actuales")
+	// ErrInvalidUpdate is returned when an update request carries no editable field.
+	ErrInvalidUpdate = errors.New("Debe actualizar al menos un campo del parto")
+	// ErrFarrowDateAfterRelatedRecords is returned when the new farrow date falls
+	// after the earliest record (death, fostering or weaging) linked to the farrowing.
+	ErrFarrowDateAfterRelatedRecords = errors.New("La fecha del parto no puede ser posterior a un registro de lechones")
+	// ErrLiveBornLocked is returned when the live born count is changed on a
+	// farrowing that already has related records, because its current piglets
+	// balance has since been adjusted and could no longer be recomputed.
+	ErrLiveBornLocked = errors.New("No se puede cambiar la cantidad de nacidos vivos porque el parto tiene registros enlazados")
 )
 
 // Farrowing is the aggregate root that represents a sow farrowing (parto).
@@ -51,6 +60,7 @@ type Farrowing struct {
 	ID              uuid.UUID
 	ServiceID       uuid.UUID
 	SowID           uuid.UUID
+	SowCode         string
 	FarrowDate      time.Time
 	StartTime       *string
 	EndTime         *string
@@ -165,32 +175,14 @@ func NewFarrowing(
 		return nil, ErrInvalidCreatedBy
 	}
 
-	builtOperators := make([]*FarrowingOperator, 0, len(operators))
-	seenOperators := make(map[uuid.UUID]struct{}, len(operators))
-	for _, operatorParams := range operators {
-		operator, err := NewFarrowingOperator(operatorParams, params.ID, now)
-		if err != nil {
-			return nil, err
-		}
-		if _, exists := seenOperators[operator.OperatorID]; exists {
-			return nil, ErrDuplicateOperator
-		}
-		seenOperators[operator.OperatorID] = struct{}{}
-		builtOperators = append(builtOperators, operator)
+	builtOperators, err := buildOperators(operators, params.ID, now)
+	if err != nil {
+		return nil, err
 	}
 
-	builtMedications := make([]*FarrowingMedication, 0, len(medications))
-	seenMedications := make(map[uuid.UUID]struct{}, len(medications))
-	for _, medicationParams := range medications {
-		medication, err := NewFarrowingMedication(medicationParams, params.ID, now)
-		if err != nil {
-			return nil, err
-		}
-		if _, exists := seenMedications[medication.MedicationID]; exists {
-			return nil, ErrDuplicateMedication
-		}
-		seenMedications[medication.MedicationID] = struct{}{}
-		builtMedications = append(builtMedications, medication)
+	builtMedications, err := buildMedications(medications, params.ID, now)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Farrowing{
@@ -216,6 +208,221 @@ func NewFarrowing(
 		CreatedBy:       params.CreatedBy,
 		UpdatedBy:       params.CreatedBy,
 	}, nil
+}
+
+// UpdateFarrowingParams holds the editable fields of a farrowing update.
+// A nil pointer means the field is omitted and stays unchanged. Nullable string
+// fields are cleared to NULL by providing an empty string, while the nullable
+// weights use their Clear flag because they cannot carry an empty value. The
+// operator and medication lists are only replaced when their Update flag is set;
+// an empty provided list clears every link. Sow, service, state and the nurse
+// fields are intentionally absent because they are not editable here.
+type UpdateFarrowingParams struct {
+	FarrowDate           *time.Time
+	StartTime            *string
+	EndTime              *string
+	Location             *string
+	LiveBorn             *int
+	Stillborn            *int
+	Mummified            *int
+	LitterWeight         *float64
+	ClearLitterWeight    bool
+	StillbornWeight      *float64
+	ClearStillbornWeight bool
+	IsManipulated        *bool
+	Note                 *string
+	Operators            []NewFarrowingOperatorParams
+	UpdateOperators      bool
+	Medications          []NewFarrowingMedicationParams
+	UpdateMedications    bool
+}
+
+// UpdateFarrowingReference carries the validation context of an update.
+// LastMountDate bounds the earliest valid farrow date and EarliestRelatedDate is
+// the earliest linked death, fostering or weaging date; it also signals that the
+// farrowing has related records when it is not nil.
+type UpdateFarrowingReference struct {
+	LastMountDate       time.Time
+	EarliestRelatedDate *time.Time
+}
+
+// Update applies only the provided fields to the farrowing.
+// It validates the farrow date against the last mount, the future and the
+// earliest related record, locks the live born count when related records exist,
+// recomputes the current piglets balance when the live born count changes without
+// related records, and replaces the operator and medication links when requested.
+// It records updatedBy plus the timestamp and returns ErrInvalidUpdate when no
+// field is provided.
+func (f *Farrowing) Update(params UpdateFarrowingParams, reference UpdateFarrowingReference, updatedBy uuid.UUID, now time.Time) error {
+	if f == nil || f.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if params.FarrowDate == nil && params.StartTime == nil && params.EndTime == nil &&
+		params.Location == nil && params.LiveBorn == nil && params.Stillborn == nil &&
+		params.Mummified == nil && params.LitterWeight == nil && !params.ClearLitterWeight &&
+		params.StillbornWeight == nil && !params.ClearStillbornWeight &&
+		params.IsManipulated == nil && params.Note == nil &&
+		!params.UpdateOperators && !params.UpdateMedications {
+		return ErrInvalidUpdate
+	}
+
+	if params.FarrowDate != nil {
+		if params.FarrowDate.IsZero() {
+			return ErrInvalidFarrowDate
+		}
+		if err := validateFarrowDate(*params.FarrowDate, reference.LastMountDate, now); err != nil {
+			return err
+		}
+		if reference.EarliestRelatedDate != nil &&
+			truncateToDay(*params.FarrowDate).After(truncateToDay(*reference.EarliestRelatedDate)) {
+			return ErrFarrowDateAfterRelatedRecords
+		}
+	}
+
+	if params.LiveBorn != nil {
+		if *params.LiveBorn < 0 {
+			return ErrInvalidLiveBorn
+		}
+		if reference.EarliestRelatedDate != nil && *params.LiveBorn != f.LiveBorn {
+			return ErrLiveBornLocked
+		}
+	}
+	if params.Stillborn != nil && *params.Stillborn < 0 {
+		return ErrInvalidStillborn
+	}
+	if params.Mummified != nil && *params.Mummified < 0 {
+		return ErrInvalidMummified
+	}
+	if params.LitterWeight != nil && !params.ClearLitterWeight && *params.LitterWeight < 0 {
+		return ErrInvalidLitterWeight
+	}
+	if params.StillbornWeight != nil && !params.ClearStillbornWeight && *params.StillbornWeight < 0 {
+		return ErrInvalidStillbornWeight
+	}
+
+	startTime, err := validateTime(params.StartTime, ErrInvalidStartTime)
+	if err != nil {
+		return err
+	}
+	endTime, err := validateTime(params.EndTime, ErrInvalidEndTime)
+	if err != nil {
+		return err
+	}
+	location, err := validateLocation(params.Location)
+	if err != nil {
+		return err
+	}
+	note, err := validateNote(params.Note)
+	if err != nil {
+		return err
+	}
+
+	var replacedOperators []*FarrowingOperator
+	if params.UpdateOperators {
+		if replacedOperators, err = buildOperators(params.Operators, f.ID, now); err != nil {
+			return err
+		}
+	}
+	var replacedMedications []*FarrowingMedication
+	if params.UpdateMedications {
+		if replacedMedications, err = buildMedications(params.Medications, f.ID, now); err != nil {
+			return err
+		}
+	}
+
+	if params.FarrowDate != nil {
+		f.FarrowDate = *params.FarrowDate
+	}
+	if params.StartTime != nil {
+		f.StartTime = startTime
+	}
+	if params.EndTime != nil {
+		f.EndTime = endTime
+	}
+	if params.Location != nil {
+		f.Location = location
+	}
+	if params.LiveBorn != nil {
+		f.LiveBorn = *params.LiveBorn
+		if reference.EarliestRelatedDate == nil {
+			f.CurrentPiglets = *params.LiveBorn
+		}
+	}
+	if params.Stillborn != nil {
+		f.Stillborn = *params.Stillborn
+	}
+	if params.Mummified != nil {
+		f.Mummified = *params.Mummified
+	}
+	switch {
+	case params.ClearLitterWeight:
+		f.LitterWeight = nil
+	case params.LitterWeight != nil:
+		f.LitterWeight = params.LitterWeight
+	}
+	switch {
+	case params.ClearStillbornWeight:
+		f.StillbornWeight = nil
+	case params.StillbornWeight != nil:
+		f.StillbornWeight = params.StillbornWeight
+	}
+	if params.IsManipulated != nil {
+		f.IsManipulated = *params.IsManipulated
+	}
+	if params.Note != nil {
+		f.Note = note
+	}
+	if params.UpdateOperators {
+		f.Operators = replacedOperators
+	}
+	if params.UpdateMedications {
+		f.Medications = replacedMedications
+	}
+
+	f.UpdatedAt = now
+	f.UpdatedBy = updatedBy
+	return nil
+}
+
+// buildOperators validates and links the given operator params to a farrowing.
+// It rejects duplicate operators and returns the built link rows.
+func buildOperators(params []NewFarrowingOperatorParams, farrowingID uuid.UUID, now time.Time) ([]*FarrowingOperator, error) {
+	operators := make([]*FarrowingOperator, 0, len(params))
+	seen := make(map[uuid.UUID]struct{}, len(params))
+	for _, operatorParams := range params {
+		operator, err := NewFarrowingOperator(operatorParams, farrowingID, now)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[operator.OperatorID]; exists {
+			return nil, ErrDuplicateOperator
+		}
+		seen[operator.OperatorID] = struct{}{}
+		operators = append(operators, operator)
+	}
+	return operators, nil
+}
+
+// buildMedications validates and links the given medication params to a farrowing.
+// It rejects duplicate medications and returns the built link rows.
+func buildMedications(params []NewFarrowingMedicationParams, farrowingID uuid.UUID, now time.Time) ([]*FarrowingMedication, error) {
+	medications := make([]*FarrowingMedication, 0, len(params))
+	seen := make(map[uuid.UUID]struct{}, len(params))
+	for _, medicationParams := range params {
+		medication, err := NewFarrowingMedication(medicationParams, farrowingID, now)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[medication.MedicationID]; exists {
+			return nil, ErrDuplicateMedication
+		}
+		seen[medication.MedicationID] = struct{}{}
+		medications = append(medications, medication)
+	}
+	return medications, nil
 }
 
 // CrossesMidnight reports whether the farrowing ended after midnight relative

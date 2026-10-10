@@ -349,6 +349,42 @@ func (s *Sow) ChangeState(newState State, updatedBy uuid.UUID, now time.Time) er
 	return nil
 }
 
+// RegisterFarrowing increments the sow parity by one when a farrowing is
+// recorded. It is reserved for the farrowing flow and records updatedBy plus
+// the timestamp; it does not require the Viva state used by the update flow.
+func (s *Sow) RegisterFarrowing(updatedBy uuid.UUID, now time.Time) error {
+	if s == nil || s.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+
+	s.Parity++
+	s.UpdatedAt = now
+	s.UpdatedBy = updatedBy
+	return nil
+}
+
+// UnregisterFarrowing decrements the sow parity by one when a farrowing is
+// deleted. It rejects an empty parity and records updatedBy plus the timestamp.
+func (s *Sow) UnregisterFarrowing(updatedBy uuid.UUID, now time.Time) error {
+	if s == nil || s.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if s.Parity <= 0 {
+		return ErrInvalidParity
+	}
+
+	s.Parity--
+	s.UpdatedAt = now
+	s.UpdatedBy = updatedBy
+	return nil
+}
+
 // validateCode trims the code and requires it to be non-empty.
 // It returns ErrInvalidCode when the code exceeds the maximum length.
 func validateCode(code string) (string, error) {

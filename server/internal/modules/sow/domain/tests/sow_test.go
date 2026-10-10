@@ -700,3 +700,73 @@ func TestParseState(t *testing.T) {
 		}
 	})
 }
+
+func TestSowRegisterFarrowing(t *testing.T) {
+	now := time.Date(2026, time.February, 2, 3, 4, 5, 0, time.UTC)
+	actor := uuid.New()
+
+	t.Run("increments the parity", func(t *testing.T) {
+		sow := &sowdomain.Sow{ID: uuid.New(), Parity: 2, State: sowdomain.StatePregnant}
+
+		if err := sow.RegisterFarrowing(actor, now); err != nil {
+			t.Fatalf("RegisterFarrowing() error = %v", err)
+		}
+		if sow.Parity != 3 {
+			t.Fatalf("parity = %d, want 3", sow.Parity)
+		}
+		if !sow.UpdatedAt.Equal(now) || sow.UpdatedBy != actor {
+			t.Fatalf("unexpected audit fields: %#v", sow)
+		}
+	})
+
+	t.Run("rejects a nil id", func(t *testing.T) {
+		sow := &sowdomain.Sow{Parity: 1}
+
+		if err := sow.RegisterFarrowing(actor, now); !errors.Is(err, sowdomain.ErrInvalidID) {
+			t.Fatalf("error = %v, want ErrInvalidID", err)
+		}
+	})
+
+	t.Run("rejects a nil actor", func(t *testing.T) {
+		sow := &sowdomain.Sow{ID: uuid.New(), Parity: 1}
+
+		if err := sow.RegisterFarrowing(uuid.Nil, now); !errors.Is(err, sowdomain.ErrInvalidUpdatedBy) {
+			t.Fatalf("error = %v, want ErrInvalidUpdatedBy", err)
+		}
+	})
+}
+
+func TestSowUnregisterFarrowing(t *testing.T) {
+	now := time.Date(2026, time.February, 2, 3, 4, 5, 0, time.UTC)
+	actor := uuid.New()
+
+	t.Run("decrements the parity", func(t *testing.T) {
+		sow := &sowdomain.Sow{ID: uuid.New(), Parity: 2, State: sowdomain.StateLactating}
+
+		if err := sow.UnregisterFarrowing(actor, now); err != nil {
+			t.Fatalf("UnregisterFarrowing() error = %v", err)
+		}
+		if sow.Parity != 1 {
+			t.Fatalf("parity = %d, want 1", sow.Parity)
+		}
+		if !sow.UpdatedAt.Equal(now) || sow.UpdatedBy != actor {
+			t.Fatalf("unexpected audit fields: %#v", sow)
+		}
+	})
+
+	t.Run("rejects an empty parity", func(t *testing.T) {
+		sow := &sowdomain.Sow{ID: uuid.New(), Parity: 0}
+
+		if err := sow.UnregisterFarrowing(actor, now); !errors.Is(err, sowdomain.ErrInvalidParity) {
+			t.Fatalf("error = %v, want ErrInvalidParity", err)
+		}
+	})
+
+	t.Run("rejects a nil actor", func(t *testing.T) {
+		sow := &sowdomain.Sow{ID: uuid.New(), Parity: 1}
+
+		if err := sow.UnregisterFarrowing(uuid.Nil, now); !errors.Is(err, sowdomain.ErrInvalidUpdatedBy) {
+			t.Fatalf("error = %v, want ErrInvalidUpdatedBy", err)
+		}
+	})
+}
