@@ -31,11 +31,20 @@ var (
 	ErrInvalidLastMount        = errors.New("La fecha de la última monta es obligatoria")
 	ErrInvalidCause            = errors.New("La causa del aborto no es válida")
 	ErrInvalidNote             = errors.New("La nota debe tener como máximo 500 caracteres")
+	ErrInvalidUpdate           = errors.New("Debe actualizar al menos un campo del aborto")
 	ErrInvalidCreatedBy        = errors.New("El usuario que crea el aborto es obligatorio")
 	ErrInvalidUpdatedBy        = errors.New("El usuario que actualiza el aborto es obligatorio")
 	ErrAbortionDateBeforeMount = errors.New("La fecha del aborto debe ser posterior a la última monta")
+	ErrAbortionDateBeforeEntry = errors.New("La fecha del aborto no puede ser anterior al ingreso de la cerda")
 	ErrAbortionDateInFuture    = errors.New("La fecha del aborto no puede ser futura")
 )
+
+// Reference groups the bounds an abortion date must respect. A zero time means
+// the bound does not exist and its check is skipped.
+type Reference struct {
+	EntryDate     time.Time
+	LastMountDate time.Time
+}
 
 // Abortion is the aggregate root that represents a sow abortion (aborto).
 // It records the cause, the date and the service that produced the gestation.
@@ -46,10 +55,13 @@ type Abortion struct {
 	AbortionDate time.Time
 	Cause        Cause
 	Note         *string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	CreatedBy    uuid.UUID
-	UpdatedBy    uuid.UUID
+	// SowCode is the code of the referenced sow. It is a read-model field filled
+	// only by the list query and never persisted by the write paths.
+	SowCode   string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	CreatedBy uuid.UUID
+	UpdatedBy uuid.UUID
 }
 
 // NewAbortionParams holds the fields required to build a new abortion.
@@ -65,10 +77,20 @@ type NewAbortionParams struct {
 	CreatedBy    uuid.UUID
 }
 
+// UpdateAbortionParams holds the editable fields of an abortion update.
+// A nil pointer leaves the field unchanged; the sow and the service are never
+// editable and are intentionally absent.
+type UpdateAbortionParams struct {
+	AbortionDate *time.Time
+	Cause        *Cause
+	Note         *string
+}
+
 // NewAbortion builds an abortion after validating its fields and its dates.
-// It requires the abortion date to be strictly after lastMountDate and not
-// later than today, then sets the audit fields to the creator and now.
-func NewAbortion(params NewAbortionParams, lastMountDate time.Time, now time.Time) (*Abortion, error) {
+// It requires the abortion date to be strictly after the last mount, not before
+// the sow entry date and not later than today, then sets the audit fields to the
+// creator and now.
+func NewAbortion(params NewAbortionParams, reference Reference, now time.Time) (*Abortion, error) {
 	if params.ID == uuid.Nil {
 		return nil, ErrInvalidID
 	}
@@ -81,11 +103,11 @@ func NewAbortion(params NewAbortionParams, lastMountDate time.Time, now time.Tim
 	if params.AbortionDate.IsZero() {
 		return nil, ErrInvalidAbortionDate
 	}
-	if lastMountDate.IsZero() {
+	if reference.LastMountDate.IsZero() {
 		return nil, ErrInvalidLastMount
 	}
 
-	if err := validateAbortionDate(params.AbortionDate, lastMountDate, now); err != nil {
+	if err := validateAbortionDate(params.AbortionDate, reference, now); err != nil {
 		return nil, err
 	}
 
@@ -116,14 +138,62 @@ func NewAbortion(params NewAbortionParams, lastMountDate time.Time, now time.Tim
 	}, nil
 }
 
-// validateAbortionDate checks the abortion date bounds against the last mount.
-// It rejects dates after today and dates on or before the last mount date.
-func validateAbortionDate(abortionDate time.Time, lastMountDate time.Time, now time.Time) error {
+// Update applies the editable fields to the abortion after validating them.
+// It never changes the sow or the service; when the date changes it validates it
+// against the reference bounds and returns ErrInvalidUpdate when no field is given.
+func (a *Abortion) Update(params UpdateAbortionParams, reference Reference, updatedBy uuid.UUID, now time.Time) error {
+	if a == nil || a.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if params.AbortionDate == nil && params.Cause == nil && params.Note == nil {
+		return ErrInvalidUpdate
+	}
+
+	if params.AbortionDate != nil {
+		if params.AbortionDate.IsZero() {
+			return ErrInvalidAbortionDate
+		}
+		if err := validateAbortionDate(*params.AbortionDate, reference, now); err != nil {
+			return err
+		}
+		a.AbortionDate = *params.AbortionDate
+	}
+
+	if params.Cause != nil {
+		if !isValidCause(*params.Cause) {
+			return ErrInvalidCause
+		}
+		a.Cause = *params.Cause
+	}
+
+	if params.Note != nil {
+		note, err := validateNote(params.Note)
+		if err != nil {
+			return err
+		}
+		a.Note = note
+	}
+
+	a.UpdatedAt = now
+	a.UpdatedBy = updatedBy
+	return nil
+}
+
+// validateAbortionDate checks the abortion date bounds against the reference.
+// It rejects dates after today, dates before the entry date and dates on or
+// before the last mount date. Zero reference bounds are skipped.
+func validateAbortionDate(abortionDate time.Time, reference Reference, now time.Time) error {
 	abortion := truncateToDay(abortionDate)
 	if abortion.After(truncateToDay(now)) {
 		return ErrAbortionDateInFuture
 	}
-	if !abortion.After(truncateToDay(lastMountDate)) {
+	if !reference.EntryDate.IsZero() && abortion.Before(truncateToDay(reference.EntryDate)) {
+		return ErrAbortionDateBeforeEntry
+	}
+	if !reference.LastMountDate.IsZero() && !abortion.After(truncateToDay(reference.LastMountDate)) {
 		return ErrAbortionDateBeforeMount
 	}
 	return nil

@@ -68,7 +68,10 @@ func (s *CreateAbortionService) Execute(ctx context.Context, command CreateAbort
 		Cause:        command.Cause,
 		Note:         command.Note,
 		CreatedBy:    command.CreatedBy,
-	}, latestMountDate(service), now)
+	}, abortiondomain.Reference{
+		EntryDate:     sow.EntryDate,
+		LastMountDate: latestMountDate(service),
+	}, now)
 	if err != nil {
 		return nil, err
 	}

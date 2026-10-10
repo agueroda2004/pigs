@@ -11,6 +11,8 @@ import (
 type Module struct {
 	CreateAbortion *abortionapplication.CreateAbortionService
 	ListAbortions  *abortionapplication.ListAbortionsService
+	UpdateAbortion *abortionapplication.UpdateAbortionService
+	DeleteAbortion *abortionapplication.DeleteAbortionService
 	Handler        *AbortionHandler
 }
 
@@ -24,10 +26,14 @@ func NewModule(
 ) *Module {
 	createAbortion := abortionapplication.NewCreateAbortionService(repository, clock)
 	listAbortions := abortionapplication.NewListAbortionsService(repository)
+	updateAbortion := abortionapplication.NewUpdateAbortionService(repository, clock)
+	deleteAbortion := abortionapplication.NewDeleteAbortionService(repository, clock)
 
 	return &Module{
 		CreateAbortion: createAbortion,
 		ListAbortions:  listAbortions,
-		Handler:        NewAbortionHandler(createAbortion, listAbortions, authMiddleware, adminMiddleware),
+		UpdateAbortion: updateAbortion,
+		DeleteAbortion: deleteAbortion,
+		Handler:        NewAbortionHandler(createAbortion, listAbortions, updateAbortion, deleteAbortion, authMiddleware, adminMiddleware),
 	}
 }

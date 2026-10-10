@@ -7,6 +7,18 @@ import (
 	"server/internal/modules/abortion/ports"
 )
 
+// DefaultAbortionPageSize is the fixed number of abortions returned per page.
+const DefaultAbortionPageSize = 10
+
+// AbortionPage is a page of abortions together with its pagination metadata.
+type AbortionPage struct {
+	Items      []*abortiondomain.Abortion
+	Total      int
+	Page       int
+	PageSize   int
+	TotalPages int
+}
+
 type ListAbortionsService struct {
 	repository ports.AbortionRepository
 }
@@ -17,8 +29,29 @@ func NewListAbortionsService(repository ports.AbortionRepository) *ListAbortions
 	return &ListAbortionsService{repository: repository}
 }
 
-// Execute returns the abortions matching the filter.
-// A zero-value filter returns every registered abortion.
-func (s *ListAbortionsService) Execute(ctx context.Context, filter ports.AbortionFilter) ([]*abortiondomain.Abortion, error) {
-	return s.repository.List(ctx, filter)
+// Execute returns one page of abortions matching the filter, ordered by date.
+// Pages start at one and always contain DefaultAbortionPageSize abortions.
+func (s *ListAbortionsService) Execute(ctx context.Context, filter ports.AbortionFilter, page int) (AbortionPage, error) {
+	if page < 1 {
+		page = 1
+	}
+
+	offset := (page - 1) * DefaultAbortionPageSize
+	items, total, err := s.repository.List(ctx, filter, DefaultAbortionPageSize, offset)
+	if err != nil {
+		return AbortionPage{}, err
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + DefaultAbortionPageSize - 1) / DefaultAbortionPageSize
+	}
+
+	return AbortionPage{
+		Items:      items,
+		Total:      total,
+		Page:       page,
+		PageSize:   DefaultAbortionPageSize,
+		TotalPages: totalPages,
+	}, nil
 }
