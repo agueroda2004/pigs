@@ -1,0 +1,34 @@
+<app-modal [open]="open()" size="xl" title="Eliminar servicio" (closed)="closed.emit()">
+  <div class="space-y-4">
+    <p class="text-sm text-muted-foreground">
+      ¿Seguro que quieres eliminar este servicio?
+      @if (service()?.expected_farrowing_date) {
+        Parto probable:
+        <span class="font-medium text-foreground">{{ service()?.expected_farrowing_date }}</span
+        >.
+      }
+    </p>
+    <p class="text-sm text-muted-foreground">
+      Esta acción no se puede deshacer. Solo se pueden eliminar servicios en estado Confirmado; una
+      vez que el servicio tiene eventos asociados ya no podrá eliminarse.
+    </p>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="button"
+        (click)="confirm()"
+        [disabled]="loading()"
+        class="rounded-md bg-danger px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Eliminando…' : 'Eliminar' }}
+      </button>
+    </div>
+  </div>
+</app-modal>

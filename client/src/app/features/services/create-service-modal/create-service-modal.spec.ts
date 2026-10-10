@@ -15,15 +15,15 @@ class ServicesStub {
 }
 
 class SowsStub {
-  listSowOptions = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
+  listSowDropdown = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
 }
 
 class BoarsStub {
-  listBoars = vi.fn(() => of([]));
+  listBoarDropdown = vi.fn(() => of([]));
 }
 
 class OperatorsStub {
-  listOperators = vi.fn(() => of([]));
+  listOperatorDropdown = vi.fn(() => of([]));
 }
 
 class NotificationsStub {
@@ -71,7 +71,12 @@ describe('CreateServiceModal', () => {
 
     await component.loadOptions();
 
-    expect(sows.listSowOptions).toHaveBeenCalledWith(true);
+    expect(sows.listSowDropdown).toHaveBeenCalledWith(true, [
+      'Viva',
+      'Destetada',
+      'Abortada',
+      'Gestando',
+    ]);
     expect(component.sowOptions()).toEqual([{ value: 'sow-1', label: 'C-001' }]);
   });
 
@@ -185,6 +190,27 @@ describe('CreateServiceModal', () => {
     component.addMount();
 
     expect(component.mounts.length).toBe(3);
+  });
+
+  it('keeps the remaining mount values rendered after removing the first mount', async () => {
+    const fixture = TestBed.createComponent(CreateServiceModal);
+    fixture.componentRef.setInput('open', true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+    component.addMount();
+    fixture.detectChanges();
+    component.mounts.at(1).patchValue({ mount_date: '2025-01-11' });
+    fixture.detectChanges();
+
+    component.removeMount(0);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('11 de Enero 2025');
   });
 
   it('shows the server error message when creation fails', async () => {

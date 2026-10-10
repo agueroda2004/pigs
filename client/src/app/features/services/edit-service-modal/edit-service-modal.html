@@ -1,15 +1,10 @@
-<app-modal [open]="open()" size="xl" title="Crear servicio" (closed)="closed.emit()">
+<app-modal [open]="open()" size="xl" title="Editar servicio" (closed)="closed.emit()">
   <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
     <div class="space-y-1.5">
       <span class="block text-sm font-medium">Cerda</span>
-      <app-search-dropdown
-        formControlName="sow_id"
-        [options]="sowOptions()"
-        placeholder="Seleccionar cerda"
-      />
-      @if (form.controls.sow_id.touched && form.controls.sow_id.invalid) {
-        <p class="text-xs text-danger">La cerda es obligatoria.</p>
-      }
+      <p class="rounded-md border border-border bg-muted px-3 py-2 text-sm">
+        {{ service()?.sow_code || 'sin identificar' }}
+      </p>
     </div>
 
     <div class="space-y-1.5">
@@ -163,7 +158,7 @@
         [disabled]="loading()"
         class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {{ loading() ? 'Creando…' : 'Crear servicio' }}
+        {{ loading() ? 'Guardando…' : 'Guardar cambios' }}
       </button>
     </div>
   </form>

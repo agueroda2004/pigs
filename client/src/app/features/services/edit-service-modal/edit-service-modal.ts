@@ -8,12 +8,13 @@ import { NotificationService } from '../../../core/notifications/notification.se
 import { OperatorsService } from '../../../core/operators/operators.service';
 import {
   CreateMountRequest,
-  CreateServiceRequest,
+  Mount,
   MountType,
+  Service,
+  UpdateMountRequest,
+  UpdateServiceRequest,
 } from '../../../core/services/service.models';
 import { ServicesService } from '../../../core/services/services.service';
-import { SERVICEABLE_SOW_STATES } from '../../../core/sows/sow.models';
-import { SowsService } from '../../../core/sows/sows.service';
 import { DatePicker } from '../../../shared/ui/date-picker/date-picker';
 import { Dropdown, DropdownOption } from '../../../shared/ui/dropdown/dropdown';
 import { Modal } from '../../../shared/ui/modal/modal';
@@ -23,19 +24,28 @@ import { toISODate } from '../../../shared/utils/date';
 const GESTATION_DAYS = 114;
 const MAX_MOUNTS = 3;
 
+interface OriginalMount {
+  id: string;
+  boar_id: string;
+  operator_id: string;
+  mount_date: string;
+  type: MountType;
+  note: string;
+}
+
 @Component({
-  selector: 'app-create-service-modal',
+  selector: 'app-edit-service-modal',
   imports: [ReactiveFormsModule, Modal, Dropdown, SearchDropdown, DatePicker],
-  styleUrl: './create-service-modal.css',
-  templateUrl: './create-service-modal.html',
+  styleUrl: './edit-service-modal.css',
+  templateUrl: './edit-service-modal.html',
 })
-export class CreateServiceModal {
+export class EditServiceModal {
   readonly open = input(false);
+  readonly service = input<Service | null>(null);
   readonly closed = output<void>();
-  readonly created = output<string>();
+  readonly updated = output<void>();
 
   private readonly services = inject(ServicesService);
-  private readonly sows = inject(SowsService);
   private readonly boars = inject(BoarsService);
   private readonly operators = inject(OperatorsService);
   private readonly notifications = inject(NotificationService);
@@ -43,7 +53,6 @@ export class CreateServiceModal {
 
   protected readonly maxMounts = MAX_MOUNTS;
   protected readonly loading = signal(false);
-  protected readonly sowOptions = signal<DropdownOption[]>([]);
   protected readonly boarOptions = signal<DropdownOption[]>([]);
   protected readonly operatorOptions = signal<DropdownOption[]>([]);
   protected readonly scheduleError = signal<string | null>(null);
@@ -57,17 +66,20 @@ export class CreateServiceModal {
   protected readonly mounts = this.formBuilder.array([this.newMountGroup()]);
 
   protected readonly form = this.formBuilder.nonNullable.group({
-    sow_id: ['', [Validators.required]],
     location: ['', [Validators.maxLength(100)]],
     note: ['', [Validators.maxLength(500)]],
     mounts: this.mounts,
   });
 
+  private originalMounts: OriginalMount[] = [];
+
   constructor() {
     this.mounts.valueChanges.subscribe(() => this.refreshSchedule());
 
     effect(() => {
-      if (this.open()) {
+      const current = this.service();
+      if (current && this.open()) {
+        this.prefill(current);
         void this.loadOptions();
       }
     });
@@ -109,37 +121,65 @@ export class CreateServiceModal {
       return;
     }
 
+    const current = this.service();
+    if (!current) {
+      return;
+    }
+
+    const { location, note } = this.form.getRawValue();
+    const create: CreateMountRequest[] = [];
+    const update: UpdateMountRequest[] = [];
+    const keptIDs = new Set<string>();
+
+    for (const mount of this.mounts.getRawValue()) {
+      if (mount.id) {
+        keptIDs.add(mount.id);
+        if (this.mountChanged(mount.id, mount)) {
+          update.push({
+            id: mount.id,
+            boar_id: mount.boar_id,
+            operator_id: mount.operator_id,
+            mount_date: mount.mount_date,
+            type: mount.type as MountType,
+            note: mount.note,
+          });
+        }
+        continue;
+      }
+      create.push({
+        boar_id: mount.boar_id,
+        operator_id: mount.operator_id,
+        mount_date: mount.mount_date,
+        type: mount.type as MountType,
+        note: mount.note,
+      });
+    }
+
+    const deleted = this.originalMounts.map((mount) => mount.id).filter((id) => !keptIDs.has(id));
+
+    const changed =
+      location !== (current.location ?? '') ||
+      note !== (current.note ?? '') ||
+      create.length > 0 ||
+      update.length > 0 ||
+      deleted.length > 0;
+
+    if (!changed) {
+      this.updated.emit();
+      return;
+    }
+
+    const request: UpdateServiceRequest = {
+      location,
+      note,
+      mounts: { create, update, delete: deleted },
+    };
+
     this.loading.set(true);
 
-    const { sow_id, location, note } = this.form.getRawValue();
-    const request: CreateServiceRequest = {
-      sow_id,
-      mounts: this.mounts.getRawValue().map((mount) => {
-        const item: CreateMountRequest = {
-          boar_id: mount.boar_id,
-          operator_id: mount.operator_id,
-          mount_date: mount.mount_date,
-          type: mount.type as MountType,
-        };
-        if (mount.note) {
-          item.note = mount.note;
-        }
-        return item;
-      }),
-    };
-    if (location) {
-      request.location = location;
-    }
-    if (note) {
-      request.note = note;
-    }
-
-    const sowCode = this.sowOptions().find((option) => option.value === sow_id)?.label ?? '';
-
     try {
-      await firstValueFrom(this.services.createService(request));
-      this.reset();
-      this.created.emit(sowCode);
+      await firstValueFrom(this.services.updateService(current.id, request));
+      this.updated.emit();
     } catch (error) {
       this.notifications.error(this.mapError(error));
     } finally {
@@ -147,13 +187,55 @@ export class CreateServiceModal {
     }
   }
 
-  private newMountGroup() {
+  private mountChanged(
+    id: string,
+    mount: { boar_id: string; operator_id: string; mount_date: string; type: string; note: string },
+  ): boolean {
+    const original = this.originalMounts.find((item) => item.id === id);
+    if (!original) {
+      return true;
+    }
+    return (
+      mount.boar_id !== original.boar_id ||
+      mount.operator_id !== original.operator_id ||
+      mount.mount_date !== original.mount_date ||
+      mount.type !== original.type ||
+      mount.note !== original.note
+    );
+  }
+
+  private prefill(current: Service): void {
+    this.form.controls.location.reset(current.location ?? '');
+    this.form.controls.note.reset(current.note ?? '');
+    this.originalMounts = current.mounts.map((mount) => ({
+      id: mount.id,
+      boar_id: mount.boar_id,
+      operator_id: mount.operator_id,
+      mount_date: mount.mount_date,
+      type: mount.type,
+      note: mount.note ?? '',
+    }));
+
+    while (this.mounts.length > 0) {
+      this.mounts.removeAt(0);
+    }
+    for (const mount of current.mounts) {
+      this.mounts.push(this.newMountGroup(mount));
+    }
+    if (this.mounts.length === 0) {
+      this.mounts.push(this.newMountGroup());
+    }
+    this.refreshSchedule();
+  }
+
+  private newMountGroup(mount?: Mount) {
     return this.formBuilder.nonNullable.group({
-      mount_date: ['', [Validators.required]],
-      boar_id: ['', [Validators.required]],
-      operator_id: ['', [Validators.required]],
-      type: ['Artificial', [Validators.required]],
-      note: ['', [Validators.maxLength(500)]],
+      id: [mount?.id ?? ''],
+      mount_date: [mount?.mount_date ?? '', [Validators.required]],
+      boar_id: [mount?.boar_id ?? '', [Validators.required]],
+      operator_id: [mount?.operator_id ?? '', [Validators.required]],
+      type: [mount?.type ?? 'Artificial', [Validators.required]],
+      note: [mount?.note ?? '', [Validators.maxLength(500)]],
     });
   }
 
@@ -197,34 +279,23 @@ export class CreateServiceModal {
     return toISODate(value);
   }
 
-  private reset(): void {
-    this.form.controls.sow_id.reset('');
-    this.form.controls.location.reset('');
-    this.form.controls.note.reset('');
-    while (this.mounts.length > 1) {
-      this.mounts.removeAt(this.mounts.length - 1);
-    }
-    this.mounts.at(0).reset({
-      mount_date: '',
-      boar_id: '',
-      operator_id: '',
-      type: 'Artificial',
-      note: '',
-    });
-    this.refreshSchedule();
-  }
-
   private async loadOptions(): Promise<void> {
     try {
-      const [sows, boars, operators] = await Promise.all([
-        firstValueFrom(this.sows.listSowDropdown(true, SERVICEABLE_SOW_STATES)),
-        firstValueFrom(this.boars.listBoarDropdown(true, 'Vivo')),
-        firstValueFrom(this.operators.listOperatorDropdown(true)),
+      const [boars, operators] = await Promise.all([
+        firstValueFrom(this.boars.listBoarDropdown()),
+        firstValueFrom(this.operators.listOperatorDropdown()),
       ]);
-      this.sowOptions.set(sows.map((sow) => ({ value: sow.id, label: sow.code })));
-      this.boarOptions.set(boars.map((boar) => ({ value: boar.id, label: boar.code })));
+      this.boarOptions.set(
+        boars.map((boar) => ({
+          value: boar.id,
+          label: boar.active ? boar.code : `${boar.code} (inactivo)`,
+        })),
+      );
       this.operatorOptions.set(
-        operators.map((operator) => ({ value: operator.id, label: operator.name })),
+        operators.map((operator) => ({
+          value: operator.id,
+          label: operator.active ? operator.name : `${operator.name} (inactivo)`,
+        })),
       );
     } catch {
       this.notifications.error('No se pudieron cargar los datos del servicio');
@@ -237,10 +308,13 @@ export class CreateServiceModal {
       if (serverMessage) {
         return serverMessage;
       }
+      if (error.status === 404) {
+        return 'El servicio no existe';
+      }
       if (error.status === 409) {
-        return 'La cerda o el verraco no están disponibles';
+        return 'Solo se pueden editar servicios en estado Confirmado';
       }
     }
-    return 'No se pudo crear el servicio';
+    return 'No se pudo actualizar el servicio';
   }
 }

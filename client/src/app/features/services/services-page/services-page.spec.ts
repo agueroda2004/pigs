@@ -9,33 +9,32 @@ import { NotificationService } from '../../../core/notifications/notification.se
 import { OperatorsService } from '../../../core/operators/operators.service';
 import { Service } from '../../../core/services/service.models';
 import { ServicesService } from '../../../core/services/services.service';
-import { SowsService } from '../../../core/sows/sows.service';
 import { ServicesPage } from './services-page';
 
 function buildService(id: string): Service {
   return {
     id,
     sow_id: 'sow-1',
+    sow_code: 'C-001',
     expected_farrowing_date: '2025-05-04',
     note: null,
     state: 'Confirmado',
     location: 'Nave 1',
     mounts: [],
-    created_at: '2025-01-10T12:00:00',
-    updated_at: '2025-01-10T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
   };
 }
 
-class ServicesStub {
-  listServices = vi.fn(() => of([buildService('1'), buildService('2')]));
-  createService = vi.fn(() => of(buildService('3')));
+function pageOf(items: Service[], total = items.length, totalPages = 1) {
+  return { items, total, page: 1, page_size: 10, total_pages: totalPages };
 }
 
-class SowsStub {
-  listSows = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
-  listSowOptions = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
+class ServicesStub {
+  listServices = vi.fn((_filters?: unknown, _page?: number) =>
+    of(pageOf([buildService('1'), buildService('2')])),
+  );
+  createService = vi.fn(() => of(undefined));
+  updateService = vi.fn(() => of(undefined));
+  deleteService = vi.fn(() => of(undefined));
 }
 
 class BoarsStub {
@@ -64,7 +63,6 @@ describe('ServicesPage', () => {
       imports: [ServicesPage],
       providers: [
         { provide: ServicesService, useValue: stub },
-        { provide: SowsService, useValue: new SowsStub() },
         { provide: BoarsService, useValue: new BoarsStub() },
         { provide: OperatorsService, useValue: new OperatorsStub() },
         { provide: NotificationService, useValue: notifications },
@@ -90,13 +88,6 @@ describe('ServicesPage', () => {
     expect(fixture.nativeElement.querySelectorAll('app-service-card')).toHaveLength(2);
   });
 
-  it('resolves the sow code from the lookup', async () => {
-    const component = create();
-    await component.loadLookups();
-
-    expect(component.sowCode(buildService('1'))).toBe('C-001');
-  });
-
   it('shows the error state and retries', async () => {
     stub.listServices = vi.fn(() => throwError(() => new Error('failed')));
     const component = create();
@@ -104,7 +95,7 @@ describe('ServicesPage', () => {
     await component.loadServices();
     expect(component.error()).toBe(true);
 
-    stub.listServices = vi.fn(() => of([buildService('1')]));
+    stub.listServices = vi.fn(() => of(pageOf([buildService('1')])));
     await component.loadServices();
 
     expect(component.error()).toBe(false);
@@ -116,7 +107,9 @@ describe('ServicesPage', () => {
     await component.loadServices();
     component.openModal();
 
-    stub.listServices = vi.fn(() => of([buildService('1'), buildService('2'), buildService('3')]));
+    stub.listServices = vi.fn(() =>
+      of(pageOf([buildService('1'), buildService('2'), buildService('3')])),
+    );
     await component.onCreated('C-001');
 
     expect(notifications.success).toHaveBeenCalledWith(
@@ -124,6 +117,53 @@ describe('ServicesPage', () => {
     );
     expect(component.modalOpen()).toBe(true);
     expect(component.services()).toHaveLength(3);
+    expect(stub.listServices).toHaveBeenLastCalledWith({}, 1);
+  });
+
+  it('opens the edit modal for the selected service', () => {
+    const component = create();
+    const service = buildService('9');
+
+    component.openEdit(service);
+
+    expect(component.editOpen()).toBe(true);
+    expect(component.editingService()).toEqual(service);
+  });
+
+  it('reloads the list after updating a service', async () => {
+    const component = create();
+    await component.loadServices();
+
+    stub.listServices = vi.fn(() => of(pageOf([buildService('2')])));
+    await component.onUpdated();
+
+    expect(notifications.success).toHaveBeenCalledWith('Servicio actualizado correctamente');
+    expect(component.editOpen()).toBe(false);
+    expect(component.services()).toHaveLength(1);
+  });
+
+  it('opens the delete modal for the selected service', () => {
+    const component = create();
+    const service = buildService('9');
+
+    component.openDelete(service);
+
+    expect(component.deleteOpen()).toBe(true);
+    expect(component.deletingService()).toEqual(service);
+  });
+
+  it('reloads the list after deleting a service', async () => {
+    const component = create();
+    await component.loadServices();
+
+    stub.listServices = vi.fn(() => of(pageOf([buildService('2')])));
+    await component.onDeleted(buildService('9'));
+
+    expect(notifications.success).toHaveBeenCalledWith(
+      'Servicio de la cerda "C-001" eliminado correctamente',
+    );
+    expect(component.deleteOpen()).toBe(false);
+    expect(component.services()).toHaveLength(1);
   });
 
   it('hides the create button for non-admins', () => {
@@ -136,27 +176,44 @@ describe('ServicesPage', () => {
 
   it('applies the filter values when searching', async () => {
     const component = create();
-    component.filterForm.setValue({ sow_id: 'sow-1', state: 'Fallido' });
+    component.filterForm.setValue({ sow_code: 'C-001', state: 'Fallido' });
 
     await component.search();
 
-    expect(stub.listServices).toHaveBeenLastCalledWith({ sow_id: 'sow-1', state: 'Fallido' });
+    expect(stub.listServices).toHaveBeenLastCalledWith({ sow_code: 'C-001', state: 'Fallido' }, 1);
   });
 
   it('clears the filters and reloads without them', async () => {
     const component = create();
-    component.filterForm.setValue({ sow_id: 'sow-1', state: 'Fallido' });
+    component.filterForm.setValue({ sow_code: 'C-001', state: 'Fallido' });
     await component.search();
 
-    stub.listServices = vi.fn(() => of([buildService('1')]));
+    stub.listServices = vi.fn(() => of(pageOf([buildService('1')])));
     await component.clearFilters();
 
-    expect(stub.listServices).toHaveBeenCalledWith({});
-    expect(component.filterForm.getRawValue()).toEqual({ sow_id: '', state: '' });
+    expect(stub.listServices).toHaveBeenCalledWith({}, 1);
+    expect(component.filterForm.getRawValue()).toEqual({ sow_code: '', state: '' });
+  });
+
+  it('paginates forward and backward', async () => {
+    stub.listServices = vi.fn((_filters, page) => of(pageOf([buildService(String(page))], 25, 3)));
+    const component = create();
+    await component.loadServices();
+
+    expect(component.page()).toBe(1);
+    expect(component.totalPages()).toBe(3);
+
+    await component.nextPage();
+    expect(component.page()).toBe(2);
+    expect(stub.listServices).toHaveBeenLastCalledWith({}, 2);
+
+    await component.previousPage();
+    expect(component.page()).toBe(1);
+    expect(stub.listServices).toHaveBeenLastCalledWith({}, 1);
   });
 
   it('shows a filtered empty message when filters match nothing', async () => {
-    stub.listServices = vi.fn(() => of([]));
+    stub.listServices = vi.fn(() => of(pageOf([], 0, 0)));
     const fixture = TestBed.createComponent(ServicesPage);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const component = fixture.componentInstance as any;

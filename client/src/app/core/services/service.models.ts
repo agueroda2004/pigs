@@ -6,29 +6,32 @@ export interface Mount {
   id: string;
   service_id: string;
   boar_id: string;
+  boar_code: string;
   operator_id: string;
+  operator_name: string;
   mount_number: number;
   mount_date: string;
   type: MountType;
   note: string | null;
-  created_at: string;
-  updated_at: string;
-  created_by: string;
-  updated_by: string;
 }
 
 export interface Service {
   id: string;
   sow_id: string;
+  sow_code: string;
   expected_farrowing_date: string | null;
   note: string | null;
   state: ServiceState;
   location: string | null;
   mounts: Mount[];
-  created_at: string;
-  updated_at: string;
-  created_by: string;
-  updated_by: string;
+}
+
+export interface ServicePage {
+  items: Service[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 export interface CreateMountRequest {
@@ -46,7 +49,28 @@ export interface CreateServiceRequest {
   mounts: CreateMountRequest[];
 }
 
+export interface UpdateMountRequest {
+  id: string;
+  boar_id: string;
+  operator_id: string;
+  mount_date: string;
+  type: MountType;
+  note?: string;
+}
+
+export interface UpdateServiceMountsRequest {
+  create: CreateMountRequest[];
+  update: UpdateMountRequest[];
+  delete: string[];
+}
+
+export interface UpdateServiceRequest {
+  location?: string;
+  note?: string;
+  mounts: UpdateServiceMountsRequest;
+}
+
 export interface ServiceFilters {
-  sow_id?: string;
+  sow_code?: string;
   state?: ServiceState;
 }
