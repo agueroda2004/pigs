@@ -124,6 +124,35 @@ func (r *PostgresOperatorRepository) List(ctx context.Context) ([]*operatordomai
 	return operators, nil
 }
 
+// ListDropdown fetches the id, name and active flag of the operators for selection lists.
+// A nil active returns every operator, true only the active ones and false only the
+// inactive ones.
+func (r *PostgresOperatorRepository) ListDropdown(ctx context.Context, active *bool) ([]operatordomain.OperatorDropdown, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, name, active
+		FROM operators
+		WHERE ($1::boolean IS NULL OR active = $1)
+		ORDER BY name ASC
+	`, active)
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar los operadores: %w", err)
+	}
+	defer rows.Close()
+
+	options := make([]operatordomain.OperatorDropdown, 0)
+	for rows.Next() {
+		var option operatordomain.OperatorDropdown
+		if err := rows.Scan(&option.ID, &option.Name, &option.Active); err != nil {
+			return nil, fmt.Errorf("No se pudo consultar los operadores: %w", err)
+		}
+		options = append(options, option)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudo consultar los operadores: %w", err)
+	}
+	return options, nil
+}
+
 // Update persists the operator's mutable fields by id.
 // It returns ErrOperatorNotFound when no row was affected.
 func (r *PostgresOperatorRepository) Update(ctx context.Context, operator *operatordomain.Operator) error {

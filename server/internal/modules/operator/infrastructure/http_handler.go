@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -22,16 +24,21 @@ type ListOperatorsUseCase interface {
 	Execute(context.Context) ([]*operatordomain.Operator, error)
 }
 
+type ListOperatorDropdownUseCase interface {
+	Execute(context.Context, *bool) ([]operatordomain.OperatorDropdown, error)
+}
+
 type UpdateOperatorUseCase interface {
 	Execute(context.Context, uuid.UUID, operatorapplication.UpdateOperatorCommand) (*operatordomain.Operator, error)
 }
 
 type OperatorHandler struct {
-	createOperator  CreateOperatorUseCase
-	listOperators   ListOperatorsUseCase
-	updateOperator  UpdateOperatorUseCase
-	authMiddleware  func(http.Handler) http.Handler
-	adminMiddleware func(http.Handler) http.Handler
+	createOperator       CreateOperatorUseCase
+	listOperators        ListOperatorsUseCase
+	listOperatorDropdown ListOperatorDropdownUseCase
+	updateOperator       UpdateOperatorUseCase
+	authMiddleware       func(http.Handler) http.Handler
+	adminMiddleware      func(http.Handler) http.Handler
 }
 
 // NewOperatorHandler wires the operator use cases and middlewares into a handler.
@@ -39,24 +46,27 @@ type OperatorHandler struct {
 func NewOperatorHandler(
 	createOperator CreateOperatorUseCase,
 	listOperators ListOperatorsUseCase,
+	listOperatorDropdown ListOperatorDropdownUseCase,
 	updateOperator UpdateOperatorUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *OperatorHandler {
 	return &OperatorHandler{
-		createOperator:  createOperator,
-		listOperators:   listOperators,
-		updateOperator:  updateOperator,
-		authMiddleware:  authMiddleware,
-		adminMiddleware: adminMiddleware,
+		createOperator:       createOperator,
+		listOperators:        listOperators,
+		listOperatorDropdown: listOperatorDropdown,
+		updateOperator:       updateOperator,
+		authMiddleware:       authMiddleware,
+		adminMiddleware:      adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the operator create, list and update endpoints on the mux.
-// Write routes are admin-only while the list route only requires authentication.
+// RegisterRoutes registers the operator create, list, dropdown and update endpoints on the mux.
+// Write routes are admin-only while the read routes only require authentication.
 func (h *OperatorHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/operators", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/v1/operators", h.authMiddleware(http.HandlerFunc(h.list)))
+	mux.Handle("GET /api/v1/operators/dropdown", h.authMiddleware(http.HandlerFunc(h.listDropdown)))
 	mux.Handle("PATCH /api/v1/operators/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
 }
 
@@ -77,6 +87,12 @@ type operatorResponse struct {
 	UpdatedAt string    `json:"updated_at"`
 	CreatedBy uuid.UUID `json:"created_by"`
 	UpdatedBy uuid.UUID `json:"updated_by"`
+}
+
+type operatorDropdownResponse struct {
+	ID     uuid.UUID `json:"id"`
+	Name   string    `json:"name"`
+	Active bool      `json:"active"`
 }
 
 // create handles POST /api/v1/operators and creates an operator from the request body.
@@ -116,6 +132,38 @@ func (h *OperatorHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	platformhttp.WriteJSON(w, http.StatusOK, toOperatorResponses(operators))
+}
+
+// listDropdown handles GET /api/v1/operators/dropdown and returns operators for a selection list.
+// It forwards the optional active filter so callers may narrow the list.
+func (h *OperatorHandler) listDropdown(w http.ResponseWriter, r *http.Request) {
+	active, err := parseActiveQuery(r)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	options, err := h.listOperatorDropdown.Execute(r.Context(), active)
+	if err != nil {
+		writeOperatorError(w, err)
+		return
+	}
+
+	platformhttp.WriteJSON(w, http.StatusOK, toOperatorDropdownResponses(options))
+}
+
+// parseActiveQuery reads the optional active query parameter.
+// It returns nil (no filter) when absent and rejects a malformed boolean.
+func parseActiveQuery(r *http.Request) (*bool, error) {
+	active := strings.TrimSpace(r.URL.Query().Get("active"))
+	if active == "" {
+		return nil, nil
+	}
+	parsedActive, err := strconv.ParseBool(active)
+	if err != nil {
+		return nil, errors.New("El filtro de activo no es válido")
+	}
+	return &parsedActive, nil
 }
 
 // update handles PATCH /api/v1/operators/{id} and applies the provided fields.
@@ -172,6 +220,16 @@ func toOperatorResponses(operators []*operatordomain.Operator) []operatorRespons
 	responses := make([]operatorResponse, 0, len(operators))
 	for _, operator := range operators {
 		responses = append(responses, toOperatorResponse(operator))
+	}
+	return responses
+}
+
+// toOperatorDropdownResponses maps operator dropdown items to their HTTP response shape.
+// It returns an empty slice instead of null when there are no options.
+func toOperatorDropdownResponses(options []operatordomain.OperatorDropdown) []operatorDropdownResponse {
+	responses := make([]operatorDropdownResponse, 0, len(options))
+	for _, option := range options {
+		responses = append(responses, operatorDropdownResponse{ID: option.ID, Name: option.Name, Active: option.Active})
 	}
 	return responses
 }

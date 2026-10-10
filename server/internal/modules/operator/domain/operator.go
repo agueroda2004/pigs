@@ -30,6 +30,14 @@ type Operator struct {
 	UpdatedBy uuid.UUID
 }
 
+// OperatorDropdown is a lightweight operator read model for selection lists.
+// It only carries the identifier, name and active flag of an operator.
+type OperatorDropdown struct {
+	ID     uuid.UUID
+	Name   string
+	Active bool
+}
+
 // NewOperator builds an operator after validating id, name and createdBy.
 // It defaults Active to true and sets CreatedBy/UpdatedBy to the creator.
 func NewOperator(id uuid.UUID, name string, createdBy uuid.UUID, now time.Time) (*Operator, error) {

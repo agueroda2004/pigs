@@ -9,16 +9,19 @@ import (
 )
 
 type fakeOperatorRepository struct {
-	exists        bool
-	existsErr     error
-	getOperator   *operatordomain.Operator
-	getErr        error
-	listOperators []*operatordomain.Operator
-	listErr       error
-	createErr     error
-	updateErr     error
-	created       *operatordomain.Operator
-	updated       *operatordomain.Operator
+	exists             bool
+	existsErr          error
+	getOperator        *operatordomain.Operator
+	getErr             error
+	listOperators      []*operatordomain.Operator
+	listErr            error
+	listDropdown       []operatordomain.OperatorDropdown
+	listDropdownActive *bool
+	listDropdownErr    error
+	createErr          error
+	updateErr          error
+	created            *operatordomain.Operator
+	updated            *operatordomain.Operator
 }
 
 func (f *fakeOperatorRepository) Create(_ context.Context, operator *operatordomain.Operator) error {
@@ -36,6 +39,11 @@ func (f *fakeOperatorRepository) ExistsByName(_ context.Context, _ string) (bool
 
 func (f *fakeOperatorRepository) List(_ context.Context) ([]*operatordomain.Operator, error) {
 	return f.listOperators, f.listErr
+}
+
+func (f *fakeOperatorRepository) ListDropdown(_ context.Context, active *bool) ([]operatordomain.OperatorDropdown, error) {
+	f.listDropdownActive = active
+	return f.listDropdown, f.listDropdownErr
 }
 
 func (f *fakeOperatorRepository) Update(_ context.Context, operator *operatordomain.Operator) error {

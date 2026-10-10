@@ -9,10 +9,11 @@ import (
 )
 
 type Module struct {
-	CreateOperator *operatorapplication.CreateOperatorService
-	ListOperators  *operatorapplication.ListOperatorsService
-	UpdateOperator *operatorapplication.UpdateOperatorService
-	Handler        *OperatorHandler
+	CreateOperator       *operatorapplication.CreateOperatorService
+	ListOperators        *operatorapplication.ListOperatorsService
+	ListOperatorDropdown *operatorapplication.ListOperatorDropdownService
+	UpdateOperator       *operatorapplication.UpdateOperatorService
+	Handler              *OperatorHandler
 }
 
 // NewModule assembles the operator use cases and HTTP handler from its dependencies.
@@ -25,12 +26,14 @@ func NewModule(
 ) *Module {
 	createOperator := operatorapplication.NewCreateOperatorService(repository, clock)
 	listOperators := operatorapplication.NewListOperatorsService(repository)
+	listOperatorDropdown := operatorapplication.NewListOperatorDropdownService(repository)
 	updateOperator := operatorapplication.NewUpdateOperatorService(repository, clock)
 
 	return &Module{
-		CreateOperator: createOperator,
-		ListOperators:  listOperators,
-		UpdateOperator: updateOperator,
-		Handler:        NewOperatorHandler(createOperator, listOperators, updateOperator, authMiddleware, adminMiddleware),
+		CreateOperator:       createOperator,
+		ListOperators:        listOperators,
+		ListOperatorDropdown: listOperatorDropdown,
+		UpdateOperator:       updateOperator,
+		Handler:              NewOperatorHandler(createOperator, listOperators, listOperatorDropdown, updateOperator, authMiddleware, adminMiddleware),
 	}
 }

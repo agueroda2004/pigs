@@ -13,5 +13,8 @@ type OperatorRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*operatordomain.Operator, error)
 	ExistsByName(ctx context.Context, name string) (bool, error)
 	List(ctx context.Context) ([]*operatordomain.Operator, error)
+	// ListDropdown returns lightweight operator read models filtered by the
+	// active flag. A nil active applies no filter and returns every operator.
+	ListDropdown(ctx context.Context, active *bool) ([]operatordomain.OperatorDropdown, error)
 	Update(ctx context.Context, operator *operatordomain.Operator) error
 }

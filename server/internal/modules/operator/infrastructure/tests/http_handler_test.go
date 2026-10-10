@@ -112,6 +112,62 @@ func TestOperatorHandlerList(t *testing.T) {
 	})
 }
 
+func TestOperatorHandlerListDropdown(t *testing.T) {
+	options := []operatordomain.OperatorDropdown{
+		{ID: uuid.New(), Name: "Ana", Active: true},
+		{ID: uuid.New(), Name: "Beto", Active: false},
+	}
+
+	t.Run("returns the dropdown items and forwards the active filter", func(t *testing.T) {
+		dropdown := &fakeListOperatorDropdownUseCase{options: options}
+		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, dropdown, &fakeUpdateOperatorUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/operators/dropdown?active=true", nil))
+
+		if response.Code != http.StatusOK || !dropdown.called {
+			t.Fatalf("status=%d called=%v", response.Code, dropdown.called)
+		}
+		if dropdown.active == nil || !*dropdown.active {
+			t.Fatalf("unexpected active filter: %#v", dropdown.active)
+		}
+		body := response.Body.String()
+		for _, want := range []string{"Ana", "Beto", `"active"`} {
+			if !strings.Contains(body, want) {
+				t.Fatalf("body missing %q: %s", want, body)
+			}
+		}
+	})
+
+	t.Run("returns every operator when no active filter is given", func(t *testing.T) {
+		dropdown := &fakeListOperatorDropdownUseCase{options: options}
+		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, dropdown, &fakeUpdateOperatorUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/operators/dropdown", nil))
+
+		if response.Code != http.StatusOK || dropdown.active != nil {
+			t.Fatalf("status=%d active=%#v", response.Code, dropdown.active)
+		}
+	})
+
+	t.Run("rejects a malformed active filter", func(t *testing.T) {
+		dropdown := &fakeListOperatorDropdownUseCase{}
+		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, dropdown, &fakeUpdateOperatorUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/operators/dropdown?active=maybe", nil))
+
+		if response.Code != http.StatusBadRequest || dropdown.called {
+			t.Fatalf("status=%d called=%v", response.Code, dropdown.called)
+		}
+	})
+
+	t.Run("maps internal errors", func(t *testing.T) {
+		dropdown := &fakeListOperatorDropdownUseCase{err: errors.New("unexpected")}
+		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, dropdown, &fakeUpdateOperatorUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/operators/dropdown", nil))
+
+		if response.Code != http.StatusInternalServerError {
+			t.Fatalf("status=%d, want %d", response.Code, http.StatusInternalServerError)
+		}
+	})
+}
+
 func TestOperatorHandlerUpdate(t *testing.T) {
 	operatorID := uuid.New()
 	actorID := uuid.New()

@@ -39,6 +39,19 @@ func (f *fakeListOperatorsUseCase) Execute(_ context.Context) ([]*operatordomain
 	return f.operators, f.err
 }
 
+type fakeListOperatorDropdownUseCase struct {
+	options []operatordomain.OperatorDropdown
+	err     error
+	active  *bool
+	called  bool
+}
+
+func (f *fakeListOperatorDropdownUseCase) Execute(_ context.Context, active *bool) ([]operatordomain.OperatorDropdown, error) {
+	f.called = true
+	f.active = active
+	return f.options, f.err
+}
+
 type fakeUpdateOperatorUseCase struct {
 	operator   *operatordomain.Operator
 	err        error
@@ -55,8 +68,12 @@ func (f *fakeUpdateOperatorUseCase) Execute(_ context.Context, operatorID uuid.U
 }
 
 func newTestHandler(create operatorinfra.CreateOperatorUseCase, list operatorinfra.ListOperatorsUseCase, update operatorinfra.UpdateOperatorUseCase) *operatorinfra.OperatorHandler {
+	return newTestHandlerWithDropdown(create, list, &fakeListOperatorDropdownUseCase{}, update)
+}
+
+func newTestHandlerWithDropdown(create operatorinfra.CreateOperatorUseCase, list operatorinfra.ListOperatorsUseCase, dropdown operatorinfra.ListOperatorDropdownUseCase, update operatorinfra.UpdateOperatorUseCase) *operatorinfra.OperatorHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return operatorinfra.NewOperatorHandler(create, list, update, passThrough, passThrough)
+	return operatorinfra.NewOperatorHandler(create, list, dropdown, update, passThrough, passThrough)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {
