@@ -141,6 +141,25 @@ En PowerShell:
 migrate -path ./migrations -database $env:DATABASE_URL down 1
 ```
 
+## Reset de datos (conservando usuarios)
+
+Elimina todos los datos de negocio pero conserva la tabla `users`, sus sesiones
+(`refresh_tokens`) y el control de migraciones (`schema_migrations`).
+
+En PowerShell (desde `server`):
+
+```powershell
+Get-Content .\scripts\reset-db.sql | docker compose exec -T postgres psql -U pig_farm -d pig_farm
+```
+
+En Bash (desde `server`):
+
+```bash
+docker compose exec -T postgres psql -U pig_farm -d pig_farm < ./scripts/reset-db.sql
+```
+
+La bandera `-T` es necesaria para que `psql` acepte la entrada por stdin.
+
 ## Detener el contenedor
 
 Detener los servicios conservando los datos:
