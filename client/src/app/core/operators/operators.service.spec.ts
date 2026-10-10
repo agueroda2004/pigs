@@ -40,6 +40,30 @@ describe('OperatorsService', () => {
     await expect(promise).resolves.toHaveLength(1);
   });
 
+  it('lists the operator dropdown with the active filter', async () => {
+    const promise = firstValueFrom(service.listOperatorDropdown(true));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/operators/dropdown') && request.method === 'GET',
+    );
+    expect(call.request.params.get('active')).toBe('true');
+    call.flush([{ id: '1', name: 'Juan Pérez', active: true }]);
+
+    await expect(promise).resolves.toHaveLength(1);
+  });
+
+  it('lists the operator dropdown without an active filter', async () => {
+    const promise = firstValueFrom(service.listOperatorDropdown());
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/operators/dropdown') && request.method === 'GET',
+    );
+    expect(call.request.params.has('active')).toBe(false);
+    call.flush([]);
+
+    await expect(promise).resolves.toHaveLength(0);
+  });
+
   it('creates an operator', async () => {
     const promise = firstValueFrom(service.createOperator({ name: 'Juan Pérez' }));
 

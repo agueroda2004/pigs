@@ -8,6 +8,12 @@ export interface Operator {
   updated_by: string;
 }
 
+export interface OperatorDropdown {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
 export interface CreateOperatorRequest {
   name: string;
 }

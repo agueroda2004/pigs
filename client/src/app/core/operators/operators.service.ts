@@ -1,9 +1,14 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { CreateOperatorRequest, Operator, UpdateOperatorRequest } from './operator.models';
+import {
+  CreateOperatorRequest,
+  Operator,
+  OperatorDropdown,
+  UpdateOperatorRequest,
+} from './operator.models';
 
 @Injectable({ providedIn: 'root' })
 export class OperatorsService {
@@ -12,6 +17,15 @@ export class OperatorsService {
 
   listOperators(): Observable<Operator[]> {
     return this.http.get<Operator[]>(this.baseUrl);
+  }
+
+  listOperatorDropdown(active?: boolean): Observable<OperatorDropdown[]> {
+    let params = new HttpParams();
+    if (active !== undefined) {
+      params = params.set('active', String(active));
+    }
+
+    return this.http.get<OperatorDropdown[]>(`${this.baseUrl}/dropdown`, { params });
   }
 
   createOperator(request: CreateOperatorRequest): Observable<Operator> {
