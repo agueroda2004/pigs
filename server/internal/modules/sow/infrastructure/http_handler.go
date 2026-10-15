@@ -289,13 +289,17 @@ func parseSowPage(r *http.Request) (int, error) {
 }
 
 // parseSowFilter reads the optional list filters from the query string.
-// It returns an error for a malformed breed_id, origin, active or state value.
+// It returns an error for an over-length code or a malformed breed_id, origin, active or state value.
 func parseSowFilter(r *http.Request) (ports.SowFilter, error) {
 	query := r.URL.Query()
 	var filter ports.SowFilter
 
 	if code := strings.TrimSpace(query.Get("code")); code != "" {
-		filter.Code = &code
+		parsedCode, err := sowdomain.ParseCodeFilter(code)
+		if err != nil {
+			return ports.SowFilter{}, errors.New("El código no es válido")
+		}
+		filter.Code = &parsedCode
 	}
 
 	if breed := strings.TrimSpace(query.Get("breed_id")); breed != "" {

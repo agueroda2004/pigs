@@ -12,6 +12,7 @@ const (
 	maxCodeLength     = 50
 	maxLocationLength = 100
 	maxNoteLength     = 500
+	maxParity         = 20
 )
 
 // State represents the life state of a sow.
@@ -48,7 +49,7 @@ var (
 	ErrInvalidState     = errors.New("El estado de la cerda no es válido")
 	ErrInvalidOrigin    = errors.New("El origen de la cerda no es válido")
 	ErrInvalidBreed     = errors.New("La raza es obligatoria")
-	ErrInvalidParity    = errors.New("La paridad no puede ser negativa")
+	ErrInvalidParity    = errors.New("La paridad debe estar entre 0 y 20")
 	ErrInvalidUpdate    = errors.New("Debe actualizar al menos un campo de la cerda")
 	ErrInvalidCreatedBy = errors.New("El usuario que crea la cerda es obligatorio")
 	ErrInvalidUpdatedBy = errors.New("El usuario que actualiza la cerda es obligatorio")
@@ -162,8 +163,8 @@ func NewSow(params NewSowParams, now time.Time) (*Sow, error) {
 		return nil, ErrInvalidOrigin
 	}
 
-	if params.Parity < 0 {
-		return nil, ErrInvalidParity
+	if err := validateParity(params.Parity); err != nil {
+		return nil, err
 	}
 
 	if params.BreedID == uuid.Nil {
@@ -393,6 +394,21 @@ func validateCode(code string) (string, error) {
 		return "", ErrInvalidCode
 	}
 	return code, nil
+}
+
+// ParseCodeFilter trims a raw code search value and validates its length.
+// It returns ErrInvalidCode when the value is empty or exceeds the maximum code length.
+func ParseCodeFilter(value string) (string, error) {
+	return validateCode(value)
+}
+
+// validateParity requires the parity to fall within the supported range.
+// It returns ErrInvalidParity when the value is negative or above maxParity.
+func validateParity(parity int) error {
+	if parity < 0 || parity > maxParity {
+		return ErrInvalidParity
+	}
+	return nil
 }
 
 // validateLocation trims the optional location and checks its length.

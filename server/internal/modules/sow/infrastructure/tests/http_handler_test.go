@@ -234,6 +234,18 @@ func TestSowHandlerList(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("rejects an over-length code filter", func(t *testing.T) {
+		list := &fakeListSowsUseCase{}
+		handler := newTestHandler(&fakeCreateSowUseCase{}, list, &fakeListSowDropdownUseCase{}, &fakeUpdateSowUseCase{}, &fakeDeleteSowUseCase{})
+
+		target := "/api/v1/sows?code=" + strings.Repeat("a", 51)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
+
+		if response.Code != http.StatusBadRequest || list.called {
+			t.Fatalf("status=%d called=%v", response.Code, list.called)
+		}
+	})
 }
 
 func TestSowHandlerListDropdown(t *testing.T) {

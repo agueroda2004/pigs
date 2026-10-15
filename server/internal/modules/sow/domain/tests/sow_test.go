@@ -227,6 +227,27 @@ func TestNewSow(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts the maximum parity", func(t *testing.T) {
+		params := validParams()
+		params.Parity = 20
+
+		sow, err := sowdomain.NewSow(params, now)
+
+		if err != nil || sow.Parity != 20 {
+			t.Fatalf("unexpected result: err=%v sow=%#v", err, sow)
+		}
+	})
+
+	t.Run("rejects parity above the maximum", func(t *testing.T) {
+		params := validParams()
+		params.Parity = 21
+
+		_, err := sowdomain.NewSow(params, now)
+		if !errors.Is(err, sowdomain.ErrInvalidParity) {
+			t.Fatalf("error = %v, want ErrInvalidParity", err)
+		}
+	})
+
 	t.Run("rejects nil breed", func(t *testing.T) {
 		params := validParams()
 		params.BreedID = uuid.Nil
@@ -697,6 +718,24 @@ func TestParseState(t *testing.T) {
 
 		if !errors.Is(err, sowdomain.ErrInvalidState) {
 			t.Fatalf("error = %v, want ErrInvalidState", err)
+		}
+	})
+}
+
+func TestParseCodeFilter(t *testing.T) {
+	t.Run("trims a valid code", func(t *testing.T) {
+		code, err := sowdomain.ParseCodeFilter("  C-001  ")
+
+		if err != nil || code != "C-001" {
+			t.Fatalf("unexpected result: err=%v code=%q", err, code)
+		}
+	})
+
+	t.Run("rejects an over-length code", func(t *testing.T) {
+		_, err := sowdomain.ParseCodeFilter(strings.Repeat("a", 51))
+
+		if !errors.Is(err, sowdomain.ErrInvalidCode) {
+			t.Fatalf("error = %v, want ErrInvalidCode", err)
 		}
 	})
 }
