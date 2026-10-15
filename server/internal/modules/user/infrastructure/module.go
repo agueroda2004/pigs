@@ -13,6 +13,7 @@ type Module struct {
 	ListUsers         *userapplication.ListUsersService
 	UpdateOwnUser     *userapplication.UpdateOwnUserService
 	UpdateUserByAdmin *userapplication.UpdateUserByAdminService
+	DeleteUser        *userapplication.DeleteUserService
 	Handler           *UserHandler
 }
 
@@ -28,12 +29,14 @@ func NewModule(
 	listUsers := userapplication.NewListUsersService(repository)
 	updateOwnUser := userapplication.NewUpdateOwnUserService(repository, hasher, clock)
 	updateUserByAdmin := userapplication.NewUpdateUserByAdminService(repository, hasher, clock)
+	deleteUser := userapplication.NewDeleteUserService(repository)
 
 	return &Module{
 		CreateUser:        createUser,
 		ListUsers:         listUsers,
 		UpdateOwnUser:     updateOwnUser,
 		UpdateUserByAdmin: updateUserByAdmin,
-		Handler:           NewUserHandler(createUser, listUsers, updateOwnUser, updateUserByAdmin, adminMiddleware),
+		DeleteUser:        deleteUser,
+		Handler:           NewUserHandler(createUser, listUsers, updateOwnUser, updateUserByAdmin, deleteUser, adminMiddleware),
 	}
 }

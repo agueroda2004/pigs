@@ -27,8 +27,8 @@ func TestUserHandlerCreate(t *testing.T) {
 		if response.Code != http.StatusCreated || create.command.CreatedBy != actorID.String() || create.command.Username != "ana" {
 			t.Fatalf("status=%d command=%#v", response.Code, create.command)
 		}
-		if response.Header().Get("Content-Type") != "application/json" {
-			t.Fatalf("unexpected content type: %q", response.Header().Get("Content-Type"))
+		if body := strings.TrimSpace(response.Body.String()); body != "" {
+			t.Fatalf("expected empty body, got %q", body)
 		}
 	})
 
@@ -87,6 +87,9 @@ func TestUserHandlerUpdate(t *testing.T) {
 
 		if response.Code != http.StatusOK || update.userID != userID || update.command.Name == nil || *update.command.Name != "New Name" {
 			t.Fatalf("status=%d id=%v command=%#v", response.Code, update.userID, update.command)
+		}
+		if body := strings.TrimSpace(response.Body.String()); body != "" {
+			t.Fatalf("expected empty body, got %q", body)
 		}
 	})
 
@@ -181,6 +184,11 @@ func TestUserHandlerList(t *testing.T) {
 		if strings.Contains(body, "password") || !strings.HasPrefix(strings.TrimSpace(body), "[") {
 			t.Fatalf("unexpected body: %s", body)
 		}
+		for _, field := range []string{"created_at", "updated_at", "created_by", "updated_by"} {
+			if strings.Contains(body, field) {
+				t.Fatalf("body should omit audit field %q: %s", field, body)
+			}
+		}
 	})
 
 	t.Run("returns an empty array when there are no users", func(t *testing.T) {
@@ -200,6 +208,65 @@ func TestUserHandlerList(t *testing.T) {
 
 		if response.Code != http.StatusInternalServerError {
 			t.Fatalf("status=%d, want %d", response.Code, http.StatusInternalServerError)
+		}
+	})
+}
+
+func TestUserHandlerDelete(t *testing.T) {
+	userID := uuid.New()
+
+	t.Run("deletes the user with the provided id", func(t *testing.T) {
+		remove := &fakeDeleteUserUseCase{}
+		handler := newDeleteHandler(remove)
+		request := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/users/"+userID.String(), nil)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusNoContent || !remove.called || remove.userID != userID {
+			t.Fatalf("status=%d called=%v id=%v", response.Code, remove.called, remove.userID)
+		}
+		if body := strings.TrimSpace(response.Body.String()); body != "" {
+			t.Fatalf("expected empty body, got %q", body)
+		}
+	})
+
+	t.Run("returns bad request for invalid UUID", func(t *testing.T) {
+		remove := &fakeDeleteUserUseCase{}
+		handler := newDeleteHandler(remove)
+		response := serve(handler, httptest.NewRequest(http.MethodDelete, "/api/v1/admin/users/not-a-uuid", nil))
+
+		if response.Code != http.StatusBadRequest || remove.called {
+			t.Fatalf("status=%d called=%v", response.Code, remove.called)
+		}
+	})
+
+	t.Run("blocks deletion for non-admins", func(t *testing.T) {
+		remove := &fakeDeleteUserUseCase{}
+		handler := newAdminGuardHandler(remove)
+		response := serve(handler, httptest.NewRequest(http.MethodDelete, "/api/v1/admin/users/"+userID.String(), nil))
+
+		if response.Code != http.StatusForbidden || remove.called {
+			t.Fatalf("status=%d called=%v", response.Code, remove.called)
+		}
+	})
+
+	t.Run("maps application errors", func(t *testing.T) {
+		for _, test := range []struct {
+			name   string
+			err    error
+			status int
+		}{
+			{"not found", ports.ErrUserNotFound, http.StatusNotFound},
+			{"in use", ports.ErrUserInUse, http.StatusConflict},
+			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				remove := &fakeDeleteUserUseCase{err: test.err}
+				handler := newDeleteHandler(remove)
+				response := serve(handler, httptest.NewRequest(http.MethodDelete, "/api/v1/admin/users/"+uuid.New().String(), nil))
+				if response.Code != test.status {
+					t.Fatalf("status=%d, want %d", response.Code, test.status)
+				}
+			})
 		}
 	})
 }

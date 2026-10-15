@@ -68,12 +68,39 @@ func (f *fakeUpdateUserByAdminUseCase) Execute(_ context.Context, userID uuid.UU
 	return f.user, f.err
 }
 
+type fakeDeleteUserUseCase struct {
+	err    error
+	userID uuid.UUID
+	called bool
+}
+
+func (f *fakeDeleteUserUseCase) Execute(_ context.Context, userID uuid.UUID) error {
+	f.called = true
+	f.userID = userID
+	return f.err
+}
+
 func newTestHandler(create userinfra.CreateUserUseCase, update userinfra.UpdateOwnUserUseCase, updateAdmin userinfra.UpdateUserByAdminUseCase) *userinfra.UserHandler {
 	return newTestHandlerWithList(&fakeListUsersUseCase{}, create, update, updateAdmin)
 }
 
 func newTestHandlerWithList(list userinfra.ListUsersUseCase, create userinfra.CreateUserUseCase, update userinfra.UpdateOwnUserUseCase, updateAdmin userinfra.UpdateUserByAdminUseCase) *userinfra.UserHandler {
-	return userinfra.NewUserHandler(create, list, update, updateAdmin, func(next http.Handler) http.Handler { return next })
+	passThrough := func(next http.Handler) http.Handler { return next }
+	return userinfra.NewUserHandler(create, list, update, updateAdmin, &fakeDeleteUserUseCase{}, passThrough)
+}
+
+func newDeleteHandler(remove userinfra.DeleteUserUseCase) *userinfra.UserHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	return userinfra.NewUserHandler(&fakeCreateUserUseCase{}, &fakeListUsersUseCase{}, &fakeUpdateUserUseCase{}, &fakeUpdateUserByAdminUseCase{}, remove, passThrough)
+}
+
+func newAdminGuardHandler(remove userinfra.DeleteUserUseCase) *userinfra.UserHandler {
+	adminGuard := func(_ http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		})
+	}
+	return userinfra.NewUserHandler(&fakeCreateUserUseCase{}, &fakeListUsersUseCase{}, &fakeUpdateUserUseCase{}, &fakeUpdateUserByAdminUseCase{}, remove, adminGuard)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {

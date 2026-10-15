@@ -30,11 +30,16 @@ type UpdateUserByAdminUseCase interface {
 	Execute(context.Context, uuid.UUID, userapplication.UpdateUserByAdminCommand) (*userdomain.User, error)
 }
 
+type DeleteUserUseCase interface {
+	Execute(context.Context, uuid.UUID) error
+}
+
 type UserHandler struct {
 	createUser      CreateUserUseCase
 	listUsers       ListUsersUseCase
 	updateOwnUser   UpdateOwnUserUseCase
 	updateUserAdmin UpdateUserByAdminUseCase
+	deleteUser      DeleteUserUseCase
 	adminMiddleware func(http.Handler) http.Handler
 }
 
@@ -45,6 +50,7 @@ func NewUserHandler(
 	listUsers ListUsersUseCase,
 	updateOwnUser UpdateOwnUserUseCase,
 	updateUserAdmin UpdateUserByAdminUseCase,
+	deleteUser DeleteUserUseCase,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *UserHandler {
 	return &UserHandler{
@@ -52,17 +58,19 @@ func NewUserHandler(
 		listUsers:       listUsers,
 		updateOwnUser:   updateOwnUser,
 		updateUserAdmin: updateUserAdmin,
+		deleteUser:      deleteUser,
 		adminMiddleware: adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the user create, list and update endpoints on the mux.
+// RegisterRoutes registers the user create, list, update and delete endpoints on the mux.
 // Admin-only routes are wrapped with the admin middleware.
 func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/users", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.HandleFunc("PATCH /api/v1/users/{id}", h.update)
 	mux.Handle("GET /api/v1/admin/users", h.adminMiddleware(http.HandlerFunc(h.list)))
 	mux.Handle("PATCH /api/v1/admin/users/{id}", h.adminMiddleware(http.HandlerFunc(h.updateByAdmin)))
+	mux.Handle("DELETE /api/v1/admin/users/{id}", h.adminMiddleware(http.HandlerFunc(h.delete)))
 }
 
 type createUserRequest struct {
@@ -85,16 +93,12 @@ type updateUserByAdminRequest struct {
 	Active   *bool            `json:"active"`
 }
 
-type userResponse struct {
-	ID        uuid.UUID       `json:"id"`
-	Name      string          `json:"name"`
-	Username  string          `json:"username"`
-	Role      userdomain.Role `json:"role"`
-	Active    bool            `json:"active"`
-	CreatedAt string          `json:"created_at"`
-	UpdatedAt string          `json:"updated_at"`
-	CreatedBy string          `json:"created_by,omitempty"`
-	UpdatedBy string          `json:"updated_by,omitempty"`
+type userListResponse struct {
+	ID       uuid.UUID       `json:"id"`
+	Name     string          `json:"name"`
+	Username string          `json:"username"`
+	Role     userdomain.Role `json:"role"`
+	Active   bool            `json:"active"`
 }
 
 // create handles POST /api/v1/users and creates a user from the request body.
@@ -112,23 +116,22 @@ func (h *UserHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdUser, err := h.createUser.Execute(r.Context(), userapplication.CreateUserCommand{
+	if _, err := h.createUser.Execute(r.Context(), userapplication.CreateUserCommand{
 		Name:      request.Name,
 		Username:  request.Username,
 		Password:  request.Password,
 		Role:      request.Role,
 		CreatedBy: actor.UserID.String(),
-	})
-	if err != nil {
+	}); err != nil {
 		writeUserError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusCreated, toUserResponse(createdUser))
+	w.WriteHeader(http.StatusCreated)
 }
 
 // list handles GET /api/v1/admin/users and returns every registered user.
-// It maps the domain users to the public response shape without passwords.
+// It maps the domain users to a public response shape without passwords or audit fields.
 func (h *UserHandler) list(w http.ResponseWriter, r *http.Request) {
 	users, err := h.listUsers.Execute(r.Context())
 	if err != nil {
@@ -136,7 +139,7 @@ func (h *UserHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toUserResponses(users))
+	platformhttp.WriteJSON(w, http.StatusOK, toUserListResponses(users))
 }
 
 // update handles PATCH /api/v1/users/{id} and updates the caller's own profile.
@@ -154,16 +157,15 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedUser, err := h.updateOwnUser.Execute(r.Context(), userID, userapplication.UpdateOwnUserCommand{
+	if _, err := h.updateOwnUser.Execute(r.Context(), userID, userapplication.UpdateOwnUserCommand{
 		Name:     request.Name,
 		Password: request.Password,
-	})
-	if err != nil {
+	}); err != nil {
 		writeUserError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toUserResponse(updatedUser))
+	w.WriteHeader(http.StatusOK)
 }
 
 // updateByAdmin handles PATCH /api/v1/admin/users/{id} and updates any user.
@@ -187,44 +189,56 @@ func (h *UserHandler) updateByAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedUser, err := h.updateUserAdmin.Execute(r.Context(), userID, userapplication.UpdateUserByAdminCommand{
+	if _, err := h.updateUserAdmin.Execute(r.Context(), userID, userapplication.UpdateUserByAdminCommand{
 		Name:      request.Name,
 		Username:  request.Username,
 		Password:  request.Password,
 		Role:      request.Role,
 		Active:    request.Active,
 		UpdatedBy: actor.UserID.String(),
-	})
-	if err != nil {
+	}); err != nil {
 		writeUserError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toUserResponse(updatedUser))
+	w.WriteHeader(http.StatusOK)
 }
 
-// toUserResponse maps a domain user to the HTTP response shape.
-// It formats timestamps in UTC and omits empty audit fields.
-func toUserResponse(user *userdomain.User) userResponse {
-	return userResponse{
-		ID:        user.ID,
-		Name:      user.Name,
-		Username:  user.Username,
-		Role:      user.Role,
-		Active:    user.Active,
-		CreatedAt: user.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt: user.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		CreatedBy: user.CreatedBy,
-		UpdatedBy: user.UpdatedBy,
+// delete handles DELETE /api/v1/admin/users/{id} and removes a user.
+// It parses the id path value and maps a linked-records conflict to 409.
+func (h *UserHandler) delete(w http.ResponseWriter, r *http.Request) {
+	userID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador del usuario no es válido"))
+		return
+	}
+
+	if err := h.deleteUser.Execute(r.Context(), userID); err != nil {
+		writeUserError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// toUserListResponse maps a domain user to the list response shape.
+// It exposes only the identity fields and omits every audit field.
+func toUserListResponse(user *userdomain.User) userListResponse {
+	return userListResponse{
+		ID:       user.ID,
+		Name:     user.Name,
+		Username: user.Username,
+		Role:     user.Role,
+		Active:   user.Active,
 	}
 }
 
-// toUserResponses maps a list of domain users to HTTP response shapes.
+// toUserListResponses maps a list of domain users to list response shapes.
 // It returns an empty slice instead of null when there are no users.
-func toUserResponses(users []*userdomain.User) []userResponse {
-	responses := make([]userResponse, 0, len(users))
+func toUserListResponses(users []*userdomain.User) []userListResponse {
+	responses := make([]userListResponse, 0, len(users))
 	for _, user := range users {
-		responses = append(responses, toUserResponse(user))
+		responses = append(responses, toUserListResponse(user))
 	}
 	return responses
 }
@@ -234,7 +248,8 @@ func toUserResponses(users []*userdomain.User) []userResponse {
 func writeUserError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, ports.ErrUsernameAlreadyUsed):
+	case errors.Is(err, ports.ErrUsernameAlreadyUsed),
+		errors.Is(err, ports.ErrUserInUse):
 		status = http.StatusConflict
 	case errors.Is(err, ports.ErrUserNotFound):
 		status = http.StatusNotFound

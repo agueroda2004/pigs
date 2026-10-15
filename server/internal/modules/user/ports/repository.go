@@ -14,4 +14,5 @@ type UserRepository interface {
 	List(ctx context.Context) ([]*userdomain.User, error)
 	ExistsByUsername(ctx context.Context, username string) (bool, error)
 	Update(ctx context.Context, user *userdomain.User) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }

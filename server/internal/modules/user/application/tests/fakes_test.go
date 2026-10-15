@@ -17,8 +17,10 @@ type fakeUserRepository struct {
 	listErr   error
 	createErr error
 	updateErr error
+	deleteErr error
 	created   *userdomain.User
 	updated   *userdomain.User
+	deletedID uuid.UUID
 }
 
 func (f *fakeUserRepository) Create(_ context.Context, user *userdomain.User) error {
@@ -41,6 +43,11 @@ func (f *fakeUserRepository) ExistsByUsername(_ context.Context, _ string) (bool
 func (f *fakeUserRepository) Update(_ context.Context, user *userdomain.User) error {
 	f.updated = user
 	return f.updateErr
+}
+
+func (f *fakeUserRepository) Delete(_ context.Context, id uuid.UUID) error {
+	f.deletedID = id
+	return f.deleteErr
 }
 
 type fakePasswordHasher struct {

@@ -218,12 +218,35 @@ func (r *PostgresUserRepository) Update(ctx context.Context, user *userdomain.Us
 	return nil
 }
 
+// Delete removes a user by its identifier.
+// It returns ErrUserNotFound when no row was affected and ErrUserInUse when the
+// user still has records linked to it.
+func (r *PostgresUserRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	commandTag, err := r.pool.Exec(ctx, `
+		DELETE FROM users
+		WHERE id = $1
+	`, id)
+	if err != nil {
+		return mapPostgresError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
 // mapPostgresError translates PostgreSQL errors into domain port errors.
-// Unique violations become ErrUsernameAlreadyUsed; others are wrapped.
+// Unique violations become ErrUsernameAlreadyUsed, foreign key violations become
+// ErrUserInUse; others are wrapped.
 func mapPostgresError(err error) error {
 	var postgresError *pgconn.PgError
-	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
-		return ports.ErrUsernameAlreadyUsed
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return ports.ErrUsernameAlreadyUsed
+		case "23503":
+			return ports.ErrUserInUse
+		}
 	}
 	return fmt.Errorf("No se pudo guardar el usuario: %w", err)
 }
