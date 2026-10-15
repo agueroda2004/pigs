@@ -213,6 +213,27 @@ describe('SowsPage', () => {
     );
   });
 
+  it('rejects an over-length code filter before sending it', async () => {
+    const fixture = TestBed.createComponent(SowsPage);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    stub.listSows.mockClear();
+    component.filterForm.patchValue({ code: 'x'.repeat(51) });
+
+    await component.search();
+    fixture.detectChanges();
+
+    expect(component.filterForm.controls.code.hasError('maxlength')).toBe(true);
+    expect(stub.listSows).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      'El código debe tener como máximo 50 caracteres',
+    );
+  });
+
   it('clears the filters and reloads without them', async () => {
     const component = create();
     component.filterForm.setValue({

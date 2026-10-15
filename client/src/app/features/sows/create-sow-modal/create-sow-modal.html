@@ -44,11 +44,12 @@
         id="sow-parity"
         type="number"
         min="0"
+        max="20"
         formControlName="parity"
         class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
       />
       @if (form.controls.parity.touched && form.controls.parity.invalid) {
-        <p class="text-xs text-danger">La paridad no puede ser negativa.</p>
+        <p class="text-xs text-danger">La paridad debe estar entre 0 y 20.</p>
       }
     </div>
 

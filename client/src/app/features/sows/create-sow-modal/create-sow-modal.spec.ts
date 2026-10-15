@@ -151,4 +151,44 @@ describe('CreateSowModal', () => {
 
     expect(notifications.error).toHaveBeenCalledWith('El código de la cerda ya existe');
   });
+
+  it('accepts a parity of 20', async () => {
+    const component = create();
+    component.form.setValue({
+      code: 'C-002',
+      breed_id: 'breed-1',
+      origin: 'Propio',
+      parity: 20,
+      location: '',
+      entry_date: '2026-01-10',
+      birth_date: '',
+      note: '',
+    });
+
+    expect(component.form.controls.parity.valid).toBe(true);
+
+    await component.submit();
+
+    expect(stub.createSow).toHaveBeenCalledWith(expect.objectContaining({ parity: 20 }));
+  });
+
+  it('rejects a parity above 20', async () => {
+    const component = create();
+    component.form.setValue({
+      code: 'C-002',
+      breed_id: 'breed-1',
+      origin: 'Propio',
+      parity: 21,
+      location: '',
+      entry_date: '2026-01-10',
+      birth_date: '',
+      note: '',
+    });
+
+    expect(component.form.controls.parity.hasError('max')).toBe(true);
+
+    await component.submit();
+
+    expect(stub.createSow).not.toHaveBeenCalled();
+  });
 });

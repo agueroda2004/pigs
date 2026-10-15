@@ -1,5 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 
 import { AuthService } from '../../../core/auth/auth.service';
@@ -66,7 +66,7 @@ export class SowsPage implements OnInit {
   protected readonly hasFilters = computed(() => Object.keys(this.appliedFilters()).length > 0);
 
   protected readonly filterForm = this.formBuilder.nonNullable.group({
-    code: [''],
+    code: ['', [Validators.maxLength(50)]],
     breed_id: [''],
     origin: [''],
     state: [''],
@@ -141,6 +141,11 @@ export class SowsPage implements OnInit {
   }
 
   protected async search(): Promise<void> {
+    if (this.filterForm.invalid) {
+      this.filterForm.markAllAsTouched();
+      return;
+    }
+
     const { code, breed_id, origin, state, active } = this.filterForm.getRawValue();
     const filters: SowFilters = {};
     const trimmedCode = code.trim();

@@ -40,7 +40,7 @@ export class CreateSowModal {
     code: ['', [Validators.required, Validators.maxLength(50)]],
     breed_id: ['', [Validators.required]],
     origin: ['', [Validators.required]],
-    parity: [0, [Validators.min(0)]],
+    parity: [0, [Validators.min(0), Validators.max(20)]],
     location: ['', [Validators.maxLength(100)]],
     entry_date: ['', [Validators.required]],
     birth_date: [''],
