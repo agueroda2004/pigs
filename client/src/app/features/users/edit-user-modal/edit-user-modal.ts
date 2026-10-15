@@ -42,7 +42,7 @@ export class EditUserModal {
   readonly open = input(false);
   readonly user = input<User | null>(null);
   readonly closed = output<void>();
-  readonly updated = output<User>();
+  readonly updated = output<void>();
 
   private readonly users = inject(UsersService);
   private readonly notifications = inject(NotificationService);
@@ -153,8 +153,8 @@ export class EditUserModal {
     }
 
     try {
-      const updated = await firstValueFrom(this.users.updateUser(current.id, request));
-      this.updated.emit(updated);
+      await firstValueFrom(this.users.updateUser(current.id, request));
+      this.updated.emit();
     } catch (error) {
       this.notifications.error(this.mapError(error));
     } finally {

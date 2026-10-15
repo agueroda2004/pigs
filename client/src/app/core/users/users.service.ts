@@ -11,15 +11,19 @@ export class UsersService {
   private readonly baseUrl = `${environment.apiBaseUrl}/users`;
   private readonly adminBaseUrl = `${environment.apiBaseUrl}/admin/users`;
 
-  createUser(request: CreateUserRequest): Observable<User> {
-    return this.http.post<User>(this.baseUrl, request);
+  createUser(request: CreateUserRequest): Observable<void> {
+    return this.http.post<void>(this.baseUrl, request);
   }
 
   listUsers(): Observable<User[]> {
     return this.http.get<User[]>(this.adminBaseUrl);
   }
 
-  updateUser(id: string, request: UpdateUserRequest): Observable<User> {
-    return this.http.patch<User>(`${this.adminBaseUrl}/${id}`, request);
+  updateUser(id: string, request: UpdateUserRequest): Observable<void> {
+    return this.http.patch<void>(`${this.adminBaseUrl}/${id}`, request);
+  }
+
+  deleteUser(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.adminBaseUrl}/${id}`);
   }
 }

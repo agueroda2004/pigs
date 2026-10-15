@@ -1,7 +1,9 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
+import { AuthService } from '../../../core/auth/auth.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { User } from '../../../core/users/user.models';
 import { UsersService } from '../../../core/users/users.service';
@@ -14,8 +16,6 @@ function buildUser(id: string): User {
     username: id,
     role: 'User',
     active: true,
-    created_at: '2026-01-02T03:04:05Z',
-    updated_at: '2026-01-02T03:04:05Z',
   };
 }
 
@@ -40,6 +40,10 @@ describe('UsersPage', () => {
       providers: [
         { provide: UsersService, useValue: stub },
         { provide: NotificationService, useValue: notifications },
+        {
+          provide: AuthService,
+          useValue: { user: signal({ id: '1', username: 'ana', role: 'Admin' }) },
+        },
       ],
     }).compileComponents();
   });
@@ -101,10 +105,32 @@ describe('UsersPage', () => {
     await component.loadUsers();
 
     stub.listUsers = vi.fn(() => of([buildUser('9')]));
-    await component.onUpdated(buildUser('9'));
+    await component.onUpdated();
 
-    expect(notifications.success).toHaveBeenCalledWith('Usuario "9" actualizado correctamente');
+    expect(notifications.success).toHaveBeenCalledWith('Usuario actualizado correctamente');
     expect(component.editOpen()).toBe(false);
+    expect(component.users()).toHaveLength(1);
+  });
+
+  it('opens the delete modal for the selected user', () => {
+    const component = create();
+    const user = buildUser('1');
+
+    component.openDelete(user);
+
+    expect(component.deleteOpen()).toBe(true);
+    expect(component.deletingUser()).toBe(user);
+  });
+
+  it('reloads the list after deleting a user', async () => {
+    const component = create();
+    await component.loadUsers();
+
+    stub.listUsers = vi.fn(() => of([buildUser('2')]));
+    await component.onDeleted('1');
+
+    expect(notifications.success).toHaveBeenCalledWith('Usuario "1" eliminado correctamente');
+    expect(component.deleteOpen()).toBe(false);
     expect(component.users()).toHaveLength(1);
   });
 });

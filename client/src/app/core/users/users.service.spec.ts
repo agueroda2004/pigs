@@ -27,17 +27,9 @@ describe('UsersService', () => {
       (request) => request.url.endsWith('/users') && request.method === 'POST',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush({
-      id: '1',
-      name: 'Ana',
-      username: 'ana',
-      role: 'User',
-      active: true,
-      created_at: '',
-      updated_at: '',
-    });
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ username: 'ana' });
+    await expect(promise).resolves.toBeNull();
   });
 
   it('lists users from the admin endpoint', async () => {
@@ -53,8 +45,6 @@ describe('UsersService', () => {
         username: 'ana',
         role: 'User',
         active: true,
-        created_at: '',
-        updated_at: '',
       },
     ]);
 
@@ -69,20 +59,19 @@ describe('UsersService', () => {
       (request) => request.url.endsWith('/admin/users/42') && request.method === 'PATCH',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush({
-      id: '42',
-      name: 'Ana Updated',
-      username: 'ana',
-      role: 'Admin',
-      active: false,
-      created_at: '',
-      updated_at: '',
-    });
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({
-      name: 'Ana Updated',
-      role: 'Admin',
-      active: false,
-    });
+    await expect(promise).resolves.toBeNull();
+  });
+
+  it('deletes a user through the admin endpoint', async () => {
+    const promise = firstValueFrom(service.deleteUser('42'));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/admin/users/42') && request.method === 'DELETE',
+    );
+    call.flush(null);
+
+    await expect(promise).resolves.toBeNull();
   });
 });

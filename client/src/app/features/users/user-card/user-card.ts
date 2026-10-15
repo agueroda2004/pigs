@@ -1,17 +1,20 @@
-import { DatePipe } from '@angular/common';
 import { Component, computed, input, output } from '@angular/core';
 
 import { User } from '../../../core/users/user.models';
 
 @Component({
   selector: 'app-user-card',
-  imports: [DatePipe],
+  imports: [],
   styleUrl: './user-card.css',
   templateUrl: './user-card.html',
 })
 export class UserCard {
   readonly user = input.required<User>();
+  readonly currentUserId = input<string | null>(null);
   readonly editRequested = output<User>();
+  readonly deleteRequested = output<User>();
+
+  protected readonly isCurrentUser = computed(() => this.user().id === this.currentUserId());
 
   protected readonly roleLabel = computed(() =>
     this.user().role === 'Admin' ? 'Administrador' : 'Usuario',

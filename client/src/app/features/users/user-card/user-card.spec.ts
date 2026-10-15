@@ -10,8 +10,6 @@ function buildUser(role: User['role'], active = true): User {
     username: 'ana',
     role,
     active,
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
   };
 }
 
@@ -22,7 +20,7 @@ describe('UserCard', () => {
     }).compileComponents();
   });
 
-  it('renders the name, username and created date', () => {
+  it('renders the name and username', () => {
     const fixture = TestBed.createComponent(UserCard);
     fixture.componentRef.setInput('user', buildUser('User'));
     fixture.detectChanges();
@@ -30,7 +28,6 @@ describe('UserCard', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Ana');
     expect(text).toContain('@ana');
-    expect(text).toContain('02/01/2026');
   });
 
   it('shows the admin badge for admin users', () => {
@@ -76,5 +73,39 @@ describe('UserCard', () => {
     (fixture.nativeElement.querySelector('button') as HTMLButtonElement).click();
 
     expect(emitted).toEqual([user]);
+  });
+
+  it('emits the user when the delete button is clicked', () => {
+    const user = buildUser('User');
+    const fixture = TestBed.createComponent(UserCard);
+    fixture.componentRef.setInput('user', user);
+    fixture.detectChanges();
+
+    const emitted: User[] = [];
+    fixture.componentInstance.deleteRequested.subscribe((value) => emitted.push(value));
+    const buttons = fixture.nativeElement.querySelectorAll('button');
+    (buttons[1] as HTMLButtonElement).click();
+
+    expect(emitted).toEqual([user]);
+  });
+
+  it('disables the delete button for the current user', () => {
+    const fixture = TestBed.createComponent(UserCard);
+    fixture.componentRef.setInput('user', buildUser('Admin'));
+    fixture.componentRef.setInput('currentUserId', '1');
+    fixture.detectChanges();
+
+    const buttons = fixture.nativeElement.querySelectorAll('button');
+    expect((buttons[1] as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('enables the delete button for other users', () => {
+    const fixture = TestBed.createComponent(UserCard);
+    fixture.componentRef.setInput('user', buildUser('Admin'));
+    fixture.componentRef.setInput('currentUserId', '999');
+    fixture.detectChanges();
+
+    const buttons = fixture.nativeElement.querySelectorAll('button');
+    expect((buttons[1] as HTMLButtonElement).disabled).toBe(false);
   });
 });

@@ -1,26 +1,32 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
+import { AuthService } from '../../../core/auth/auth.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { User } from '../../../core/users/user.models';
 import { UsersService } from '../../../core/users/users.service';
 import { CreateUserModal } from '../create-user-modal/create-user-modal';
+import { DeleteUserModal } from '../delete-user-modal/delete-user-modal';
 import { EditUserModal } from '../edit-user-modal/edit-user-modal';
 import { UserCard } from '../user-card/user-card';
 
 @Component({
   selector: 'app-users-page',
-  imports: [CreateUserModal, EditUserModal, UserCard],
+  imports: [CreateUserModal, EditUserModal, DeleteUserModal, UserCard],
   styleUrl: './users-page.css',
   templateUrl: './users-page.html',
 })
 export class UsersPage implements OnInit {
   private readonly usersService = inject(UsersService);
   private readonly notifications = inject(NotificationService);
+  private readonly auth = inject(AuthService);
 
+  protected readonly currentUserId = computed(() => this.auth.user()?.id ?? null);
   protected readonly modalOpen = signal(false);
   protected readonly editingUser = signal<User | null>(null);
   protected readonly editOpen = signal(false);
+  protected readonly deletingUser = signal<User | null>(null);
+  protected readonly deleteOpen = signal(false);
   protected readonly users = signal<User[]>([]);
   protected readonly loading = signal(false);
   protected readonly error = signal(false);
@@ -52,9 +58,24 @@ export class UsersPage implements OnInit {
     this.editOpen.set(false);
   }
 
-  protected async onUpdated(user: User): Promise<void> {
+  protected async onUpdated(): Promise<void> {
     this.editOpen.set(false);
-    this.notifications.success(`Usuario "${user.username}" actualizado correctamente`);
+    this.notifications.success('Usuario actualizado correctamente');
+    await this.loadUsers();
+  }
+
+  protected openDelete(user: User): void {
+    this.deletingUser.set(user);
+    this.deleteOpen.set(true);
+  }
+
+  protected closeDelete(): void {
+    this.deleteOpen.set(false);
+  }
+
+  protected async onDeleted(username: string): Promise<void> {
+    this.deleteOpen.set(false);
+    this.notifications.success(`Usuario "${username}" eliminado correctamente`);
     await this.loadUsers();
   }
 

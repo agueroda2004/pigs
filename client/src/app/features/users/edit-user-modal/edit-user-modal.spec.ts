@@ -15,13 +15,11 @@ function buildUser(): User {
     username: 'ana',
     role: 'User',
     active: true,
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
   };
 }
 
 class UsersStub {
-  updateUser = vi.fn(() => of(buildUser()));
+  updateUser = vi.fn(() => of(undefined));
 }
 
 class NotificationsStub {

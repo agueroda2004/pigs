@@ -8,7 +8,7 @@ import { UsersService } from '../../../core/users/users.service';
 import { CreateUserModal } from './create-user-modal';
 
 class UsersStub {
-  createUser = vi.fn(() => of({}));
+  createUser = vi.fn(() => of(undefined));
 }
 
 class NotificationsStub {
