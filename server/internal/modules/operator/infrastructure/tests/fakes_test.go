@@ -29,12 +29,12 @@ func (f *fakeCreateOperatorUseCase) Execute(_ context.Context, command operatora
 }
 
 type fakeListOperatorsUseCase struct {
-	operators []*operatordomain.Operator
+	operators []operatordomain.OperatorListItem
 	err       error
 	called    bool
 }
 
-func (f *fakeListOperatorsUseCase) Execute(_ context.Context) ([]*operatordomain.Operator, error) {
+func (f *fakeListOperatorsUseCase) Execute(_ context.Context) ([]operatordomain.OperatorListItem, error) {
 	f.called = true
 	return f.operators, f.err
 }
@@ -67,13 +67,25 @@ func (f *fakeUpdateOperatorUseCase) Execute(_ context.Context, operatorID uuid.U
 	return f.operator, f.err
 }
 
-func newTestHandler(create operatorinfra.CreateOperatorUseCase, list operatorinfra.ListOperatorsUseCase, update operatorinfra.UpdateOperatorUseCase) *operatorinfra.OperatorHandler {
-	return newTestHandlerWithDropdown(create, list, &fakeListOperatorDropdownUseCase{}, update)
+type fakeDeleteOperatorUseCase struct {
+	err        error
+	operatorID uuid.UUID
+	called     bool
 }
 
-func newTestHandlerWithDropdown(create operatorinfra.CreateOperatorUseCase, list operatorinfra.ListOperatorsUseCase, dropdown operatorinfra.ListOperatorDropdownUseCase, update operatorinfra.UpdateOperatorUseCase) *operatorinfra.OperatorHandler {
+func (f *fakeDeleteOperatorUseCase) Execute(_ context.Context, operatorID uuid.UUID) error {
+	f.called = true
+	f.operatorID = operatorID
+	return f.err
+}
+
+func newTestHandler(create operatorinfra.CreateOperatorUseCase, list operatorinfra.ListOperatorsUseCase, update operatorinfra.UpdateOperatorUseCase) *operatorinfra.OperatorHandler {
+	return newTestHandlerWithDropdown(create, list, &fakeListOperatorDropdownUseCase{}, update, &fakeDeleteOperatorUseCase{})
+}
+
+func newTestHandlerWithDropdown(create operatorinfra.CreateOperatorUseCase, list operatorinfra.ListOperatorsUseCase, dropdown operatorinfra.ListOperatorDropdownUseCase, update operatorinfra.UpdateOperatorUseCase, delete operatorinfra.DeleteOperatorUseCase) *operatorinfra.OperatorHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return operatorinfra.NewOperatorHandler(create, list, dropdown, update, passThrough, passThrough)
+	return operatorinfra.NewOperatorHandler(create, list, dropdown, update, delete, passThrough, passThrough)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {

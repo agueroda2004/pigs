@@ -27,8 +27,8 @@ func TestOperatorHandlerCreate(t *testing.T) {
 		if response.Code != http.StatusCreated || create.command.CreatedBy != actorID || create.command.Name != "Juan Pérez" {
 			t.Fatalf("status=%d command=%#v", response.Code, create.command)
 		}
-		if response.Header().Get("Content-Type") != "application/json" {
-			t.Fatalf("unexpected content type: %q", response.Header().Get("Content-Type"))
+		if response.Body.Len() != 0 {
+			t.Fatalf("expected an empty body, got %q", response.Body.String())
 		}
 	})
 
@@ -77,8 +77,13 @@ func TestOperatorHandlerCreate(t *testing.T) {
 }
 
 func TestOperatorHandlerList(t *testing.T) {
-	t.Run("returns every operator", func(t *testing.T) {
-		list := &fakeListOperatorsUseCase{operators: []*operatordomain.Operator{handlerOperator(), handlerOperator()}}
+	operatorName := "Juan Pérez"
+
+	t.Run("returns every operator without audit fields", func(t *testing.T) {
+		list := &fakeListOperatorsUseCase{operators: []operatordomain.OperatorListItem{
+			{ID: uuid.New(), Name: operatorName, Active: true},
+			{ID: uuid.New(), Name: "Ana", Active: false},
+		}}
 		handler := newTestHandler(&fakeCreateOperatorUseCase{}, list, &fakeUpdateOperatorUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/operators", nil))
 
@@ -86,13 +91,18 @@ func TestOperatorHandlerList(t *testing.T) {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)
 		}
 		body := strings.TrimSpace(response.Body.String())
-		if !strings.HasPrefix(body, "[") || !strings.Contains(body, "Juan Pérez") {
+		if !strings.HasPrefix(body, "[") || !strings.Contains(body, operatorName) {
 			t.Fatalf("unexpected body: %s", body)
+		}
+		for _, auditField := range []string{"created_at", "updated_at", "created_by", "updated_by"} {
+			if strings.Contains(body, auditField) {
+				t.Fatalf("body should omit %q: %s", auditField, body)
+			}
 		}
 	})
 
 	t.Run("returns an empty array when there are no operators", func(t *testing.T) {
-		list := &fakeListOperatorsUseCase{operators: []*operatordomain.Operator{}}
+		list := &fakeListOperatorsUseCase{operators: []operatordomain.OperatorListItem{}}
 		handler := newTestHandler(&fakeCreateOperatorUseCase{}, list, &fakeUpdateOperatorUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/operators", nil))
 
@@ -120,7 +130,7 @@ func TestOperatorHandlerListDropdown(t *testing.T) {
 
 	t.Run("returns the dropdown items and forwards the active filter", func(t *testing.T) {
 		dropdown := &fakeListOperatorDropdownUseCase{options: options}
-		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, dropdown, &fakeUpdateOperatorUseCase{})
+		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, dropdown, &fakeUpdateOperatorUseCase{}, &fakeDeleteOperatorUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/operators/dropdown?active=true", nil))
 
 		if response.Code != http.StatusOK || !dropdown.called {
@@ -139,7 +149,7 @@ func TestOperatorHandlerListDropdown(t *testing.T) {
 
 	t.Run("returns every operator when no active filter is given", func(t *testing.T) {
 		dropdown := &fakeListOperatorDropdownUseCase{options: options}
-		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, dropdown, &fakeUpdateOperatorUseCase{})
+		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, dropdown, &fakeUpdateOperatorUseCase{}, &fakeDeleteOperatorUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/operators/dropdown", nil))
 
 		if response.Code != http.StatusOK || dropdown.active != nil {
@@ -149,7 +159,7 @@ func TestOperatorHandlerListDropdown(t *testing.T) {
 
 	t.Run("rejects a malformed active filter", func(t *testing.T) {
 		dropdown := &fakeListOperatorDropdownUseCase{}
-		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, dropdown, &fakeUpdateOperatorUseCase{})
+		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, dropdown, &fakeUpdateOperatorUseCase{}, &fakeDeleteOperatorUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/operators/dropdown?active=maybe", nil))
 
 		if response.Code != http.StatusBadRequest || dropdown.called {
@@ -159,7 +169,7 @@ func TestOperatorHandlerListDropdown(t *testing.T) {
 
 	t.Run("maps internal errors", func(t *testing.T) {
 		dropdown := &fakeListOperatorDropdownUseCase{err: errors.New("unexpected")}
-		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, dropdown, &fakeUpdateOperatorUseCase{})
+		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, dropdown, &fakeUpdateOperatorUseCase{}, &fakeDeleteOperatorUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/operators/dropdown", nil))
 
 		if response.Code != http.StatusInternalServerError {
@@ -181,6 +191,9 @@ func TestOperatorHandlerUpdate(t *testing.T) {
 
 		if response.Code != http.StatusOK || update.operatorID != operatorID || update.command.UpdatedBy != actorID || update.command.Name == nil || *update.command.Name != "New Name" || update.command.Active == nil || *update.command.Active {
 			t.Fatalf("status=%d id=%v command=%#v", response.Code, update.operatorID, update.command)
+		}
+		if response.Body.Len() != 0 {
+			t.Fatalf("expected an empty body, got %q", response.Body.String())
 		}
 	})
 
@@ -221,6 +234,54 @@ func TestOperatorHandlerUpdate(t *testing.T) {
 				request := httptest.NewRequest(http.MethodPatch, "/api/v1/operators/"+uuid.New().String(), strings.NewReader(`{"name":"New"}`))
 				request = authenticatedRequest(request, actorID)
 				response := serve(handler, request)
+				if response.Code != test.status {
+					t.Fatalf("status=%d, want %d", response.Code, test.status)
+				}
+			})
+		}
+	})
+}
+
+func TestOperatorHandlerDelete(t *testing.T) {
+	operatorID := uuid.New()
+
+	t.Run("deletes the operator and returns no content", func(t *testing.T) {
+		deleteUseCase := &fakeDeleteOperatorUseCase{}
+		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, &fakeListOperatorDropdownUseCase{}, &fakeUpdateOperatorUseCase{}, deleteUseCase)
+		response := serve(handler, httptest.NewRequest(http.MethodDelete, "/api/v1/operators/"+operatorID.String(), nil))
+
+		if response.Code != http.StatusNoContent || !deleteUseCase.called || deleteUseCase.operatorID != operatorID {
+			t.Fatalf("status=%d id=%v called=%v", response.Code, deleteUseCase.operatorID, deleteUseCase.called)
+		}
+		if response.Body.Len() != 0 {
+			t.Fatalf("expected an empty body, got %q", response.Body.String())
+		}
+	})
+
+	t.Run("returns bad request for invalid UUID", func(t *testing.T) {
+		deleteUseCase := &fakeDeleteOperatorUseCase{}
+		handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, &fakeListOperatorDropdownUseCase{}, &fakeUpdateOperatorUseCase{}, deleteUseCase)
+		response := serve(handler, httptest.NewRequest(http.MethodDelete, "/api/v1/operators/not-a-uuid", nil))
+
+		if response.Code != http.StatusBadRequest || deleteUseCase.called {
+			t.Fatalf("status=%d called=%v", response.Code, deleteUseCase.called)
+		}
+	})
+
+	t.Run("maps application errors", func(t *testing.T) {
+		for _, test := range []struct {
+			name   string
+			err    error
+			status int
+		}{
+			{"not found", ports.ErrOperatorNotFound, http.StatusNotFound},
+			{"in use", ports.ErrOperatorInUse, http.StatusConflict},
+			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				deleteUseCase := &fakeDeleteOperatorUseCase{err: test.err}
+				handler := newTestHandlerWithDropdown(&fakeCreateOperatorUseCase{}, &fakeListOperatorsUseCase{}, &fakeListOperatorDropdownUseCase{}, &fakeUpdateOperatorUseCase{}, deleteUseCase)
+				response := serve(handler, httptest.NewRequest(http.MethodDelete, "/api/v1/operators/"+uuid.New().String(), nil))
 				if response.Code != test.status {
 					t.Fatalf("status=%d, want %d", response.Code, test.status)
 				}

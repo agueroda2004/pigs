@@ -13,9 +13,9 @@ import (
 
 func TestListOperatorsServiceExecute(t *testing.T) {
 	t.Run("returns every operator from the repository", func(t *testing.T) {
-		operators := []*operatordomain.Operator{
-			testOperator(uuid.New()),
-			testOperator(uuid.New()),
+		operators := []operatordomain.OperatorListItem{
+			{ID: uuid.New(), Name: "Ana", Active: true},
+			{ID: uuid.New(), Name: "Beto", Active: false},
 		}
 		repository := &fakeOperatorRepository{listOperators: operators}
 		service := operatorapplication.NewListOperatorsService(repository)
@@ -31,7 +31,7 @@ func TestListOperatorsServiceExecute(t *testing.T) {
 	})
 
 	t.Run("returns an empty list when there are no operators", func(t *testing.T) {
-		repository := &fakeOperatorRepository{listOperators: []*operatordomain.Operator{}}
+		repository := &fakeOperatorRepository{listOperators: []operatordomain.OperatorListItem{}}
 		service := operatorapplication.NewListOperatorsService(repository)
 
 		result, err := service.Execute(context.Background())

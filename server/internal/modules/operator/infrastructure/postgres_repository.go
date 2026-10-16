@@ -89,11 +89,11 @@ func (r *PostgresOperatorRepository) ExistsByName(ctx context.Context, name stri
 	return exists, nil
 }
 
-// List fetches every operator ordered by name.
-// It returns an empty slice when no operators exist and wraps any query failure.
-func (r *PostgresOperatorRepository) List(ctx context.Context) ([]*operatordomain.Operator, error) {
+// List fetches the lightweight operator read models ordered by name.
+// It omits the audit fields and returns an empty slice when no operators exist.
+func (r *PostgresOperatorRepository) List(ctx context.Context) ([]operatordomain.OperatorListItem, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, name, active, created_at, updated_at, created_by, updated_by
+		SELECT id, name, active
 		FROM operators
 		ORDER BY name ASC
 	`)
@@ -102,17 +102,13 @@ func (r *PostgresOperatorRepository) List(ctx context.Context) ([]*operatordomai
 	}
 	defer rows.Close()
 
-	operators := make([]*operatordomain.Operator, 0)
+	operators := make([]operatordomain.OperatorListItem, 0)
 	for rows.Next() {
-		result := &operatordomain.Operator{}
+		var result operatordomain.OperatorListItem
 		if err := rows.Scan(
 			&result.ID,
 			&result.Name,
 			&result.Active,
-			&result.CreatedAt,
-			&result.UpdatedAt,
-			&result.CreatedBy,
-			&result.UpdatedBy,
 		); err != nil {
 			return nil, fmt.Errorf("No se pudo consultar los operadores: %w", err)
 		}
@@ -179,12 +175,35 @@ func (r *PostgresOperatorRepository) Update(ctx context.Context, operator *opera
 	return nil
 }
 
+// Delete removes an operator row by its identifier.
+// It returns ErrOperatorNotFound when no row was affected and maps a linked-records
+// foreign key violation to ErrOperatorInUse.
+func (r *PostgresOperatorRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	commandTag, err := r.pool.Exec(ctx, `
+		DELETE FROM operators
+		WHERE id = $1
+	`, id)
+	if err != nil {
+		return mapPostgresError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ErrOperatorNotFound
+	}
+	return nil
+}
+
 // mapPostgresError translates PostgreSQL errors into domain port errors.
-// Unique violations become ErrOperatorNameAlreadyUsed; others are wrapped.
+// Unique violations become ErrOperatorNameAlreadyUsed, foreign key violations
+// become ErrOperatorInUse; others are wrapped.
 func mapPostgresError(err error) error {
 	var postgresError *pgconn.PgError
-	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
-		return ports.ErrOperatorNameAlreadyUsed
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return ports.ErrOperatorNameAlreadyUsed
+		case "23503":
+			return ports.ErrOperatorInUse
+		}
 	}
 	return fmt.Errorf("No se pudo guardar el operador: %w", err)
 }

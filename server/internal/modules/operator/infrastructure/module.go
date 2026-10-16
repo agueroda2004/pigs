@@ -13,6 +13,7 @@ type Module struct {
 	ListOperators        *operatorapplication.ListOperatorsService
 	ListOperatorDropdown *operatorapplication.ListOperatorDropdownService
 	UpdateOperator       *operatorapplication.UpdateOperatorService
+	DeleteOperator       *operatorapplication.DeleteOperatorService
 	Handler              *OperatorHandler
 }
 
@@ -28,12 +29,14 @@ func NewModule(
 	listOperators := operatorapplication.NewListOperatorsService(repository)
 	listOperatorDropdown := operatorapplication.NewListOperatorDropdownService(repository)
 	updateOperator := operatorapplication.NewUpdateOperatorService(repository, clock)
+	deleteOperator := operatorapplication.NewDeleteOperatorService(repository)
 
 	return &Module{
 		CreateOperator:       createOperator,
 		ListOperators:        listOperators,
 		ListOperatorDropdown: listOperatorDropdown,
 		UpdateOperator:       updateOperator,
-		Handler:              NewOperatorHandler(createOperator, listOperators, listOperatorDropdown, updateOperator, authMiddleware, adminMiddleware),
+		DeleteOperator:       deleteOperator,
+		Handler:              NewOperatorHandler(createOperator, listOperators, listOperatorDropdown, updateOperator, deleteOperator, authMiddleware, adminMiddleware),
 	}
 }

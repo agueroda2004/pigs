@@ -18,7 +18,7 @@ func NewListOperatorsService(repository ports.OperatorRepository) *ListOperators
 }
 
 // Execute returns every registered operator without pagination or filtering.
-// It is intended for the small catalog of operators managed by the farm.
-func (s *ListOperatorsService) Execute(ctx context.Context) ([]*operatordomain.Operator, error) {
+// It uses the lightweight read model, so the audit fields are not returned.
+func (s *ListOperatorsService) Execute(ctx context.Context) ([]operatordomain.OperatorListItem, error) {
 	return s.repository.List(ctx)
 }

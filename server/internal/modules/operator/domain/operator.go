@@ -38,6 +38,14 @@ type OperatorDropdown struct {
 	Active bool
 }
 
+// OperatorListItem is the operator read model used by the operator listing.
+// It exposes the identity fields only and omits every audit field.
+type OperatorListItem struct {
+	ID     uuid.UUID
+	Name   string
+	Active bool
+}
+
 // NewOperator builds an operator after validating id, name and createdBy.
 // It defaults Active to true and sets CreatedBy/UpdatedBy to the creator.
 func NewOperator(id uuid.UUID, name string, createdBy uuid.UUID, now time.Time) (*Operator, error) {

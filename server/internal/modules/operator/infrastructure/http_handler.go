@@ -21,7 +21,7 @@ type CreateOperatorUseCase interface {
 }
 
 type ListOperatorsUseCase interface {
-	Execute(context.Context) ([]*operatordomain.Operator, error)
+	Execute(context.Context) ([]operatordomain.OperatorListItem, error)
 }
 
 type ListOperatorDropdownUseCase interface {
@@ -32,11 +32,16 @@ type UpdateOperatorUseCase interface {
 	Execute(context.Context, uuid.UUID, operatorapplication.UpdateOperatorCommand) (*operatordomain.Operator, error)
 }
 
+type DeleteOperatorUseCase interface {
+	Execute(context.Context, uuid.UUID) error
+}
+
 type OperatorHandler struct {
 	createOperator       CreateOperatorUseCase
 	listOperators        ListOperatorsUseCase
 	listOperatorDropdown ListOperatorDropdownUseCase
 	updateOperator       UpdateOperatorUseCase
+	deleteOperator       DeleteOperatorUseCase
 	authMiddleware       func(http.Handler) http.Handler
 	adminMiddleware      func(http.Handler) http.Handler
 }
@@ -48,6 +53,7 @@ func NewOperatorHandler(
 	listOperators ListOperatorsUseCase,
 	listOperatorDropdown ListOperatorDropdownUseCase,
 	updateOperator UpdateOperatorUseCase,
+	deleteOperator DeleteOperatorUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *OperatorHandler {
@@ -56,18 +62,20 @@ func NewOperatorHandler(
 		listOperators:        listOperators,
 		listOperatorDropdown: listOperatorDropdown,
 		updateOperator:       updateOperator,
+		deleteOperator:       deleteOperator,
 		authMiddleware:       authMiddleware,
 		adminMiddleware:      adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the operator create, list, dropdown and update endpoints on the mux.
+// RegisterRoutes registers the operator create, list, dropdown, update and delete endpoints on the mux.
 // Write routes are admin-only while the read routes only require authentication.
 func (h *OperatorHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/operators", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/v1/operators", h.authMiddleware(http.HandlerFunc(h.list)))
 	mux.Handle("GET /api/v1/operators/dropdown", h.authMiddleware(http.HandlerFunc(h.listDropdown)))
 	mux.Handle("PATCH /api/v1/operators/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
+	mux.Handle("DELETE /api/v1/operators/{id}", h.adminMiddleware(http.HandlerFunc(h.delete)))
 }
 
 type createOperatorRequest struct {
@@ -79,14 +87,10 @@ type updateOperatorRequest struct {
 	Active *bool   `json:"active"`
 }
 
-type operatorResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Active    bool      `json:"active"`
-	CreatedAt string    `json:"created_at"`
-	UpdatedAt string    `json:"updated_at"`
-	CreatedBy uuid.UUID `json:"created_by"`
-	UpdatedBy uuid.UUID `json:"updated_by"`
+type operatorListResponse struct {
+	ID     uuid.UUID `json:"id"`
+	Name   string    `json:"name"`
+	Active bool      `json:"active"`
 }
 
 type operatorDropdownResponse struct {
@@ -96,7 +100,7 @@ type operatorDropdownResponse struct {
 }
 
 // create handles POST /api/v1/operators and creates an operator from the request body.
-// It reads the actor from the context to set CreatedBy.
+// It reads the actor from the context to set CreatedBy and answers with a status code only.
 func (h *OperatorHandler) create(w http.ResponseWriter, r *http.Request) {
 	var request createOperatorRequest
 	if err := platformhttp.DecodeJSON(w, r, &request); err != nil {
@@ -110,20 +114,19 @@ func (h *OperatorHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdOperator, err := h.createOperator.Execute(r.Context(), operatorapplication.CreateOperatorCommand{
+	if _, err := h.createOperator.Execute(r.Context(), operatorapplication.CreateOperatorCommand{
 		Name:      request.Name,
 		CreatedBy: actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeOperatorError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusCreated, toOperatorResponse(createdOperator))
+	w.WriteHeader(http.StatusCreated)
 }
 
 // list handles GET /api/v1/operators and returns every registered operator.
-// It maps the domain operators to the public response shape.
+// It maps the operator read models to the public list shape without audit fields.
 func (h *OperatorHandler) list(w http.ResponseWriter, r *http.Request) {
 	operators, err := h.listOperators.Execute(r.Context())
 	if err != nil {
@@ -131,7 +134,7 @@ func (h *OperatorHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toOperatorResponses(operators))
+	platformhttp.WriteJSON(w, http.StatusOK, toOperatorListResponses(operators))
 }
 
 // listDropdown handles GET /api/v1/operators/dropdown and returns operators for a selection list.
@@ -167,7 +170,7 @@ func parseActiveQuery(r *http.Request) (*bool, error) {
 }
 
 // update handles PATCH /api/v1/operators/{id} and applies the provided fields.
-// It parses the id path value and reads the actor to set UpdatedBy.
+// It parses the id path value, reads the actor to set UpdatedBy and answers with a status code only.
 func (h *OperatorHandler) update(w http.ResponseWriter, r *http.Request) {
 	operatorID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -187,39 +190,51 @@ func (h *OperatorHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedOperator, err := h.updateOperator.Execute(r.Context(), operatorID, operatorapplication.UpdateOperatorCommand{
+	if _, err := h.updateOperator.Execute(r.Context(), operatorID, operatorapplication.UpdateOperatorCommand{
 		Name:      request.Name,
 		Active:    request.Active,
 		UpdatedBy: actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeOperatorError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toOperatorResponse(updatedOperator))
+	w.WriteHeader(http.StatusOK)
 }
 
-// toOperatorResponse maps a domain operator to the HTTP response shape.
-// It formats timestamps in UTC.
-func toOperatorResponse(operator *operatordomain.Operator) operatorResponse {
-	return operatorResponse{
-		ID:        operator.ID,
-		Name:      operator.Name,
-		Active:    operator.Active,
-		CreatedAt: operator.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt: operator.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		CreatedBy: operator.CreatedBy,
-		UpdatedBy: operator.UpdatedBy,
+// delete handles DELETE /api/v1/operators/{id} and removes an operator.
+// It parses the id path value and maps a linked-records conflict to 409.
+func (h *OperatorHandler) delete(w http.ResponseWriter, r *http.Request) {
+	operatorID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador del operador no es válido"))
+		return
+	}
+
+	if err := h.deleteOperator.Execute(r.Context(), operatorID); err != nil {
+		writeOperatorError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// toOperatorListResponse maps an operator read model to the list response shape.
+// It exposes the identity fields only and omits every audit field.
+func toOperatorListResponse(operator operatordomain.OperatorListItem) operatorListResponse {
+	return operatorListResponse{
+		ID:     operator.ID,
+		Name:   operator.Name,
+		Active: operator.Active,
 	}
 }
 
-// toOperatorResponses maps a list of domain operators to HTTP response shapes.
+// toOperatorListResponses maps operator read models to their list response shape.
 // It returns an empty slice instead of null when there are no operators.
-func toOperatorResponses(operators []*operatordomain.Operator) []operatorResponse {
-	responses := make([]operatorResponse, 0, len(operators))
+func toOperatorListResponses(operators []operatordomain.OperatorListItem) []operatorListResponse {
+	responses := make([]operatorListResponse, 0, len(operators))
 	for _, operator := range operators {
-		responses = append(responses, toOperatorResponse(operator))
+		responses = append(responses, toOperatorListResponse(operator))
 	}
 	return responses
 }
@@ -239,7 +254,8 @@ func toOperatorDropdownResponses(options []operatordomain.OperatorDropdown) []op
 func writeOperatorError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, ports.ErrOperatorNameAlreadyUsed):
+	case errors.Is(err, ports.ErrOperatorNameAlreadyUsed),
+		errors.Is(err, ports.ErrOperatorInUse):
 		status = http.StatusConflict
 	case errors.Is(err, ports.ErrOperatorNotFound):
 		status = http.StatusNotFound
