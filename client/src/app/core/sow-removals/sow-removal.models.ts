@@ -14,15 +14,12 @@ export type RemovalReason =
 export interface SowRemoval {
   id: string;
   sow_id: string;
+  sow_code: string;
   removal_date: string;
   type: RemovalType;
   reason: RemovalReason;
   note: string | null;
   last_state: SowState;
-  created_at: string;
-  updated_at: string;
-  created_by: string;
-  updated_by: string;
 }
 
 export interface CreateSowRemovalRequest {
@@ -41,5 +38,5 @@ export interface UpdateSowRemovalRequest {
 }
 
 export interface SowRemovalFilters {
-  sow_id?: string;
+  sow_code?: string;
 }

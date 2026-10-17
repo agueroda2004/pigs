@@ -34,8 +34,18 @@
     (ngSubmit)="search()"
   >
     <div class="space-y-1.5">
-      <span class="block text-xs font-medium text-muted-foreground">Cerda</span>
-      <app-search-dropdown formControlName="sow_id" [options]="sowOptions()" placeholder="Todas" />
+      <label for="removal-sow-code" class="block text-xs font-medium text-muted-foreground"
+        >Cerda</label
+      >
+      <input
+        id="removal-sow-code"
+        type="text"
+        formControlName="sow_code"
+        maxlength="50"
+        autocomplete="off"
+        placeholder="Código de la cerda"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      />
     </div>
 
     <div class="flex items-end gap-2">

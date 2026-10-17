@@ -14,15 +14,12 @@ function buildRemoval(id: string): SowRemoval {
   return {
     id,
     sow_id: 'sow-1',
+    sow_code: 'C-001',
     removal_date: '2026-01-20',
     type: 'Muerte',
     reason: 'Enfermedad',
     note: null,
     last_state: 'Gestando',
-    created_at: '2026-01-20T12:00:00',
-    updated_at: '2026-01-20T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
   };
 }
 
@@ -76,9 +73,8 @@ describe('SowRemovalsPage', () => {
     expect(fixture.nativeElement.querySelectorAll('app-sow-removal-card')).toHaveLength(2);
   });
 
-  it('resolves the sow code from the lookup', async () => {
+  it('uses the sow code returned by the API', () => {
     const component = create();
-    await component.loadLookups();
 
     expect(component.sowCode(buildRemoval('1'))).toBe('C-001');
   });
@@ -120,9 +116,8 @@ describe('SowRemovalsPage', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Registrar baja');
   });
 
-  it('opens the edit modal with the selected removal', async () => {
+  it('opens the edit modal with the selected removal', () => {
     const component = create();
-    await component.loadLookups();
     const removal = buildRemoval('1');
 
     component.openEdit(removal);
@@ -136,11 +131,13 @@ describe('SowRemovalsPage', () => {
     const component = create();
     await component.loadSowRemovals();
     component.openEdit(buildRemoval('1'));
+    stub.listSowRemovals = vi.fn(() => of([buildRemoval('1'), buildRemoval('2')]));
 
     await component.onUpdated(buildRemoval('1'));
 
-    expect(notifications.success).toHaveBeenCalled();
+    expect(notifications.success).toHaveBeenCalledWith('Baja de "C-001" actualizada');
     expect(component.editModalOpen()).toBe(false);
+    expect(component.removals()).toHaveLength(2);
   });
 
   it('hides the edit button for non-admins', async () => {
@@ -153,9 +150,8 @@ describe('SowRemovalsPage', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Editar');
   });
 
-  it('opens the delete modal with the selected removal', async () => {
+  it('opens the delete modal with the selected removal', () => {
     const component = create();
-    await component.loadLookups();
     const removal = buildRemoval('1');
 
     component.openDelete(removal);
@@ -168,7 +164,6 @@ describe('SowRemovalsPage', () => {
   it('reloads the list and closes the delete modal after deleting', async () => {
     const component = create();
     await component.loadSowRemovals();
-    await component.loadLookups();
     component.openDelete(buildRemoval('1'));
     stub.listSowRemovals = vi.fn(() => of([buildRemoval('2')]));
 
@@ -189,24 +184,24 @@ describe('SowRemovalsPage', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
   });
 
-  it('applies the sow filter when searching', async () => {
+  it('applies the sow code filter when searching', async () => {
     const component = create();
-    component.filterForm.setValue({ sow_id: 'sow-1' });
+    component.filterForm.setValue({ sow_code: 'C-001' });
 
     await component.search();
 
-    expect(stub.listSowRemovals).toHaveBeenLastCalledWith({ sow_id: 'sow-1' });
+    expect(stub.listSowRemovals).toHaveBeenLastCalledWith({ sow_code: 'C-001' });
   });
 
   it('clears the filters and reloads without them', async () => {
     const component = create();
-    component.filterForm.setValue({ sow_id: 'sow-1' });
+    component.filterForm.setValue({ sow_code: 'C-001' });
     await component.search();
 
     stub.listSowRemovals = vi.fn(() => of([buildRemoval('1')]));
     await component.clearFilters();
 
     expect(stub.listSowRemovals).toHaveBeenCalledWith({});
-    expect(component.filterForm.getRawValue()).toEqual({ sow_id: '' });
+    expect(component.filterForm.getRawValue()).toEqual({ sow_code: '' });
   });
 });

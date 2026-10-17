@@ -99,8 +99,10 @@ export class EditSowRemovalModal {
     this.loading.set(true);
 
     try {
-      const updated = await firstValueFrom(this.removals.updateSowRemoval(current.id, request));
-      this.updated.emit(updated);
+      await firstValueFrom(this.removals.updateSowRemoval(current.id, request));
+      // The update endpoint returns no body, so reflect the saved fields on the
+      // row we already have before notifying the parent.
+      this.updated.emit({ ...current, ...request });
     } catch (error) {
       this.notifications.error(this.mapError(error));
     } finally {

@@ -17,8 +17,8 @@ export class SowRemovalsService {
 
   listSowRemovals(filters: SowRemovalFilters = {}): Observable<SowRemoval[]> {
     let params = new HttpParams();
-    if (filters.sow_id) {
-      params = params.set('sow_id', filters.sow_id);
+    if (filters.sow_code) {
+      params = params.set('sow_code', filters.sow_code);
     }
 
     return this.http.get<SowRemoval[]>(this.baseUrl, { params });
@@ -28,8 +28,8 @@ export class SowRemovalsService {
     return this.http.post<SowRemoval>(this.baseUrl, request);
   }
 
-  updateSowRemoval(id: string, request: UpdateSowRemovalRequest): Observable<SowRemoval> {
-    return this.http.patch<SowRemoval>(`${this.baseUrl}/${id}`, request);
+  updateSowRemoval(id: string, request: UpdateSowRemovalRequest): Observable<void> {
+    return this.http.patch<void>(`${this.baseUrl}/${id}`, request);
   }
 
   deleteSowRemoval(id: string): Observable<void> {

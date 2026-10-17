@@ -8,15 +8,12 @@ import { SowRemovalsService } from './sow-removals.service';
 const removalPayload = {
   id: '1',
   sow_id: 'sow-1',
+  sow_code: 'C-001',
   removal_date: '2026-01-20',
   type: 'Muerte',
   reason: 'Enfermedad',
   note: null,
   last_state: 'Gestando',
-  created_at: '',
-  updated_at: '',
-  created_by: 'admin',
-  updated_by: 'admin',
 };
 
 describe('SowRemovalsService', () => {
@@ -45,13 +42,13 @@ describe('SowRemovalsService', () => {
     await expect(promise).resolves.toHaveLength(1);
   });
 
-  it('lists removals with the sow filter', async () => {
-    const promise = firstValueFrom(service.listSowRemovals({ sow_id: 'sow-1' }));
+  it('lists removals with the sow code filter', async () => {
+    const promise = firstValueFrom(service.listSowRemovals({ sow_code: 'C-001' }));
 
     const call = http.expectOne(
       (request) => request.url.endsWith('/sow-removals') && request.method === 'GET',
     );
-    expect(call.request.params.get('sow_id')).toBe('sow-1');
+    expect(call.request.params.get('sow_code')).toBe('C-001');
     call.flush([removalPayload]);
 
     await expect(promise).resolves.toHaveLength(1);

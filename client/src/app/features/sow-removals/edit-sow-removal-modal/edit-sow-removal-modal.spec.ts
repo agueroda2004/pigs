@@ -12,21 +12,18 @@ function buildRemoval(overrides: Partial<SowRemoval> = {}): SowRemoval {
   return {
     id: '1',
     sow_id: 'sow-1',
+    sow_code: 'C-001',
     removal_date: '2026-01-20',
     type: 'Muerte',
     reason: 'Enfermedad',
     note: 'Nota original',
     last_state: 'Gestando',
-    created_at: '2026-01-20T12:00:00',
-    updated_at: '2026-01-20T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }
 
 class SowRemovalsStub {
-  updateSowRemoval = vi.fn((_id: string, _request: Record<string, unknown>) => of(buildRemoval()));
+  updateSowRemoval = vi.fn((_id: string, _request: Record<string, unknown>) => of(void 0));
 }
 
 class NotificationsStub {
@@ -120,6 +117,20 @@ describe('EditSowRemovalModal', () => {
 
     expect(stub.updateSowRemoval).not.toHaveBeenCalled();
     expect(updated).toHaveBeenCalledWith(removal);
+  });
+
+  it('emits the saved removal merged with the request', async () => {
+    const removal = buildRemoval();
+    const fixture = await openWith(removal);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+    const updated = vi.fn();
+    component.updated.subscribe(updated);
+    component.form.patchValue({ reason: 'Otro', note: '' });
+
+    await component.submit();
+
+    expect(updated).toHaveBeenCalledWith({ ...removal, reason: 'Otro', note: '' });
   });
 
   it('shows the server error message when the update fails', async () => {

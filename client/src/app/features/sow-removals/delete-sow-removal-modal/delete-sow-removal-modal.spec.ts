@@ -12,15 +12,12 @@ function buildRemoval(overrides: Partial<SowRemoval> = {}): SowRemoval {
   return {
     id: '1',
     sow_id: 'sow-1',
+    sow_code: 'C-001',
     removal_date: '2026-01-20',
     type: 'Muerte',
     reason: 'Enfermedad',
     note: null,
     last_state: 'Gestando',
-    created_at: '2026-01-20T12:00:00',
-    updated_at: '2026-01-20T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }
