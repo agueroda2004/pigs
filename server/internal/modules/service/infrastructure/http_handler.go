@@ -502,6 +502,7 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		errors.Is(err, servicedomain.ErrMountBeforeEntryDate),
 		errors.Is(err, servicedomain.ErrMountBeforePreviousService),
 		errors.Is(err, servicedomain.ErrMountBeforeAbortion),
+		errors.Is(err, servicedomain.ErrMountBeforeWeaning),
 		errors.Is(err, servicedomain.ErrMountNotFound),
 		errors.Is(err, servicedomain.ErrInvalidCreatedBy),
 		errors.Is(err, servicedomain.ErrInvalidUpdatedBy),

@@ -66,6 +66,9 @@ var (
 	// ErrMountBeforeAbortion is returned when a mount date falls on or before the
 	// sow's last abortion date.
 	ErrMountBeforeAbortion = errors.New("La fecha de monta debe ser posterior al último aborto")
+	// ErrMountBeforeWeaning is returned when a mount date falls on or before the
+	// sow's last weaning date.
+	ErrMountBeforeWeaning = errors.New("La fecha de monta debe ser posterior al último destete")
 	// ErrMountNotFound is returned when an update or delete references a mount
 	// that does not belong to the service.
 	ErrMountNotFound = errors.New("La monta no pertenece al servicio")
@@ -77,6 +80,7 @@ type Reference struct {
 	EntryDate         time.Time
 	PreviousMountDate time.Time
 	LastAbortionDate  time.Time
+	LastWeaningDate   time.Time
 }
 
 // Service is the aggregate root that represents a sow service (servicio).
@@ -244,7 +248,8 @@ func validateMountSchedule(dates []time.Time, now time.Time) error {
 
 // validateMountReference checks every mount date against the reference bounds.
 // It requires a date not before the entry date and strictly after both the
-// previous service's latest mount date and the last abortion date.
+// previous service's latest mount date, the last abortion date and the last
+// weaning date.
 func validateMountReference(dates []time.Time, reference Reference) error {
 	for _, date := range dates {
 		day := truncateToDay(date)
@@ -256,6 +261,9 @@ func validateMountReference(dates []time.Time, reference Reference) error {
 		}
 		if !reference.LastAbortionDate.IsZero() && !day.After(truncateToDay(reference.LastAbortionDate)) {
 			return ErrMountBeforeAbortion
+		}
+		if !reference.LastWeaningDate.IsZero() && !day.After(truncateToDay(reference.LastWeaningDate)) {
+			return ErrMountBeforeWeaning
 		}
 	}
 	return nil

@@ -50,8 +50,9 @@ func NewCreateServiceService(repository ports.ServiceRepository, clock func() ti
 }
 
 // Execute registers a service with its mounts and moves the sow to StatePregnant.
-// It validates the sow state, every boar and operator availability, builds the
-// domain aggregate and persists the service, mounts and sow state in one write.
+// It validates the sow state, every boar and operator availability, fails the
+// previous confirmed service and persists the service, mounts, previous service
+// and sow state in one write.
 func (s *CreateServiceService) Execute(ctx context.Context, command CreateServiceCommand) (*servicedomain.Service, error) {
 	sow, err := s.repository.GetSow(ctx, command.SowID)
 	if err != nil {
@@ -92,7 +93,7 @@ func (s *CreateServiceService) Execute(ctx context.Context, command CreateServic
 		})
 	}
 
-	reference, err := s.buildReference(ctx, sow)
+	previous, reference, err := serviceReference(ctx, s.repository, sow, sow.State, uuid.Nil)
 	if err != nil {
 		return nil, err
 	}
@@ -110,11 +111,19 @@ func (s *CreateServiceService) Execute(ctx context.Context, command CreateServic
 		return nil, err
 	}
 
+	var previousService *servicedomain.Service
+	if previous != nil && previous.State == servicedomain.StateConfirmed {
+		if err := previous.ChangeState(servicedomain.StateFailed, command.CreatedBy, now); err != nil {
+			return nil, err
+		}
+		previousService = previous
+	}
+
 	if err := sow.ChangeState(sowdomain.StatePregnant, command.CreatedBy, now); err != nil {
 		return nil, err
 	}
 
-	if err := s.repository.Create(ctx, newService, sow); err != nil {
+	if err := s.repository.Create(ctx, newService, sow, previousService); err != nil {
 		return nil, err
 	}
 	return newService, nil
@@ -136,41 +145,4 @@ func isServiceableSowState(state sowdomain.State) bool {
 func truncateToDay(value time.Time) time.Time {
 	value = value.UTC()
 	return time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, time.UTC)
-}
-
-// buildReference gathers the dates a new service must respect for a sow.
-// It reads the sow entry date, the previous service's latest mount date and the
-// last abortion date; missing previous events are left as zero values.
-func (s *CreateServiceService) buildReference(ctx context.Context, sow *sowdomain.Sow) (servicedomain.Reference, error) {
-	reference := servicedomain.Reference{EntryDate: sow.EntryDate}
-
-	previous, err := s.repository.GetLastService(ctx, sow.ID)
-	if err != nil && !errors.Is(err, ports.ErrServiceNotFound) {
-		return servicedomain.Reference{}, err
-	}
-	if err == nil && previous != nil {
-		reference.PreviousMountDate = latestMountDate(previous)
-	}
-
-	lastAbortion, err := s.repository.GetLastAbortionDate(ctx, sow.ID)
-	if err != nil {
-		return servicedomain.Reference{}, err
-	}
-	if lastAbortion != nil {
-		reference.LastAbortionDate = *lastAbortion
-	}
-
-	return reference, nil
-}
-
-// latestMountDate returns the most recent mount date of a service.
-// It returns the zero time when the service has no mounts.
-func latestMountDate(service *servicedomain.Service) time.Time {
-	var latest time.Time
-	for _, mount := range service.Mounts {
-		if mount.MountDate.After(latest) {
-			latest = mount.MountDate
-		}
-	}
-	return latest
 }

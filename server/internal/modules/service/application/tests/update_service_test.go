@@ -20,7 +20,7 @@ func updatableService(sowID uuid.UUID) *servicedomain.Service {
 		ID:        serviceID,
 		SowID:     sowID,
 		State:     servicedomain.StateConfirmed,
-		LastState: string(sowdomain.StateAlive),
+		LastState: string(sowdomain.StatePregnant),
 		Mounts: []*servicedomain.Mount{
 			{
 				ID:          uuid.New(),
@@ -154,6 +154,54 @@ func TestUpdateService(t *testing.T) {
 		})
 
 		if !errors.Is(err, servicedomain.ErrMountBeforePreviousService) || repository.updated != nil {
+			t.Fatalf("unexpected result: err=%v updated=%#v", err, repository.updated)
+		}
+	})
+
+	t.Run("rejects a mount before the last weaning stored before the service", func(t *testing.T) {
+		repository, service := newRepository()
+		service.LastState = string(sowdomain.StateWeaned)
+		weaningDate := mountDayNext
+		repository.lastWeaningDate = &weaningDate
+		useCase := serviceapplication.NewUpdateServiceService(repository, clock)
+
+		err := useCase.Execute(context.Background(), service.ID, serviceapplication.UpdateServiceCommand{
+			CreateMounts: []serviceapplication.CreateMountCommand{mountCommand(uuid.New(), uuid.New(), mountDayOne)},
+			UpdatedBy:    uuid.New(),
+		})
+
+		if !errors.Is(err, servicedomain.ErrMountBeforeWeaning) || repository.updated != nil {
+			t.Fatalf("unexpected result: err=%v updated=%#v", err, repository.updated)
+		}
+	})
+
+	t.Run("rejects a mount before the last abortion stored before the service", func(t *testing.T) {
+		repository, service := newRepository()
+		service.LastState = string(sowdomain.StateAborted)
+		abortionDate := mountDayNext
+		repository.lastAbortionDate = &abortionDate
+		useCase := serviceapplication.NewUpdateServiceService(repository, clock)
+
+		err := useCase.Execute(context.Background(), service.ID, serviceapplication.UpdateServiceCommand{
+			CreateMounts: []serviceapplication.CreateMountCommand{mountCommand(uuid.New(), uuid.New(), mountDayOne)},
+			UpdatedBy:    uuid.New(),
+		})
+
+		if !errors.Is(err, servicedomain.ErrMountBeforeAbortion) || repository.updated != nil {
+			t.Fatalf("unexpected result: err=%v updated=%#v", err, repository.updated)
+		}
+	})
+
+	t.Run("propagates an invalid stored last state", func(t *testing.T) {
+		repository, service := newRepository()
+		service.LastState = "Desconocido"
+		useCase := serviceapplication.NewUpdateServiceService(repository, clock)
+
+		err := useCase.Execute(context.Background(), service.ID, serviceapplication.UpdateServiceCommand{
+			UpdatedBy: uuid.New(),
+		})
+
+		if !errors.Is(err, sowdomain.ErrInvalidState) || repository.updated != nil {
 			t.Fatalf("unexpected result: err=%v updated=%#v", err, repository.updated)
 		}
 	})

@@ -143,6 +143,7 @@ func TestServiceHandlerCreate(t *testing.T) {
 			{"operator not available", serviceapplication.ErrOperatorNotAvailable, http.StatusConflict},
 			{"invalid mounts", servicedomain.ErrInvalidMounts, http.StatusBadRequest},
 			{"mount in future", servicedomain.ErrMountDateInFuture, http.StatusBadRequest},
+			{"mount before weaning", servicedomain.ErrMountBeforeWeaning, http.StatusBadRequest},
 			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
 		} {
 			t.Run(test.name, func(t *testing.T) {
@@ -455,6 +456,7 @@ func TestServiceHandlerUpdate(t *testing.T) {
 			{"not found", ports.ErrServiceNotFound, http.StatusNotFound},
 			{"not editable", servicedomain.ErrServiceNotEditable, http.StatusConflict},
 			{"before previous service", servicedomain.ErrMountBeforePreviousService, http.StatusBadRequest},
+			{"before last weaning", servicedomain.ErrMountBeforeWeaning, http.StatusBadRequest},
 			{"mount not found", servicedomain.ErrMountNotFound, http.StatusBadRequest},
 			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
 		} {

@@ -193,6 +193,21 @@ func (r *PostgresServiceRepository) GetLastAbortionDate(ctx context.Context, sow
 	return lastAbortion, nil
 }
 
+// GetLastWeaningDate returns the most recent weaning date of a sow.
+// It returns nil when the sow has no weaning.
+func (r *PostgresServiceRepository) GetLastWeaningDate(ctx context.Context, sowID uuid.UUID) (*time.Time, error) {
+	var lastWeaning *time.Time
+	if err := r.pool.QueryRow(ctx, `
+		SELECT MAX(w.weaging_date)
+		FROM weagings w
+		JOIN farrowings f ON f.id = w.farrowing_id
+		WHERE f.sow_id = $1
+	`, sowID).Scan(&lastWeaning); err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el último destete: %w", err)
+	}
+	return lastWeaning, nil
+}
+
 // serviceWithMounts runs a single-row service query and loads its mounts.
 // It returns ports.ErrServiceNotFound when no row matches.
 func (r *PostgresServiceRepository) serviceWithMounts(ctx context.Context, query string, args ...any) (*servicedomain.Service, error) {
@@ -276,10 +291,11 @@ func (r *PostgresServiceRepository) listMounts(ctx context.Context, serviceID uu
 	return mounts, nil
 }
 
-// Create inserts the service and its mounts and moves the sow to its new state.
-// All writes run in a single transaction so a service never exists without its
-// mounts or the matching sow state change.
-func (r *PostgresServiceRepository) Create(ctx context.Context, service *servicedomain.Service, sow *sowdomain.Sow) error {
+// Create inserts the service and its mounts, moves the sow to its new state and
+// fails the previous service when one is provided. All writes run in a single
+// transaction so a service never exists without its mounts, the matching sow
+// state change or the previous service state change.
+func (r *PostgresServiceRepository) Create(ctx context.Context, service *servicedomain.Service, sow *sowdomain.Sow, previous *servicedomain.Service) error {
 	transaction, err := r.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("No se pudo guardar el servicio: %w", err)
@@ -348,6 +364,27 @@ func (r *PostgresServiceRepository) Create(ctx context.Context, service *service
 	}
 	if commandTag.RowsAffected() == 0 {
 		return ports.ErrSowNotFound
+	}
+
+	if previous != nil {
+		commandTag, err := transaction.Exec(ctx, `
+			UPDATE services
+			SET state = $2,
+			    updated_at = $3,
+			    updated_by = $4
+			WHERE id = $1
+		`,
+			previous.ID,
+			previous.State,
+			previous.UpdatedAt,
+			previous.UpdatedBy,
+		)
+		if err != nil {
+			return mapPostgresError(err)
+		}
+		if commandTag.RowsAffected() == 0 {
+			return ports.ErrServiceNotFound
+		}
 	}
 
 	if err := transaction.Commit(ctx); err != nil {
@@ -552,10 +589,11 @@ func (r *PostgresServiceRepository) Update(ctx context.Context, service *service
 	return nil
 }
 
-// Delete removes a service and its mounts and restores the sow state.
-// All writes run in a single transaction; a foreign key violation on the service
-// means it still has related records and maps to ports.ErrServiceInUse.
-func (r *PostgresServiceRepository) Delete(ctx context.Context, service *servicedomain.Service, sow *sowdomain.Sow) error {
+// Delete removes a service and its mounts, restores the sow state and reopens
+// the previous service when one is provided. All writes run in a single
+// transaction; a foreign key violation on the service means it still has related
+// records and maps to ports.ErrServiceInUse.
+func (r *PostgresServiceRepository) Delete(ctx context.Context, service *servicedomain.Service, sow *sowdomain.Sow, previous *servicedomain.Service) error {
 	transaction, err := r.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("No se pudo eliminar el servicio: %w", err)
@@ -579,6 +617,27 @@ func (r *PostgresServiceRepository) Delete(ctx context.Context, service *service
 	}
 	if commandTag.RowsAffected() == 0 {
 		return ports.ErrSowNotFound
+	}
+
+	if previous != nil {
+		commandTag, err := transaction.Exec(ctx, `
+			UPDATE services
+			SET state = $2,
+			    updated_at = $3,
+			    updated_by = $4
+			WHERE id = $1
+		`,
+			previous.ID,
+			previous.State,
+			previous.UpdatedAt,
+			previous.UpdatedBy,
+		)
+		if err != nil {
+			return mapPostgresError(err)
+		}
+		if commandTag.RowsAffected() == 0 {
+			return ports.ErrServiceNotFound
+		}
 	}
 
 	if _, err := transaction.Exec(ctx, `

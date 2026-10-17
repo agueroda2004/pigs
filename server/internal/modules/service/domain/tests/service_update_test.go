@@ -49,6 +49,7 @@ func TestNewServiceReferences(t *testing.T) {
 		{"entry date", servicedomain.Reference{EntryDate: mountDayTwo}, servicedomain.ErrMountBeforeEntryDate},
 		{"previous service", servicedomain.Reference{PreviousMountDate: mountDayTwo}, servicedomain.ErrMountBeforePreviousService},
 		{"last abortion", servicedomain.Reference{LastAbortionDate: mountDayTwo}, servicedomain.ErrMountBeforeAbortion},
+		{"last weaning", servicedomain.Reference{LastWeaningDate: mountDayTwo}, servicedomain.ErrMountBeforeWeaning},
 	}
 	for _, test := range cases {
 		t.Run("rejects a mount before the "+test.name, func(t *testing.T) {
@@ -64,6 +65,18 @@ func TestNewServiceReferences(t *testing.T) {
 		})
 	}
 
+	t.Run("rejects a mount on the same day as the last weaning", func(t *testing.T) {
+		_, err := servicedomain.NewService(
+			validServiceParams(),
+			[]servicedomain.NewMountParams{mountAt(mountDayOne)},
+			servicedomain.Reference{LastWeaningDate: mountDayOne},
+			now,
+		)
+		if !errors.Is(err, servicedomain.ErrMountBeforeWeaning) {
+			t.Fatalf("error = %v, want ErrMountBeforeWeaning", err)
+		}
+	})
+
 	t.Run("accepts a mount after every reference", func(t *testing.T) {
 		_, err := servicedomain.NewService(
 			validServiceParams(),
@@ -72,6 +85,7 @@ func TestNewServiceReferences(t *testing.T) {
 				EntryDate:         mountDayOne,
 				PreviousMountDate: mountDayOne,
 				LastAbortionDate:  mountDayOne,
+				LastWeaningDate:   mountDayOne,
 			},
 			now,
 		)
@@ -224,6 +238,18 @@ func TestServiceUpdate(t *testing.T) {
 
 		if !errors.Is(err, servicedomain.ErrMountBeforePreviousService) {
 			t.Fatalf("error = %v, want ErrMountBeforePreviousService", err)
+		}
+	})
+
+	t.Run("rejects a mount before the last weaning", func(t *testing.T) {
+		service := confirmedService(t, []servicedomain.NewMountParams{mountAt(mountDayTwo)})
+
+		err := service.Update(servicedomain.UpdateServiceParams{
+			CreateMounts: []servicedomain.NewMountParams{createMount(mountDayOne)},
+		}, servicedomain.Reference{LastWeaningDate: mountDayOne}, actor, now)
+
+		if !errors.Is(err, servicedomain.ErrMountBeforeWeaning) {
+			t.Fatalf("error = %v, want ErrMountBeforeWeaning", err)
 		}
 	})
 

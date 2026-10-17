@@ -57,6 +57,82 @@ func TestDeleteService(t *testing.T) {
 		}
 	})
 
+	t.Run("reopens the previous failed service", func(t *testing.T) {
+		serviceID := uuid.New()
+		sowID := uuid.New()
+		deletedBy := uuid.New()
+		service := confirmedService(serviceID, sowID)
+		previous := &servicedomain.Service{ID: uuid.New(), SowID: sowID, State: servicedomain.StateFailed}
+		repository := &fakeServiceRepository{
+			getService:      service,
+			sow:             testSow(sowID, sowdomain.StatePregnant),
+			previousService: previous,
+		}
+		useCase := serviceapplication.NewDeleteServiceService(repository, clock)
+
+		err := useCase.Execute(context.Background(), serviceapplication.DeleteServiceCommand{
+			ID:        serviceID,
+			DeletedBy: deletedBy,
+		})
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if previous.State != servicedomain.StateConfirmed {
+			t.Fatalf("previous state = %v, want %v", previous.State, servicedomain.StateConfirmed)
+		}
+		if previous.UpdatedBy != deletedBy || !previous.UpdatedAt.Equal(now) {
+			t.Fatalf("unexpected previous audit: %#v", previous)
+		}
+		if repository.deletedPrevious != previous {
+			t.Fatalf("repository did not persist the previous service")
+		}
+	})
+
+	t.Run("leaves a previous service that is not failed unchanged", func(t *testing.T) {
+		sowID := uuid.New()
+		service := confirmedService(uuid.New(), sowID)
+		previous := &servicedomain.Service{ID: uuid.New(), SowID: sowID, State: servicedomain.StateFinished}
+		repository := &fakeServiceRepository{
+			getService:      service,
+			sow:             testSow(sowID, sowdomain.StatePregnant),
+			previousService: previous,
+		}
+		useCase := serviceapplication.NewDeleteServiceService(repository, clock)
+
+		err := useCase.Execute(context.Background(), serviceapplication.DeleteServiceCommand{
+			ID:        service.ID,
+			DeletedBy: uuid.New(),
+		})
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if previous.State != servicedomain.StateFinished || repository.deletedPrevious != nil {
+			t.Fatalf("unexpected result: state=%v previous=%#v", previous.State, repository.deletedPrevious)
+		}
+	})
+
+	t.Run("propagates the previous service lookup error", func(t *testing.T) {
+		service := confirmedService(uuid.New(), uuid.New())
+		unexpected := errors.New("unexpected")
+		repository := &fakeServiceRepository{
+			getService:         service,
+			sow:                testSow(service.SowID, sowdomain.StatePregnant),
+			previousServiceErr: unexpected,
+		}
+		useCase := serviceapplication.NewDeleteServiceService(repository, clock)
+
+		err := useCase.Execute(context.Background(), serviceapplication.DeleteServiceCommand{
+			ID:        service.ID,
+			DeletedBy: uuid.New(),
+		})
+
+		if !errors.Is(err, unexpected) || repository.deleted != nil {
+			t.Fatalf("unexpected result: err=%v deleted=%#v", err, repository.deleted)
+		}
+	})
+
 	t.Run("blocks a service that is not confirmed", func(t *testing.T) {
 		service := confirmedService(uuid.New(), uuid.New())
 		service.State = servicedomain.StateFinished

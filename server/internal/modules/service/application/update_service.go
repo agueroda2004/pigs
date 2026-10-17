@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,6 +9,7 @@ import (
 	boardomain "server/internal/modules/boar/domain"
 	servicedomain "server/internal/modules/service/domain"
 	"server/internal/modules/service/ports"
+	sowdomain "server/internal/modules/sow/domain"
 )
 
 // UpdateMountCommand carries the fields required to update a single mount.
@@ -47,8 +47,9 @@ func NewUpdateServiceService(repository ports.ServiceRepository, clock func() ti
 }
 
 // Execute applies the provided fields and mount operations to a confirmed service.
-// It reloads the reference dates, validates the boars and operators of every
-// created or updated mount, then persists the service and its mounts atomically.
+// It rebuilds the reference dates from the sow state stored before the service,
+// validates the boars and operators of every created or updated mount, then
+// persists the service and its mounts atomically.
 func (s *UpdateServiceService) Execute(ctx context.Context, id uuid.UUID, command UpdateServiceCommand) error {
 	service, err := s.repository.GetByID(ctx, id)
 	if err != nil {
@@ -63,21 +64,14 @@ func (s *UpdateServiceService) Execute(ctx context.Context, id uuid.UUID, comman
 		return err
 	}
 
-	reference := servicedomain.Reference{EntryDate: sow.EntryDate}
-	previous, err := s.repository.GetPreviousService(ctx, service.SowID, service.ID)
-	if err != nil && !errors.Is(err, ports.ErrServiceNotFound) {
-		return err
-	}
-	if err == nil && previous != nil {
-		reference.PreviousMountDate = latestMountDate(previous)
-	}
-
-	lastAbortion, err := s.repository.GetLastAbortionDate(ctx, service.SowID)
+	referenceState, err := sowdomain.ParseState(service.LastState)
 	if err != nil {
 		return err
 	}
-	if lastAbortion != nil {
-		reference.LastAbortionDate = *lastAbortion
+
+	_, reference, err := serviceReference(ctx, s.repository, sow, referenceState, service.ID)
+	if err != nil {
+		return err
 	}
 
 	createParams := make([]servicedomain.NewMountParams, 0, len(command.CreateMounts))

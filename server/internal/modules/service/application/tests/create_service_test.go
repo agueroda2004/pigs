@@ -67,6 +67,131 @@ func TestCreateService(t *testing.T) {
 		}
 	})
 
+	t.Run("fails the previous confirmed service", func(t *testing.T) {
+		repository, sowID, boarID, operatorID := newRepository()
+		repository.sow = testSow(sowID, sowdomain.StatePregnant)
+		previous := &servicedomain.Service{ID: uuid.New(), SowID: sowID, State: servicedomain.StateConfirmed}
+		repository.lastService = previous
+		service := serviceapplication.NewCreateServiceService(repository, clock)
+		createdBy := uuid.New()
+
+		_, err := service.Execute(context.Background(), validCommand(sowID, boarID, operatorID, createdBy))
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if previous.State != servicedomain.StateFailed {
+			t.Fatalf("previous state = %v, want %v", previous.State, servicedomain.StateFailed)
+		}
+		if previous.UpdatedBy != createdBy || !previous.UpdatedAt.Equal(now) {
+			t.Fatalf("unexpected previous audit: %#v", previous)
+		}
+		if repository.createdPrevious != previous {
+			t.Fatalf("repository did not persist the previous service")
+		}
+	})
+
+	t.Run("leaves a non-confirmed previous service unchanged", func(t *testing.T) {
+		repository, sowID, boarID, operatorID := newRepository()
+		repository.sow = testSow(sowID, sowdomain.StatePregnant)
+		previous := &servicedomain.Service{ID: uuid.New(), SowID: sowID, State: servicedomain.StateFinished}
+		repository.lastService = previous
+		service := serviceapplication.NewCreateServiceService(repository, clock)
+
+		_, err := service.Execute(context.Background(), validCommand(sowID, boarID, operatorID, uuid.New()))
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if previous.State != servicedomain.StateFinished || repository.createdPrevious != nil {
+			t.Fatalf("unexpected result: state=%v previous=%#v", previous.State, repository.createdPrevious)
+		}
+	})
+
+	t.Run("rejects a mount before the last weaning when the sow is weaned", func(t *testing.T) {
+		repository, sowID, boarID, operatorID := newRepository()
+		repository.sow = testSow(sowID, sowdomain.StateWeaned)
+		weaningDate := mountDayOne
+		repository.lastWeaningDate = &weaningDate
+		service := serviceapplication.NewCreateServiceService(repository, clock)
+
+		_, err := service.Execute(context.Background(), validCommand(sowID, boarID, operatorID, uuid.New()))
+
+		if !errors.Is(err, servicedomain.ErrMountBeforeWeaning) || repository.created != nil {
+			t.Fatalf("unexpected result: err=%v created=%#v", err, repository.created)
+		}
+	})
+
+	t.Run("rejects a mount before the last abortion when the sow is aborted", func(t *testing.T) {
+		repository, sowID, boarID, operatorID := newRepository()
+		repository.sow = testSow(sowID, sowdomain.StateAborted)
+		abortionDate := mountDayOne
+		repository.lastAbortionDate = &abortionDate
+		service := serviceapplication.NewCreateServiceService(repository, clock)
+
+		_, err := service.Execute(context.Background(), validCommand(sowID, boarID, operatorID, uuid.New()))
+
+		if !errors.Is(err, servicedomain.ErrMountBeforeAbortion) || repository.created != nil {
+			t.Fatalf("unexpected result: err=%v created=%#v", err, repository.created)
+		}
+	})
+
+	t.Run("does not load other events when the sow is alive", func(t *testing.T) {
+		repository, sowID, boarID, operatorID := newRepository()
+		repository.lastServiceErr = errors.New("unexpected")
+		repository.lastAbortionErr = errors.New("unexpected")
+		repository.lastWeaningErr = errors.New("unexpected")
+		service := serviceapplication.NewCreateServiceService(repository, clock)
+
+		result, err := service.Execute(context.Background(), validCommand(sowID, boarID, operatorID, uuid.New()))
+
+		if err != nil || result == nil || repository.created == nil {
+			t.Fatalf("unexpected result: err=%v result=%#v", err, result)
+		}
+	})
+
+	t.Run("propagates the previous service lookup error", func(t *testing.T) {
+		repository, sowID, boarID, operatorID := newRepository()
+		repository.sow = testSow(sowID, sowdomain.StatePregnant)
+		unexpected := errors.New("unexpected")
+		repository.lastServiceErr = unexpected
+		service := serviceapplication.NewCreateServiceService(repository, clock)
+
+		_, err := service.Execute(context.Background(), validCommand(sowID, boarID, operatorID, uuid.New()))
+
+		if !errors.Is(err, unexpected) || repository.created != nil {
+			t.Fatalf("unexpected result: err=%v created=%#v", err, repository.created)
+		}
+	})
+
+	t.Run("propagates the last abortion lookup error", func(t *testing.T) {
+		repository, sowID, boarID, operatorID := newRepository()
+		repository.sow = testSow(sowID, sowdomain.StateAborted)
+		unexpected := errors.New("unexpected")
+		repository.lastAbortionErr = unexpected
+		service := serviceapplication.NewCreateServiceService(repository, clock)
+
+		_, err := service.Execute(context.Background(), validCommand(sowID, boarID, operatorID, uuid.New()))
+
+		if !errors.Is(err, unexpected) || repository.created != nil {
+			t.Fatalf("unexpected result: err=%v created=%#v", err, repository.created)
+		}
+	})
+
+	t.Run("propagates the last weaning lookup error", func(t *testing.T) {
+		repository, sowID, boarID, operatorID := newRepository()
+		repository.sow = testSow(sowID, sowdomain.StateWeaned)
+		unexpected := errors.New("unexpected")
+		repository.lastWeaningErr = unexpected
+		service := serviceapplication.NewCreateServiceService(repository, clock)
+
+		_, err := service.Execute(context.Background(), validCommand(sowID, boarID, operatorID, uuid.New()))
+
+		if !errors.Is(err, unexpected) || repository.created != nil {
+			t.Fatalf("unexpected result: err=%v created=%#v", err, repository.created)
+		}
+	})
+
 	t.Run("supports up to three mounts", func(t *testing.T) {
 		repository, sowID, boarID, operatorID := newRepository()
 		service := serviceapplication.NewCreateServiceService(repository, clock)

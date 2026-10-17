@@ -2,10 +2,12 @@ package application
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 
+	servicedomain "server/internal/modules/service/domain"
 	"server/internal/modules/service/ports"
 	sowdomain "server/internal/modules/sow/domain"
 )
@@ -30,8 +32,8 @@ func NewDeleteServiceService(repository ports.ServiceRepository, clock func() ti
 
 // Execute deletes a confirmed service and restores the sow to its previous state.
 // It blocks any service that is not in StateConfirmed because those states already
-// have related events, and persists the service, its mounts and the sow state in
-// one transaction.
+// have related events, reopens the previous failed service and persists the
+// service, its mounts, the previous service and the sow state in one transaction.
 func (s *DeleteServiceService) Execute(ctx context.Context, command DeleteServiceCommand) error {
 	service, err := s.repository.GetByID(ctx, command.ID)
 	if err != nil {
@@ -52,10 +54,23 @@ func (s *DeleteServiceService) Execute(ctx context.Context, command DeleteServic
 		return err
 	}
 
+	previous, err := s.repository.GetPreviousService(ctx, service.SowID, service.ID)
+	if err != nil && !errors.Is(err, ports.ErrServiceNotFound) {
+		return err
+	}
+
 	now := s.clock()
 	if err := sow.ChangeState(lastState, command.DeletedBy, now); err != nil {
 		return err
 	}
 
-	return s.repository.Delete(ctx, service, sow)
+	var previousService *servicedomain.Service
+	if err == nil && previous != nil && previous.State == servicedomain.StateFailed {
+		if err := previous.ChangeState(servicedomain.StateConfirmed, command.DeletedBy, now); err != nil {
+			return err
+		}
+		previousService = previous
+	}
+
+	return s.repository.Delete(ctx, service, sow, previousService)
 }

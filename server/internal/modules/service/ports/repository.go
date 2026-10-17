@@ -39,13 +39,18 @@ type ServiceRepository interface {
 	// GetLastAbortionDate returns the most recent abortion date of a sow.
 	// It returns nil when the sow has no abortion.
 	GetLastAbortionDate(ctx context.Context, sowID uuid.UUID) (*time.Time, error)
-	Create(ctx context.Context, service *servicedomain.Service, sow *sowdomain.Sow) error
+	// GetLastWeaningDate returns the most recent weaning date of a sow.
+	// It returns nil when the sow has no weaning.
+	GetLastWeaningDate(ctx context.Context, sowID uuid.UUID) (*time.Time, error)
+	// Create inserts the service and its mounts, moves the sow to its new state
+	// and fails the previous service when one is provided, all in one transaction.
+	Create(ctx context.Context, service *servicedomain.Service, sow *sowdomain.Sow, previous *servicedomain.Service) error
 	// Update persists the service fields and replaces its mounts in one transaction.
 	Update(ctx context.Context, service *servicedomain.Service) error
 	// List returns one page of services matching the filter together with the
 	// total count of matches, so callers can paginate the result.
 	List(ctx context.Context, filter ServiceFilter, limit, offset int) ([]*servicedomain.Service, int, error)
-	// Delete removes a service and its mounts, restoring the sow state in one
-	// atomic transaction.
-	Delete(ctx context.Context, service *servicedomain.Service, sow *sowdomain.Sow) error
+	// Delete removes a service and its mounts, restoring the sow state and the
+	// previous service state in one atomic transaction.
+	Delete(ctx context.Context, service *servicedomain.Service, sow *sowdomain.Sow, previous *servicedomain.Service) error
 }

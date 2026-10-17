@@ -21,9 +21,10 @@ type fakeServiceRepository struct {
 	operator    *operatordomain.Operator
 	operatorErr error
 
-	createErr  error
-	created    *servicedomain.Service
-	createdSow *sowdomain.Sow
+	createErr       error
+	created         *servicedomain.Service
+	createdSow      *sowdomain.Sow
+	createdPrevious *servicedomain.Service
 
 	getService *servicedomain.Service
 	getErr     error
@@ -34,13 +35,16 @@ type fakeServiceRepository struct {
 	previousServiceErr error
 	lastAbortionDate   *time.Time
 	lastAbortionErr    error
+	lastWeaningDate    *time.Time
+	lastWeaningErr     error
 
 	updated   *servicedomain.Service
 	updateErr error
 
-	deleted    *servicedomain.Service
-	deletedSow *sowdomain.Sow
-	deleteErr  error
+	deleted         *servicedomain.Service
+	deletedSow      *sowdomain.Sow
+	deletedPrevious *servicedomain.Service
+	deleteErr       error
 
 	listServices []*servicedomain.Service
 	listTotal    int
@@ -78,20 +82,26 @@ func (f *fakeServiceRepository) GetLastAbortionDate(_ context.Context, _ uuid.UU
 	return f.lastAbortionDate, f.lastAbortionErr
 }
 
+func (f *fakeServiceRepository) GetLastWeaningDate(_ context.Context, _ uuid.UUID) (*time.Time, error) {
+	return f.lastWeaningDate, f.lastWeaningErr
+}
+
 func (f *fakeServiceRepository) Update(_ context.Context, service *servicedomain.Service) error {
 	f.updated = service
 	return f.updateErr
 }
 
-func (f *fakeServiceRepository) Create(_ context.Context, service *servicedomain.Service, sow *sowdomain.Sow) error {
+func (f *fakeServiceRepository) Create(_ context.Context, service *servicedomain.Service, sow *sowdomain.Sow, previous *servicedomain.Service) error {
 	f.created = service
 	f.createdSow = sow
+	f.createdPrevious = previous
 	return f.createErr
 }
 
-func (f *fakeServiceRepository) Delete(_ context.Context, service *servicedomain.Service, sow *sowdomain.Sow) error {
+func (f *fakeServiceRepository) Delete(_ context.Context, service *servicedomain.Service, sow *sowdomain.Sow, previous *servicedomain.Service) error {
 	f.deleted = service
 	f.deletedSow = sow
+	f.deletedPrevious = previous
 	return f.deleteErr
 }
 
