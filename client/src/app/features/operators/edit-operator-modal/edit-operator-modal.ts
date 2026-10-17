@@ -68,8 +68,8 @@ export class EditOperatorModal {
     this.loading.set(true);
 
     try {
-      const updated = await firstValueFrom(this.operators.updateOperator(current.id, request));
-      this.updated.emit(updated);
+      await firstValueFrom(this.operators.updateOperator(current.id, request));
+      this.updated.emit({ ...current, name, active });
     } catch (error) {
       this.notifications.error(this.mapError(error));
     } finally {

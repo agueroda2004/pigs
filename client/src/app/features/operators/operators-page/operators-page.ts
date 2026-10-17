@@ -6,12 +6,13 @@ import { NotificationService } from '../../../core/notifications/notification.se
 import { Operator } from '../../../core/operators/operator.models';
 import { OperatorsService } from '../../../core/operators/operators.service';
 import { CreateOperatorModal } from '../create-operator-modal/create-operator-modal';
+import { DeleteOperatorModal } from '../delete-operator-modal/delete-operator-modal';
 import { EditOperatorModal } from '../edit-operator-modal/edit-operator-modal';
 import { OperatorCard } from '../operator-card/operator-card';
 
 @Component({
   selector: 'app-operators-page',
-  imports: [OperatorCard, CreateOperatorModal, EditOperatorModal],
+  imports: [OperatorCard, CreateOperatorModal, EditOperatorModal, DeleteOperatorModal],
   styleUrl: './operators-page.css',
   templateUrl: './operators-page.html',
 })
@@ -24,6 +25,8 @@ export class OperatorsPage implements OnInit {
   protected readonly modalOpen = signal(false);
   protected readonly editOpen = signal(false);
   protected readonly editingOperator = signal<Operator | null>(null);
+  protected readonly deleteOpen = signal(false);
+  protected readonly deletingOperator = signal<Operator | null>(null);
   protected readonly operators = signal<Operator[]>([]);
   protected readonly loading = signal(false);
   protected readonly error = signal(false);
@@ -58,6 +61,21 @@ export class OperatorsPage implements OnInit {
   protected async onUpdated(operator: Operator): Promise<void> {
     this.editOpen.set(false);
     this.notifications.success(`Operador "${operator.name}" actualizado correctamente`);
+    await this.loadOperators();
+  }
+
+  protected openDelete(operator: Operator): void {
+    this.deletingOperator.set(operator);
+    this.deleteOpen.set(true);
+  }
+
+  protected closeDelete(): void {
+    this.deleteOpen.set(false);
+  }
+
+  protected async onDeleted(operator: Operator): Promise<void> {
+    this.deleteOpen.set(false);
+    this.notifications.success(`Operador "${operator.name}" eliminado correctamente`);
     await this.loadOperators();
   }
 

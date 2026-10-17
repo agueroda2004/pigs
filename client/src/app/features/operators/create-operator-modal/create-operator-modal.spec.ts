@@ -8,7 +8,7 @@ import { NotificationService } from '../../../core/notifications/notification.se
 import { CreateOperatorModal } from './create-operator-modal';
 
 class OperatorsStub {
-  createOperator = vi.fn(() => of({}));
+  createOperator = vi.fn(() => of(undefined));
 }
 
 class NotificationsStub {

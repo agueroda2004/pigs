@@ -9,10 +9,6 @@ const operatorPayload = {
   id: '1',
   name: 'Juan Pérez',
   active: true,
-  created_at: '',
-  updated_at: '',
-  created_by: 'admin',
-  updated_by: 'admin',
 };
 
 describe('OperatorsService', () => {
@@ -71,9 +67,9 @@ describe('OperatorsService', () => {
       (request) => request.url.endsWith('/operators') && request.method === 'POST',
     );
     expect(call.request.body).toEqual({ name: 'Juan Pérez' });
-    call.flush(operatorPayload);
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ name: 'Juan Pérez' });
+    await expect(promise).resolves.toBeNull();
   });
 
   it('updates an operator', async () => {
@@ -84,8 +80,19 @@ describe('OperatorsService', () => {
       (request) => request.url.endsWith('/operators/7') && request.method === 'PATCH',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush({ ...operatorPayload, name: 'María López', active: false });
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ name: 'María López', active: false });
+    await expect(promise).resolves.toBeNull();
+  });
+
+  it('deletes an operator', async () => {
+    const promise = firstValueFrom(service.deleteOperator('7'));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/operators/7') && request.method === 'DELETE',
+    );
+    call.flush(null);
+
+    await expect(promise).resolves.toBeNull();
   });
 });

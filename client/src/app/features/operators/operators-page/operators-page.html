@@ -61,6 +61,7 @@
           [operator]="operator"
           [canEdit]="isAdmin()"
           (editRequested)="openEdit($event)"
+          (deleteRequested)="openDelete($event)"
         />
       }
     </div>
@@ -78,4 +79,11 @@
   [operator]="editingOperator()"
   (closed)="closeEdit()"
   (updated)="onUpdated($event)"
+/>
+
+<app-delete-operator-modal
+  [open]="deleteOpen()"
+  [operator]="deletingOperator()"
+  (closed)="closeDelete()"
+  (deleted)="onDeleted($event)"
 />

@@ -28,11 +28,15 @@ export class OperatorsService {
     return this.http.get<OperatorDropdown[]>(`${this.baseUrl}/dropdown`, { params });
   }
 
-  createOperator(request: CreateOperatorRequest): Observable<Operator> {
-    return this.http.post<Operator>(this.baseUrl, request);
+  createOperator(request: CreateOperatorRequest): Observable<void> {
+    return this.http.post<void>(this.baseUrl, request);
   }
 
-  updateOperator(id: string, request: UpdateOperatorRequest): Observable<Operator> {
-    return this.http.patch<Operator>(`${this.baseUrl}/${id}`, request);
+  updateOperator(id: string, request: UpdateOperatorRequest): Observable<void> {
+    return this.http.patch<void>(`${this.baseUrl}/${id}`, request);
+  }
+
+  deleteOperator(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
 }

@@ -14,10 +14,6 @@ function buildOperator(id: string): Operator {
     id,
     name: `Operator ${id}`,
     active: true,
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
   };
 }
 
@@ -107,6 +103,30 @@ describe('OperatorsPage', () => {
       'Operador "Operator 9" actualizado correctamente',
     );
     expect(component.editOpen()).toBe(false);
+    expect(component.operators()).toHaveLength(1);
+  });
+
+  it('opens the delete modal for the selected operator', () => {
+    const component = create();
+    const operator = buildOperator('1');
+
+    component.openDelete(operator);
+
+    expect(component.deleteOpen()).toBe(true);
+    expect(component.deletingOperator()).toBe(operator);
+  });
+
+  it('reloads the list after deleting an operator', async () => {
+    const component = create();
+    await component.loadOperators();
+
+    stub.listOperators = vi.fn(() => of([buildOperator('2')]));
+    await component.onDeleted(buildOperator('1'));
+
+    expect(notifications.success).toHaveBeenCalledWith(
+      'Operador "Operator 1" eliminado correctamente',
+    );
+    expect(component.deleteOpen()).toBe(false);
     expect(component.operators()).toHaveLength(1);
   });
 
