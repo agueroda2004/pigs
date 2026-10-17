@@ -39,7 +39,7 @@ func validReference() sowremovaldomain.Reference {
 		EntryDate:        entryDay,
 		LastMountDate:    lastMountDay,
 		LastAbortionDate: lastAbortionDay,
-		WeaningDate:      weaningDay,
+		LastWeaningDate:  weaningDay,
 	}
 }
 
@@ -235,18 +235,18 @@ func TestNewSowRemovalDatesByState(t *testing.T) {
 		}
 	})
 
-	t.Run("gestating requires date after last abortion", func(t *testing.T) {
+	t.Run("gestating ignores the last abortion", func(t *testing.T) {
 		params := validRemovalParams()
 		params.LastState = "Gestando"
 		reference := validReference()
 		reference.LastAbortionDate = removalDay
 
-		if _, err := sowremovaldomain.NewSowRemoval(params, reference, nowReference); !errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeAbortion) {
-			t.Fatalf("expected ErrRemovalDateBeforeAbortion, got %v", err)
+		if _, err := sowremovaldomain.NewSowRemoval(params, reference, nowReference); err != nil {
+			t.Fatalf("expected the abortion to be ignored, got %v", err)
 		}
 	})
 
-	t.Run("gestating accepts a date after both references", func(t *testing.T) {
+	t.Run("gestating accepts a date after the last mount", func(t *testing.T) {
 		params := validRemovalParams()
 		params.LastState = "Gestando"
 
@@ -265,13 +265,29 @@ func TestNewSowRemovalDatesByState(t *testing.T) {
 		}
 	})
 
-	t.Run("weaned requires date after weaning when provided", func(t *testing.T) {
+	t.Run("weaned requires date after the last weaning", func(t *testing.T) {
 		params := validRemovalParams()
 		params.LastState = "Destetada"
 		params.RemovalDate = weaningDay
 
 		if _, err := sowremovaldomain.NewSowRemoval(params, validReference(), nowReference); !errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeWeaning) {
 			t.Fatalf("expected ErrRemovalDateBeforeWeaning, got %v", err)
+		}
+	})
+
+	t.Run("alive only validates the entry date", func(t *testing.T) {
+		params := validRemovalParams()
+		params.LastState = "Viva"
+		params.RemovalDate = removalDay
+		reference := sowremovaldomain.Reference{
+			EntryDate:        entryDay,
+			LastMountDate:    nowReference,
+			LastAbortionDate: nowReference,
+			LastWeaningDate:  nowReference,
+		}
+
+		if _, err := sowremovaldomain.NewSowRemoval(params, reference, nowReference); err != nil {
+			t.Fatalf("expected the other references to be ignored, got %v", err)
 		}
 	})
 }

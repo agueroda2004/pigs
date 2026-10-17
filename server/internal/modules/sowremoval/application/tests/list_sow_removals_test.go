@@ -26,13 +26,13 @@ func TestListSowRemovalsExecute(t *testing.T) {
 	})
 
 	t.Run("forwards the filter to the repository", func(t *testing.T) {
-		sowID := uuid.New()
+		sowCode := "C-001"
 		repository := &fakeSowRemovalRepository{}
 		useCase := sowremovalapplication.NewListSowRemovalsService(repository)
 
-		_, err := useCase.Execute(context.Background(), ports.SowRemovalFilter{SowID: &sowID})
+		_, err := useCase.Execute(context.Background(), ports.SowRemovalFilter{SowCode: &sowCode})
 
-		if err != nil || repository.listFilter.SowID == nil || *repository.listFilter.SowID != sowID {
+		if err != nil || repository.listFilter.SowCode == nil || *repository.listFilter.SowCode != sowCode {
 			t.Fatalf("unexpected filter: %#v err=%v", repository.listFilter, err)
 		}
 	})

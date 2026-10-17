@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -52,24 +51,10 @@ func (s *UpdateSowRemovalService) Execute(ctx context.Context, removalID uuid.UU
 	}
 
 	reference := sowremovaldomain.Reference{}
-	if sow != nil {
-		reference.EntryDate = sow.EntryDate
-	}
 	if command.RemovalDate != nil {
-		service, err := s.repository.GetLastService(ctx, removal.SowID)
-		if err != nil && !errors.Is(err, ports.ErrServiceNotFound) {
-			return nil, err
-		}
-		if service != nil {
-			reference.LastMountDate = latestMountDate(service)
-		}
-
-		lastAbortion, err := lastAbortion(ctx, s.repository, sowdomain.State(removal.LastState), removal.SowID)
+		reference, _, err = removalReference(ctx, s.repository, sow, sowdomain.State(removal.LastState))
 		if err != nil {
 			return nil, err
-		}
-		if lastAbortion != nil {
-			reference.LastAbortionDate = lastAbortion.AbortionDate
 		}
 	}
 

@@ -49,11 +49,8 @@ func TestSowRemovalHandlerCreate(t *testing.T) {
 		if !create.command.RemovalDate.Equal(time.Date(2026, time.January, 20, 0, 0, 0, 0, time.UTC)) {
 			t.Fatalf("unexpected date: %v", create.command.RemovalDate)
 		}
-		if response.Header().Get("Content-Type") != "application/json" {
-			t.Fatalf("unexpected content type: %q", response.Header().Get("Content-Type"))
-		}
-		if !strings.Contains(response.Body.String(), "Gestando") {
-			t.Fatalf("unexpected body: %s", response.Body.String())
+		if response.Body.Len() != 0 {
+			t.Fatalf("expected empty body, got %s", response.Body.String())
 		}
 	})
 
@@ -158,9 +155,14 @@ func TestSowRemovalHandlerList(t *testing.T) {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)
 		}
 		body := response.Body.String()
-		for _, want := range []string{"Muerte", "Enfermedad", "last_state", "2026-01-20"} {
+		for _, want := range []string{"Muerte", "Enfermedad", "last_state", "2026-01-20", "sow_code"} {
 			if !strings.Contains(body, want) {
 				t.Fatalf("body missing %q: %s", want, body)
+			}
+		}
+		for _, unwanted := range []string{"created_at", "updated_at", "created_by", "updated_by"} {
+			if strings.Contains(body, unwanted) {
+				t.Fatalf("body must not contain %q: %s", unwanted, body)
 			}
 		}
 	})
@@ -175,17 +177,16 @@ func TestSowRemovalHandlerList(t *testing.T) {
 		}
 	})
 
-	t.Run("parses the sow_id filter", func(t *testing.T) {
-		sowID := uuid.New()
+	t.Run("parses the sow_code filter", func(t *testing.T) {
 		list := &fakeListSowRemovalsUseCase{}
 		handler := newTestHandler(&fakeCreateSowRemovalUseCase{}, list)
-		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sow-removals?sow_id="+sowID.String(), nil))
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sow-removals?sow_code=C-001", nil))
 
 		if response.Code != http.StatusOK || !list.called {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)
 		}
-		if list.filter.SowID == nil || *list.filter.SowID != sowID {
-			t.Fatalf("unexpected sow id: %#v", list.filter.SowID)
+		if list.filter.SowCode == nil || *list.filter.SowCode != "C-001" {
+			t.Fatalf("unexpected sow code: %#v", list.filter.SowCode)
 		}
 	})
 
@@ -194,7 +195,7 @@ func TestSowRemovalHandlerList(t *testing.T) {
 		handler := newTestHandler(&fakeCreateSowRemovalUseCase{}, list)
 		serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sow-removals", nil))
 
-		if list.filter.SowID != nil {
+		if list.filter.SowCode != nil {
 			t.Fatalf("unexpected filter: %#v", list.filter)
 		}
 	})
@@ -202,7 +203,7 @@ func TestSowRemovalHandlerList(t *testing.T) {
 	t.Run("rejects invalid filter values", func(t *testing.T) {
 		list := &fakeListSowRemovalsUseCase{}
 		handler := newTestHandler(&fakeCreateSowRemovalUseCase{}, list)
-		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sow-removals?sow_id=not-a-uuid", nil))
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sow-removals?sow_code="+strings.Repeat("A", 51), nil))
 
 		if response.Code != http.StatusBadRequest || list.called {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)
@@ -254,6 +255,9 @@ func TestSowRemovalHandlerUpdate(t *testing.T) {
 		}
 		if update.command.Note == nil || *update.command.Note != "cambiada" {
 			t.Fatalf("unexpected note: %#v", update.command.Note)
+		}
+		if response.Body.Len() != 0 {
+			t.Fatalf("expected empty body, got %s", response.Body.String())
 		}
 	})
 

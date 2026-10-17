@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	abortiondomain "server/internal/modules/abortion/domain"
 	servicedomain "server/internal/modules/service/domain"
 	sowdomain "server/internal/modules/sow/domain"
 	sowremovaldomain "server/internal/modules/sowremoval/domain"
@@ -50,25 +49,9 @@ func (s *CreateSowRemovalService) Execute(ctx context.Context, command CreateSow
 		return nil, ErrSowNotRemovable
 	}
 
-	service, err := s.repository.GetLastService(ctx, command.SowID)
-	if err != nil && !errors.Is(err, ports.ErrServiceNotFound) {
-		return nil, err
-	}
-	if errors.Is(err, ports.ErrServiceNotFound) {
-		service = nil
-	}
-
-	lastAbortion, err := lastAbortion(ctx, s.repository, sow.State, command.SowID)
+	reference, service, err := removalReference(ctx, s.repository, sow, sow.State)
 	if err != nil {
 		return nil, err
-	}
-
-	reference := sowremovaldomain.Reference{EntryDate: sow.EntryDate}
-	if service != nil {
-		reference.LastMountDate = latestMountDate(service)
-	}
-	if lastAbortion != nil {
-		reference.LastAbortionDate = lastAbortion.AbortionDate
 	}
 
 	targetState, err := command.Type.SowState()
@@ -112,23 +95,6 @@ func (s *CreateSowRemovalService) Execute(ctx context.Context, command CreateSow
 	return newRemoval, nil
 }
 
-// lastAbortion fetches the last abortion only for states whose date rule needs it.
-// It returns nil when the state does not require the lookup or there is no abortion.
-func lastAbortion(ctx context.Context, repository ports.SowRemovalRepository, state sowdomain.State, sowID uuid.UUID) (*abortiondomain.Abortion, error) {
-	if state != sowdomain.StatePregnant && state != sowdomain.StateAborted {
-		return nil, nil
-	}
-
-	lastAbortion, err := repository.GetLastAbortion(ctx, sowID)
-	if errors.Is(err, ports.ErrAbortionNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return lastAbortion, nil
-}
-
 // isRemovableSowState reports whether a sow state allows registering a removal.
 // Only alive, weaned, aborted and gestating sows may be removed.
 func isRemovableSowState(state sowdomain.State) bool {
@@ -138,16 +104,4 @@ func isRemovableSowState(state sowdomain.State) bool {
 	default:
 		return false
 	}
-}
-
-// latestMountDate returns the most recent mount date of a service.
-// It returns the zero time when the service has no mounts.
-func latestMountDate(service *servicedomain.Service) time.Time {
-	var latest time.Time
-	for _, mount := range service.Mounts {
-		if mount.MountDate.After(latest) {
-			latest = mount.MountDate
-		}
-	}
-	return latest
 }

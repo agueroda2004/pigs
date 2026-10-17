@@ -59,12 +59,15 @@ func (s *DeleteSowRemovalService) Execute(ctx context.Context, command DeleteSow
 		return err
 	}
 
-	service, err := s.repository.GetLastService(ctx, removal.SowID)
-	if err != nil && !errors.Is(err, ports.ErrServiceNotFound) {
-		return err
-	}
-	if errors.Is(err, ports.ErrServiceNotFound) {
-		service = nil
+	var service *servicedomain.Service
+	if lastState == sowdomain.StatePregnant {
+		service, err = s.repository.GetLastService(ctx, removal.SowID)
+		if err != nil && !errors.Is(err, ports.ErrServiceNotFound) {
+			return err
+		}
+		if errors.Is(err, ports.ErrServiceNotFound) {
+			service = nil
+		}
 	}
 
 	now := s.clock()

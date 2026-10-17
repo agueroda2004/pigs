@@ -112,6 +112,7 @@ func handlerRemoval() *sowremovaldomain.SowRemoval {
 	return &sowremovaldomain.SowRemoval{
 		ID:          uuid.New(),
 		SowID:       uuid.New(),
+		SowCode:     "C-001",
 		RemovalDate: time.Date(2026, time.January, 20, 0, 0, 0, 0, time.UTC),
 		Type:        sowremovaldomain.TypeDeath,
 		Reason:      sowremovaldomain.ReasonDisease,

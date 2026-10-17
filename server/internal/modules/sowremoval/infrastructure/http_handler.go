@@ -18,6 +18,10 @@ import (
 
 const dateLayout = "2006-01-02"
 
+// maxSowCodeLength mirrors the length of the sows.code column.
+// A longer sow code filter is rejected as invalid.
+const maxSowCodeLength = 50
+
 type CreateSowRemovalUseCase interface {
 	Execute(context.Context, sowremovalapplication.CreateSowRemovalCommand) (*sowremovaldomain.SowRemoval, error)
 }
@@ -90,15 +94,12 @@ type updateSowRemovalRequest struct {
 type sowRemovalResponse struct {
 	ID          uuid.UUID `json:"id"`
 	SowID       uuid.UUID `json:"sow_id"`
+	SowCode     string    `json:"sow_code"`
 	RemovalDate string    `json:"removal_date"`
 	Type        string    `json:"type"`
 	Reason      string    `json:"reason"`
 	Note        *string   `json:"note"`
 	LastState   string    `json:"last_state"`
-	CreatedAt   string    `json:"created_at"`
-	UpdatedAt   string    `json:"updated_at"`
-	CreatedBy   uuid.UUID `json:"created_by"`
-	UpdatedBy   uuid.UUID `json:"updated_by"`
 }
 
 // create handles POST /api/v1/sow-removals and registers a removal.
@@ -141,20 +142,19 @@ func (h *SowRemovalHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdRemoval, err := h.createSowRemoval.Execute(r.Context(), sowremovalapplication.CreateSowRemovalCommand{
+	if _, err := h.createSowRemoval.Execute(r.Context(), sowremovalapplication.CreateSowRemovalCommand{
 		SowID:       sowID,
 		RemovalDate: removalDate,
 		Type:        removalType,
 		Reason:      reason,
 		Note:        request.Note,
 		CreatedBy:   actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeSowRemovalError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusCreated, toSowRemovalResponse(createdRemoval))
+	w.WriteHeader(http.StatusCreated)
 }
 
 // update handles PATCH /api/v1/sow-removals/{id} and applies the provided fields.
@@ -205,19 +205,18 @@ func (h *SowRemovalHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedRemoval, err := h.updateSowRemoval.Execute(r.Context(), removalID, sowremovalapplication.UpdateSowRemovalCommand{
+	if _, err := h.updateSowRemoval.Execute(r.Context(), removalID, sowremovalapplication.UpdateSowRemovalCommand{
 		RemovalDate: removalDate,
 		Type:        removalType,
 		Reason:      reason,
 		Note:        request.Note,
 		UpdatedBy:   actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeSowRemovalError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toSowRemovalResponse(updatedRemoval))
+	w.WriteHeader(http.StatusOK)
 }
 
 // parseSowRemovalDate parses an optional removal date using the shared layout.
@@ -260,7 +259,7 @@ func (h *SowRemovalHandler) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // list handles GET /api/v1/sow-removals and returns the removals matching the filter.
-// It parses the optional sow_id query parameter.
+// It parses the optional sow_code query parameter.
 func (h *SowRemovalHandler) list(w http.ResponseWriter, r *http.Request) {
 	filter, err := parseSowRemovalFilter(r)
 	if err != nil {
@@ -278,37 +277,33 @@ func (h *SowRemovalHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseSowRemovalFilter reads the optional list filters from the query string.
-// It returns an error for a malformed sow_id value.
+// It returns an error for a sow code longer than 50 characters.
 func parseSowRemovalFilter(r *http.Request) (ports.SowRemovalFilter, error) {
 	query := r.URL.Query()
 	var filter ports.SowRemovalFilter
 
-	if sow := strings.TrimSpace(query.Get("sow_id")); sow != "" {
-		sowID, err := uuid.Parse(sow)
-		if err != nil {
-			return ports.SowRemovalFilter{}, errors.New("El identificador de la cerda no es válido")
+	if sowCode := strings.TrimSpace(query.Get("sow_code")); sowCode != "" {
+		if len([]rune(sowCode)) > maxSowCodeLength {
+			return ports.SowRemovalFilter{}, errors.New("El código de la cerda no es válido")
 		}
-		filter.SowID = &sowID
+		filter.SowCode = &sowCode
 	}
 
 	return filter, nil
 }
 
 // toSowRemovalResponse maps a domain removal to the HTTP response shape.
-// It formats the date as YYYY-MM-DD and the timestamps in UTC.
+// It formats the date as YYYY-MM-DD and omits the audit fields.
 func toSowRemovalResponse(removal *sowremovaldomain.SowRemoval) sowRemovalResponse {
 	return sowRemovalResponse{
 		ID:          removal.ID,
 		SowID:       removal.SowID,
+		SowCode:     removal.SowCode,
 		RemovalDate: removal.RemovalDate.UTC().Format(dateLayout),
 		Type:        string(removal.Type),
 		Reason:      string(removal.Reason),
 		Note:        removal.Note,
 		LastState:   removal.LastState,
-		CreatedAt:   removal.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt:   removal.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		CreatedBy:   removal.CreatedBy,
-		UpdatedBy:   removal.UpdatedBy,
 	}
 }
 

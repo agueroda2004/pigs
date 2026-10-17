@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -22,6 +23,8 @@ type fakeSowRemovalRepository struct {
 	serviceErr  error
 	abortion    *abortiondomain.Abortion
 	abortionErr error
+	lastWeaning *time.Time
+	weaningErr  error
 
 	createErr      error
 	created        *sowremovaldomain.SowRemoval
@@ -56,6 +59,10 @@ func (f *fakeSowRemovalRepository) GetLastService(_ context.Context, _ uuid.UUID
 
 func (f *fakeSowRemovalRepository) GetLastAbortion(_ context.Context, _ uuid.UUID) (*abortiondomain.Abortion, error) {
 	return f.abortion, f.abortionErr
+}
+
+func (f *fakeSowRemovalRepository) GetLastWeaningDate(_ context.Context, _ uuid.UUID) (*time.Time, error) {
+	return f.lastWeaning, f.weaningErr
 }
 
 func (f *fakeSowRemovalRepository) Create(

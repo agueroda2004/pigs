@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -12,9 +13,10 @@ import (
 )
 
 // SowRemovalFilter narrows the removals returned by the list operation.
-// A nil field is ignored so an empty filter returns every removal.
+// A nil field is ignored so an empty filter returns every removal. SowCode
+// matches the code of the related sow ignoring case.
 type SowRemovalFilter struct {
-	SowID *uuid.UUID
+	SowCode *string
 }
 
 // SowRemovalRepository defines the persistence operations of the removal module.
@@ -26,6 +28,7 @@ type SowRemovalRepository interface {
 	GetSow(ctx context.Context, id uuid.UUID) (*sowdomain.Sow, error)
 	GetLastService(ctx context.Context, sowID uuid.UUID) (*servicedomain.Service, error)
 	GetLastAbortion(ctx context.Context, sowID uuid.UUID) (*abortiondomain.Abortion, error)
+	GetLastWeaningDate(ctx context.Context, sowID uuid.UUID) (*time.Time, error)
 	Create(ctx context.Context, removal *sowremovaldomain.SowRemoval, sow *sowdomain.Sow, service *servicedomain.Service) error
 	Update(ctx context.Context, removal *sowremovaldomain.SowRemoval, sow *sowdomain.Sow) error
 	Delete(ctx context.Context, removal *sowremovaldomain.SowRemoval, sow *sowdomain.Sow, service *servicedomain.Service) error

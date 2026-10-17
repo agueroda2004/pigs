@@ -139,6 +139,26 @@ func TestUpdateSowRemovalExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("validates the removal date against the last weaning", func(t *testing.T) {
+		weaningDate := removalDay
+		repository := &fakeSowRemovalRepository{
+			removalByID: testRemoval(removalID, sowID, sowdomain.StateWeaned, sowremovaldomain.TypeDeath),
+			sow:         testSow(sowID, sowdomain.StateDead),
+			lastWeaning: &weaningDate,
+		}
+		useCase := sowremovalapplication.NewUpdateSowRemovalService(repository, func() time.Time { return updateNow })
+
+		date := removalDay
+		_, err := useCase.Execute(context.Background(), removalID, sowremovalapplication.UpdateSowRemovalCommand{
+			RemovalDate: &date,
+			UpdatedBy:   actorID,
+		})
+
+		if !errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeWeaning) {
+			t.Fatalf("error = %v, want ErrRemovalDateBeforeWeaning", err)
+		}
+	})
+
 	t.Run("changes the sow state when the type changes", func(t *testing.T) {
 		removal := testRemoval(removalID, sowID, sowdomain.StateAlive, sowremovaldomain.TypeDeath)
 		repository := &fakeSowRemovalRepository{

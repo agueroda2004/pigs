@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -166,6 +167,21 @@ func (r *PostgresSowRemovalRepository) GetLastAbortion(ctx context.Context, sowI
 		return nil, fmt.Errorf("No se pudo consultar el aborto: %w", err)
 	}
 	return result, nil
+}
+
+// GetLastWeaningDate returns the most recent weaning date of a sow.
+// It returns nil when the sow has no weaning.
+func (r *PostgresSowRemovalRepository) GetLastWeaningDate(ctx context.Context, sowID uuid.UUID) (*time.Time, error) {
+	var lastWeaning *time.Time
+	if err := r.pool.QueryRow(ctx, `
+		SELECT MAX(w.weaging_date)
+		FROM weagings w
+		JOIN farrowings f ON f.id = w.farrowing_id
+		WHERE f.sow_id = $1
+	`, sowID).Scan(&lastWeaning); err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el último destete: %w", err)
+	}
+	return lastWeaning, nil
 }
 
 // listMounts fetches every mount of a service ordered by mount number.
@@ -434,16 +450,17 @@ func (r *PostgresSowRemovalRepository) Delete(
 	return nil
 }
 
-// List fetches the removals matching the filter, newest first.
+// List fetches the removals matching the filter with the related sow code, newest first.
 // It returns an empty slice when no removal matches and wraps any query failure.
 func (r *PostgresSowRemovalRepository) List(ctx context.Context, filter ports.SowRemovalFilter) ([]*sowremovaldomain.SowRemoval, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, sow_id, removal_date, type, reason, note, last_state,
-		       created_at, updated_at, created_by, updated_by
-		FROM sow_removals
-		WHERE ($1::uuid IS NULL OR sow_id = $1)
-		ORDER BY removal_date DESC, created_at DESC
-	`, filter.SowID)
+		SELECT sr.id, sr.sow_id, sr.removal_date, sr.type, sr.reason, sr.note,
+		       sr.last_state, sow.code
+		FROM sow_removals sr
+		JOIN sows sow ON sow.id = sr.sow_id
+		WHERE ($1::text IS NULL OR LOWER(sow.code) = LOWER($1))
+		ORDER BY sr.removal_date DESC, sr.created_at DESC
+	`, filter.SowCode)
 	if err != nil {
 		return nil, fmt.Errorf("No se pudieron consultar las bajas: %w", err)
 	}
@@ -460,10 +477,7 @@ func (r *PostgresSowRemovalRepository) List(ctx context.Context, filter ports.So
 			&result.Reason,
 			&result.Note,
 			&result.LastState,
-			&result.CreatedAt,
-			&result.UpdatedAt,
-			&result.CreatedBy,
-			&result.UpdatedBy,
+			&result.SowCode,
 		); err != nil {
 			return nil, fmt.Errorf("No se pudieron consultar las bajas: %w", err)
 		}

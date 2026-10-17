@@ -70,10 +70,13 @@ type SowRemoval struct {
 	Reason      Reason
 	Note        *string
 	LastState   string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	CreatedBy   uuid.UUID
-	UpdatedBy   uuid.UUID
+	// SowCode is the code of the referenced sow. It is a read-model field filled
+	// only by the list query and never persisted by the write paths.
+	SowCode   string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	CreatedBy uuid.UUID
+	UpdatedBy uuid.UUID
 }
 
 // NewSowRemovalParams holds the fields required to build a new removal.
@@ -106,7 +109,7 @@ type Reference struct {
 	EntryDate        time.Time
 	LastMountDate    time.Time
 	LastAbortionDate time.Time
-	WeaningDate      time.Time
+	LastWeaningDate  time.Time
 }
 
 // NewSowRemoval builds a removal after validating its fields and dates.
@@ -219,7 +222,8 @@ func (r *SowRemoval) Update(params UpdateSowRemovalParams, reference Reference, 
 }
 
 // validateRemovalDate checks the removal date against the current day, the sow
-// entry date and the reference dates required by the sow state being removed.
+// entry date and the single reference date required by the sow state being
+// removed. Each state only validates the event that precedes it.
 func validateRemovalDate(removalDate time.Time, lastState string, reference Reference, now time.Time) error {
 	if truncateToDay(removalDate).After(truncateToDay(now)) {
 		return ErrRemovalDateInFuture
@@ -233,9 +237,7 @@ func validateRemovalDate(removalDate time.Time, lastState string, reference Refe
 	case stateAlive:
 		return nil
 	case stateWeaned:
-		// TODO: validate the removal date against the weaning date once the
-		// weaning module exists; today the destete date is not available.
-		if !reference.WeaningDate.IsZero() && !isAfter(removalDate, reference.WeaningDate) {
+		if !reference.LastWeaningDate.IsZero() && !isAfter(removalDate, reference.LastWeaningDate) {
 			return ErrRemovalDateBeforeWeaning
 		}
 	case stateAborted:
@@ -245,9 +247,6 @@ func validateRemovalDate(removalDate time.Time, lastState string, reference Refe
 	case statePregnant:
 		if !reference.LastMountDate.IsZero() && !isAfter(removalDate, reference.LastMountDate) {
 			return ErrRemovalDateBeforeService
-		}
-		if !reference.LastAbortionDate.IsZero() && !isAfter(removalDate, reference.LastAbortionDate) {
-			return ErrRemovalDateBeforeAbortion
 		}
 	}
 	return nil

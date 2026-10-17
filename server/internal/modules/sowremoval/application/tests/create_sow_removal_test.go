@@ -167,6 +167,51 @@ func TestCreateSowRemovalExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("validates the removal date against the last weaning", func(t *testing.T) {
+		weaningDate := removalDay
+		repository := &fakeSowRemovalRepository{
+			sow:         testSow(sowID, sowdomain.StateWeaned),
+			lastWeaning: &weaningDate,
+		}
+		useCase := sowremovalapplication.NewCreateSowRemovalService(repository, func() time.Time { return nowReference })
+
+		_, err := useCase.Execute(context.Background(), validCommand(sowID, actorID))
+
+		if !errors.Is(err, sowremovaldomain.ErrRemovalDateBeforeWeaning) {
+			t.Fatalf("error = %v, want ErrRemovalDateBeforeWeaning", err)
+		}
+		if repository.created != nil {
+			t.Fatalf("removal must not be persisted")
+		}
+	})
+
+	t.Run("does not look up other events for an alive sow", func(t *testing.T) {
+		repository := &fakeSowRemovalRepository{
+			sow:         testSow(sowID, sowdomain.StateAlive),
+			serviceErr:  errors.New("unexpected service lookup"),
+			abortionErr: errors.New("unexpected abortion lookup"),
+			weaningErr:  errors.New("unexpected weaning lookup"),
+		}
+		useCase := sowremovalapplication.NewCreateSowRemovalService(repository, func() time.Time { return nowReference })
+
+		if _, err := useCase.Execute(context.Background(), validCommand(sowID, actorID)); err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+	})
+
+	t.Run("does not look up the abortion for a gestating sow", func(t *testing.T) {
+		repository := &fakeSowRemovalRepository{
+			sow:         testSow(sowID, sowdomain.StatePregnant),
+			service:     testService(serviceID, sowID, servicedomain.StateConfirmed, testMount(serviceID, 1, mountDayOne)),
+			abortionErr: errors.New("unexpected abortion lookup"),
+		}
+		useCase := sowremovalapplication.NewCreateSowRemovalService(repository, func() time.Time { return nowReference })
+
+		if _, err := useCase.Execute(context.Background(), validCommand(sowID, actorID)); err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+	})
+
 	t.Run("accepts an aborted sow after its last abortion", func(t *testing.T) {
 		repository := &fakeSowRemovalRepository{
 			sow:         testSow(sowID, sowdomain.StateAborted),
