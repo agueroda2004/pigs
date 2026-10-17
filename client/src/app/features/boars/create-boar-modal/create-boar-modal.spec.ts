@@ -85,6 +85,31 @@ describe('CreateBoarModal', () => {
     expect(created).toHaveBeenCalledWith('B-001');
   });
 
+  it('uppercases and trims the code before creating', async () => {
+    const component = create();
+    const created = vi.fn();
+    component.created.subscribe(created);
+    component.form.setValue({
+      code: '  b-003  ',
+      breed_id: 'breed-1',
+      origin: 'Propio',
+      location: '',
+      entry_date: '2026-01-10',
+      birth_date: '',
+      note: '',
+    });
+
+    await component.submit();
+
+    expect(stub.createBoar).toHaveBeenCalledWith({
+      code: 'B-003',
+      entry_date: '2026-01-10',
+      origin: 'Propio',
+      breed_id: 'breed-1',
+    });
+    expect(created).toHaveBeenCalledWith('B-003');
+  });
+
   it('omits birth_date when it is not set', async () => {
     const component = create();
     component.form.setValue({

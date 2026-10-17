@@ -39,6 +39,21 @@ func TestUpdateBoar(t *testing.T) {
 		}
 	})
 
+	t.Run("uppercases the provided code", func(t *testing.T) {
+		repository := &fakeBoarRepository{getBoar: testBoar(boarID)}
+		service := boarapplication.NewUpdateBoarService(repository, clock)
+		code := "  b-003  "
+
+		boar, err := service.Execute(context.Background(), boarID, boarapplication.UpdateBoarCommand{
+			Code:      &code,
+			UpdatedBy: updatedBy,
+		})
+
+		if err != nil || boar.Code != "B-003" || repository.updated != boar {
+			t.Fatalf("unexpected result: err=%v boar=%#v", err, boar)
+		}
+	})
+
 	t.Run("rejects an entry date after the earliest event", func(t *testing.T) {
 		repository := &fakeBoarRepository{
 			getBoar:           testBoar(boarID),

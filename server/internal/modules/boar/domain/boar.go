@@ -302,10 +302,10 @@ func (b *Boar) ChangeState(newState State, updatedBy uuid.UUID, now time.Time) e
 	return nil
 }
 
-// validateCode trims the code and requires it to be non-empty.
+// validateCode trims and uppercases the code and requires it to be non-empty.
 // It returns ErrInvalidCode when the code exceeds the maximum length.
 func validateCode(code string) (string, error) {
-	code = strings.TrimSpace(code)
+	code = strings.ToUpper(strings.TrimSpace(code))
 	if code == "" || len([]rune(code)) > maxCodeLength {
 		return "", ErrInvalidCode
 	}
@@ -406,4 +406,10 @@ func ParseState(value string) (State, error) {
 		return "", ErrInvalidState
 	}
 	return state, nil
+}
+
+// ParseCodeFilter trims and uppercases a raw code search value and validates its length.
+// It returns ErrInvalidCode when the value is empty or exceeds the maximum code length.
+func ParseCodeFilter(value string) (string, error) {
+	return validateCode(value)
 }

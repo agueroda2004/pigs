@@ -13,6 +13,7 @@ import (
 type fakeBoarRepository struct {
 	exists             bool
 	existsErr          error
+	existsCode         string
 	getBoar            *boardomain.Boar
 	getErr             error
 	earliestEventDate  time.Time
@@ -50,7 +51,8 @@ func (f *fakeBoarRepository) GetEarliestEventDate(_ context.Context, _ uuid.UUID
 	return f.earliestEventDate, f.earliestEventErr
 }
 
-func (f *fakeBoarRepository) ExistsByCode(_ context.Context, _ string) (bool, error) {
+func (f *fakeBoarRepository) ExistsByCode(_ context.Context, code string) (bool, error) {
+	f.existsCode = code
 	return f.exists, f.existsErr
 }
 

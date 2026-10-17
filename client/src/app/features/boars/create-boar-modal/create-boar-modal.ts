@@ -64,8 +64,9 @@ export class CreateBoarModal {
 
     const { code, breed_id, origin, location, entry_date, birth_date, note } =
       this.form.getRawValue();
+    const upperCode = code.trim().toUpperCase();
     const request: CreateBoarRequest = {
-      code,
+      code: upperCode,
       entry_date,
       breed_id,
       origin: origin as BoarOrigin,
@@ -83,12 +84,22 @@ export class CreateBoarModal {
     try {
       await firstValueFrom(this.boars.createBoar(request));
       this.form.reset();
-      this.created.emit(code);
+      this.created.emit(upperCode);
     } catch (error) {
       this.notifications.error(this.mapError(error));
     } finally {
       this.loading.set(false);
     }
+  }
+
+  // Uppercases the code control as the user types so it is always stored in upper case.
+  protected onCodeInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const upper = input.value.toUpperCase();
+    if (input.value !== upper) {
+      input.value = upper;
+    }
+    this.form.controls.code.setValue(upper, { emitEvent: false });
   }
 
   private async loadBreeds(): Promise<void> {

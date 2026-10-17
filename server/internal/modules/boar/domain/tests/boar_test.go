@@ -61,6 +61,17 @@ func TestNewBoar(t *testing.T) {
 		}
 	})
 
+	t.Run("uppercases the code", func(t *testing.T) {
+		params := validParams()
+		params.Code = "  b-001  "
+
+		boar, err := boardomain.NewBoar(params, now)
+
+		if err != nil || boar.Code != "B-001" {
+			t.Fatalf("unexpected result: err=%v boar=%#v", err, boar)
+		}
+	})
+
 	t.Run("accepts a valid birth date", func(t *testing.T) {
 		params := validParams()
 		birth := time.Date(2025, time.December, 1, 0, 0, 0, 0, time.UTC)
@@ -126,7 +137,7 @@ func TestNewBoar(t *testing.T) {
 
 	t.Run("accepts code at exactly max length", func(t *testing.T) {
 		params := validParams()
-		params.Code = strings.Repeat("a", 50)
+		params.Code = strings.Repeat("A", 50)
 
 		boar, err := boardomain.NewBoar(params, now)
 		if err != nil || boar.Code != params.Code {
@@ -280,6 +291,17 @@ func TestBoarUpdate(t *testing.T) {
 		}
 		if boar.UpdatedBy != updatedBy || !boar.UpdatedAt.Equal(now) {
 			t.Fatalf("unexpected audit fields: %#v", boar)
+		}
+	})
+
+	t.Run("uppercases the updated code", func(t *testing.T) {
+		boar := newBoar()
+		code := "  b-002  "
+
+		err := boar.Update(boardomain.UpdateBoarParams{Code: &code}, updatedBy, now)
+
+		if err != nil || boar.Code != "B-002" {
+			t.Fatalf("unexpected result: err=%v boar=%#v", err, boar)
 		}
 	})
 
@@ -579,5 +601,19 @@ func TestParseState(t *testing.T) {
 
 	if _, err := boardomain.ParseState("Invalido"); !errors.Is(err, boardomain.ErrInvalidState) {
 		t.Fatalf("expected ErrInvalidState, got %v", err)
+	}
+}
+
+func TestParseCodeFilter(t *testing.T) {
+	code, err := boardomain.ParseCodeFilter("  b-001  ")
+	if err != nil {
+		t.Fatalf("ParseCodeFilter() error = %v", err)
+	}
+	if code != "B-001" {
+		t.Fatalf("ParseCodeFilter() = %q", code)
+	}
+
+	if _, err := boardomain.ParseCodeFilter(strings.Repeat("a", 51)); !errors.Is(err, boardomain.ErrInvalidCode) {
+		t.Fatalf("expected ErrInvalidCode, got %v", err)
 	}
 }

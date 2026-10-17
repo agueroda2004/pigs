@@ -198,6 +198,36 @@ describe('BoarsPage', () => {
     );
   });
 
+  it('uppercases the code filter when searching', async () => {
+    const component = create();
+    component.filterForm.patchValue({ code: 'b-001' });
+
+    await component.search();
+
+    expect(stub.listBoars).toHaveBeenLastCalledWith({ code: 'B-001' }, 1);
+  });
+
+  it('rejects an over-length code filter before sending it', async () => {
+    const fixture = TestBed.createComponent(BoarsPage);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    stub.listBoars.mockClear();
+    component.filterForm.patchValue({ code: 'x'.repeat(51) });
+
+    await component.search();
+    fixture.detectChanges();
+
+    expect(component.filterForm.controls.code.hasError('maxlength')).toBe(true);
+    expect(stub.listBoars).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      'El código debe tener como máximo 50 caracteres',
+    );
+  });
+
   it('clears the filters and reloads without them', async () => {
     const component = create();
     component.filterForm.setValue({

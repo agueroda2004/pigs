@@ -182,6 +182,16 @@ func TestBoarHandlerList(t *testing.T) {
 		}
 	})
 
+	t.Run("uppercases the code filter", func(t *testing.T) {
+		list := &fakeListBoarsUseCase{}
+		handler := newTestHandler(&fakeCreateBoarUseCase{}, list, &fakeUpdateBoarUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boars?code=b-001", nil))
+
+		if response.Code != http.StatusOK || list.filter.Code == nil || *list.filter.Code != "B-001" {
+			t.Fatalf("status=%d code=%#v", response.Code, list.filter.Code)
+		}
+	})
+
 	t.Run("returns an empty filter when no params are given", func(t *testing.T) {
 		list := &fakeListBoarsUseCase{}
 		handler := newTestHandler(&fakeCreateBoarUseCase{}, list, &fakeUpdateBoarUseCase{})
@@ -201,6 +211,7 @@ func TestBoarHandlerList(t *testing.T) {
 			"/api/v1/boars?breed_id=not-a-uuid",
 			"/api/v1/boars?origin=Desconocido",
 			"/api/v1/boars?active=maybe",
+			"/api/v1/boars?code=" + strings.Repeat("a", 51),
 		} {
 			response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
 			if response.Code != http.StatusBadRequest || list.called {

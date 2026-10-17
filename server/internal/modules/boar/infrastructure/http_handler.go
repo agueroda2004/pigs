@@ -256,13 +256,17 @@ func parseStateQuery(r *http.Request) (*boardomain.State, error) {
 }
 
 // parseBoarFilter reads the optional list filters from the query string.
-// It returns an error for a malformed breed_id, origin or active value.
+// It returns an error for an over-length code or a malformed breed_id, origin or active value.
 func parseBoarFilter(r *http.Request) (ports.BoarFilter, error) {
 	query := r.URL.Query()
 	var filter ports.BoarFilter
 
 	if code := strings.TrimSpace(query.Get("code")); code != "" {
-		filter.Code = &code
+		parsedCode, err := boardomain.ParseCodeFilter(code)
+		if err != nil {
+			return ports.BoarFilter{}, errors.New("El código no es válido")
+		}
+		filter.Code = &parsedCode
 	}
 
 	if breed := strings.TrimSpace(query.Get("breed_id")); breed != "" {

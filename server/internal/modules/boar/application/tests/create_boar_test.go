@@ -52,6 +52,19 @@ func TestCreateBoar(t *testing.T) {
 		}
 	})
 
+	t.Run("uppercases the code before checking and persisting", func(t *testing.T) {
+		repository := &fakeBoarRepository{}
+		service := boarapplication.NewCreateBoarService(repository, clock)
+		lowercase := command()
+		lowercase.Code = "  b-002  "
+
+		boar, err := service.Execute(context.Background(), lowercase)
+
+		if err != nil || boar.Code != "B-002" || repository.existsCode != "B-002" {
+			t.Fatalf("unexpected result: err=%v boar=%#v existsCode=%q", err, boar, repository.existsCode)
+		}
+	})
+
 	t.Run("creates a boar with an external origin", func(t *testing.T) {
 		repository := &fakeBoarRepository{}
 		service := boarapplication.NewCreateBoarService(repository, clock)

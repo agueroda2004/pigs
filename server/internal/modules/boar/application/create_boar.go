@@ -39,7 +39,7 @@ func NewCreateBoarService(repository ports.BoarRepository, clock func() time.Tim
 // Every new boar starts as StateAlive and returns ErrBoarCodeAlreadyExists when
 // the code is already taken.
 func (s *CreateBoarService) Execute(ctx context.Context, command CreateBoarCommand) (*boardomain.Boar, error) {
-	code := strings.TrimSpace(command.Code)
+	code := strings.ToUpper(strings.TrimSpace(command.Code))
 	exists, err := s.repository.ExistsByCode(ctx, code)
 	if err != nil {
 		return nil, err

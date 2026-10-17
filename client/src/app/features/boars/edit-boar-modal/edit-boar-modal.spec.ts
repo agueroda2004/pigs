@@ -149,6 +149,31 @@ describe('EditBoarModal', () => {
     expect(stub.updateBoar).toHaveBeenCalledWith('1', { code: 'B-002' });
   });
 
+  it('uppercases and trims the code before sending it', async () => {
+    const fixture = await openWith(buildBoar());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+    component.form.patchValue({ code: '  b-002  ' });
+
+    await component.submit();
+
+    expect(stub.updateBoar).toHaveBeenCalledWith('1', { code: 'B-002' });
+  });
+
+  it('does not send the code when the lowercase value matches the current code', async () => {
+    const fixture = await openWith(buildBoar());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+    const updated = vi.fn();
+    component.updated.subscribe(updated);
+    component.form.patchValue({ code: 'b-001' });
+
+    await component.submit();
+
+    expect(stub.updateBoar).not.toHaveBeenCalled();
+    expect(updated).toHaveBeenCalled();
+  });
+
   it('clears nullable fields with an empty string', async () => {
     const fixture = await openWith(buildBoar());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
