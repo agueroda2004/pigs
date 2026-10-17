@@ -111,6 +111,93 @@ describe('CreateServiceModal', () => {
     expect(created).toHaveBeenCalledWith('C-001');
   });
 
+  it('keeps the mounts and clears the selection after a successful save', async () => {
+    const component = create();
+    component.sowOptions.set([{ value: 'sow-1', label: 'C-001' }]);
+    fillFirstMount(component, '2025-01-10');
+    component.form.patchValue({ location: 'Nave 1', note: 'programado' });
+    component.addMount();
+    component.mounts.at(1).patchValue({
+      mount_date: '2025-01-11',
+      boar_id: 'boar-2',
+      operator_id: 'operator-2',
+      type: 'Natural',
+      note: 'segunda',
+    });
+
+    await component.submit();
+
+    expect(stub.createService).toHaveBeenCalled();
+    expect(component.mounts.length).toBe(2);
+    expect(component.mounts.at(0).getRawValue()).toEqual({
+      mount_date: '2025-01-10',
+      boar_id: 'boar-1',
+      operator_id: 'operator-1',
+      type: 'Artificial',
+      note: '',
+    });
+    expect(component.mounts.at(1).getRawValue()).toEqual({
+      mount_date: '2025-01-11',
+      boar_id: 'boar-2',
+      operator_id: 'operator-2',
+      type: 'Natural',
+      note: 'segunda',
+    });
+    expect(component.form.controls.sow_id.value).toBe('');
+    expect(component.form.controls.location.value).toBe('');
+    expect(component.form.controls.note.value).toBe('');
+  });
+
+  it('clears every field and closes the modal on close', () => {
+    const component = create();
+    const closed = vi.fn();
+    component.closed.subscribe(closed);
+    fillFirstMount(component, '2025-01-10');
+    component.form.patchValue({ location: 'Nave 1', note: 'programado' });
+    component.addMount();
+    component.mounts.at(1).patchValue({ mount_date: '2025-01-11' });
+
+    component.close();
+
+    expect(closed).toHaveBeenCalled();
+    expect(component.mounts.length).toBe(1);
+    expect(component.mounts.at(0).getRawValue()).toEqual({
+      mount_date: '',
+      boar_id: '',
+      operator_id: '',
+      type: 'Artificial',
+      note: '',
+    });
+    expect(component.form.controls.sow_id.value).toBe('');
+    expect(component.form.controls.location.value).toBe('');
+    expect(component.form.controls.note.value).toBe('');
+  });
+
+  it('resets the form when the cancel button is clicked', async () => {
+    const fixture = TestBed.createComponent(CreateServiceModal);
+    fixture.componentRef.setInput('open', true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+    const closed = vi.fn();
+    component.closed.subscribe(closed);
+    fillFirstMount(component, '2025-01-10');
+    fixture.detectChanges();
+
+    const buttons = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    );
+    const cancel = buttons.find((button) => button.textContent?.trim() === 'Cancelar');
+    cancel?.click();
+    await fixture.whenStable();
+
+    expect(closed).toHaveBeenCalled();
+    expect(component.mounts.at(0).controls.mount_date.value).toBe('');
+    expect(component.form.controls.sow_id.value).toBe('');
+  });
+
   it('includes optional fields when provided', async () => {
     const component = create();
     component.sowOptions.set([{ value: 'sow-1', label: 'C-001' }]);

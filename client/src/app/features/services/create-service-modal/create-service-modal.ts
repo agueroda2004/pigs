@@ -138,13 +138,21 @@ export class CreateServiceModal {
 
     try {
       await firstValueFrom(this.services.createService(request));
-      this.reset();
+      // Keep the mount rows so consecutive services can reuse them, but clear
+      // the fields that identify the service being created.
+      this.clearSelection();
       this.created.emit(sowCode);
     } catch (error) {
       this.notifications.error(this.mapError(error));
     } finally {
       this.loading.set(false);
     }
+  }
+
+  // Closes the modal and clears every field, including the kept mount rows.
+  protected close(): void {
+    this.reset();
+    this.closed.emit();
   }
 
   private newMountGroup() {
@@ -197,10 +205,14 @@ export class CreateServiceModal {
     return toISODate(value);
   }
 
-  private reset(): void {
+  private clearSelection(): void {
     this.form.controls.sow_id.reset('');
     this.form.controls.location.reset('');
     this.form.controls.note.reset('');
+  }
+
+  private reset(): void {
+    this.clearSelection();
     while (this.mounts.length > 1) {
       this.mounts.removeAt(this.mounts.length - 1);
     }
