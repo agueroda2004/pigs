@@ -8,6 +8,7 @@ function buildRemoval(overrides: Partial<BoarRemoval> = {}): BoarRemoval {
   return {
     id: '1',
     boar_id: 'boar-1',
+    boar_code: 'B-001',
     removal_date: '2026-01-20',
     type: 'Muerte',
     reason: 'Enfermedad',

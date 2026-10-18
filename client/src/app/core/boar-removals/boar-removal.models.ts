@@ -14,6 +14,7 @@ export type RemovalReason =
 export interface BoarRemoval {
   id: string;
   boar_id: string;
+  boar_code: string;
   removal_date: string;
   type: RemovalType;
   reason: RemovalReason;
@@ -37,5 +38,5 @@ export interface UpdateBoarRemovalRequest {
 }
 
 export interface BoarRemovalFilters {
-  boar_id?: string;
+  boar_code?: string;
 }

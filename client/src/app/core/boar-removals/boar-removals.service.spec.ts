@@ -8,6 +8,7 @@ import { BoarRemovalsService } from './boar-removals.service';
 const removalPayload = {
   id: '1',
   boar_id: 'boar-1',
+  boar_code: 'B-001',
   removal_date: '2026-01-20',
   type: 'Muerte',
   reason: 'Enfermedad',
@@ -42,12 +43,12 @@ describe('BoarRemovalsService', () => {
   });
 
   it('lists removals with the boar filter', async () => {
-    const promise = firstValueFrom(service.listBoarRemovals({ boar_id: 'boar-1' }));
+    const promise = firstValueFrom(service.listBoarRemovals({ boar_code: 'B-001' }));
 
     const call = http.expectOne(
       (request) => request.url.endsWith('/boar-removals') && request.method === 'GET',
     );
-    expect(call.request.params.get('boar_id')).toBe('boar-1');
+    expect(call.request.params.get('boar_code')).toBe('B-001');
     call.flush([removalPayload]);
 
     await expect(promise).resolves.toHaveLength(1);

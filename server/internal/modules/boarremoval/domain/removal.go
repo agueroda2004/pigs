@@ -54,10 +54,12 @@ var (
 
 // BoarRemoval is the aggregate root that represents a boar removal (baja).
 // It records the type, the reason, the date and the previous boar state so the
-// removal can be reverted when the record is deleted.
+// removal can be reverted when the record is deleted. BoarCode is a read-model
+// field filled by list queries and left empty on write operations.
 type BoarRemoval struct {
 	ID          uuid.UUID
 	BoarID      uuid.UUID
+	BoarCode    string
 	RemovalDate time.Time
 	Type        Type
 	Reason      Reason

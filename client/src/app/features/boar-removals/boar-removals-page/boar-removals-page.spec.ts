@@ -6,7 +6,6 @@ import { vi } from 'vitest';
 import { AuthService } from '../../../core/auth/auth.service';
 import { BoarRemoval } from '../../../core/boar-removals/boar-removal.models';
 import { BoarRemovalsService } from '../../../core/boar-removals/boar-removals.service';
-import { BoarsService } from '../../../core/boars/boars.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { BoarRemovalsPage } from './boar-removals-page';
 
@@ -14,6 +13,7 @@ function buildRemoval(id: string): BoarRemoval {
   return {
     id,
     boar_id: 'boar-1',
+    boar_code: 'B-001',
     removal_date: '2026-01-20',
     type: 'Muerte',
     reason: 'Enfermedad',
@@ -29,10 +29,6 @@ class BoarRemovalsStub {
   deleteBoarRemoval = vi.fn(() => of(void 0));
 }
 
-class BoarsStub {
-  listBoarDropdown = vi.fn(() => of([{ id: 'boar-1', code: 'B-001', active: false }]));
-}
-
 class NotificationsStub {
   success = vi.fn();
   error = vi.fn();
@@ -40,20 +36,17 @@ class NotificationsStub {
 
 describe('BoarRemovalsPage', () => {
   let stub: BoarRemovalsStub;
-  let boars: BoarsStub;
   let notifications: NotificationsStub;
   let isAdmin: WritableSignal<boolean>;
 
   beforeEach(async () => {
     stub = new BoarRemovalsStub();
-    boars = new BoarsStub();
     notifications = new NotificationsStub();
     isAdmin = signal(true);
     await TestBed.configureTestingModule({
       imports: [BoarRemovalsPage],
       providers: [
         { provide: BoarRemovalsService, useValue: stub },
-        { provide: BoarsService, useValue: boars },
         { provide: NotificationService, useValue: notifications },
         { provide: AuthService, useValue: { isAdmin } },
       ],
@@ -74,11 +67,9 @@ describe('BoarRemovalsPage', () => {
     expect(fixture.nativeElement.querySelectorAll('app-boar-removal-card')).toHaveLength(2);
   });
 
-  it('resolves the boar code from the lookup', async () => {
+  it('reads the boar code from the removal', () => {
     const component = create();
-    await component.loadLookups();
 
-    expect(boars.listBoarDropdown).toHaveBeenCalledWith(false);
     expect(component.boarCode(buildRemoval('1'))).toBe('B-001');
   });
 
@@ -119,7 +110,6 @@ describe('BoarRemovalsPage', () => {
 
   it('opens the edit modal with the selected removal', async () => {
     const component = create();
-    await component.loadLookups();
     const removal = buildRemoval('1');
 
     component.openEdit(removal);
@@ -132,7 +122,6 @@ describe('BoarRemovalsPage', () => {
   it('reloads the list and closes the edit modal after updating', async () => {
     const component = create();
     await component.loadBoarRemovals();
-    await component.loadLookups();
     component.openEdit(buildRemoval('1'));
 
     await component.onUpdated(buildRemoval('1'));
@@ -153,7 +142,6 @@ describe('BoarRemovalsPage', () => {
 
   it('opens the delete modal with the selected removal', async () => {
     const component = create();
-    await component.loadLookups();
     const removal = buildRemoval('1');
 
     component.openDelete(removal);
@@ -166,7 +154,6 @@ describe('BoarRemovalsPage', () => {
   it('reloads the list and closes the delete modal after deleting', async () => {
     const component = create();
     await component.loadBoarRemovals();
-    await component.loadLookups();
     component.openDelete(buildRemoval('1'));
     stub.listBoarRemovals = vi.fn(() => of([buildRemoval('2')]));
 
@@ -187,24 +174,24 @@ describe('BoarRemovalsPage', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
   });
 
-  it('applies the boar filter when searching', async () => {
+  it('applies the boar code filter when searching', async () => {
     const component = create();
-    component.filterForm.setValue({ boar_id: 'boar-1' });
+    component.filterForm.setValue({ code: 'B-001' });
 
     await component.search();
 
-    expect(stub.listBoarRemovals).toHaveBeenLastCalledWith({ boar_id: 'boar-1' });
+    expect(stub.listBoarRemovals).toHaveBeenLastCalledWith({ boar_code: 'B-001' });
   });
 
   it('clears the filters and reloads without them', async () => {
     const component = create();
-    component.filterForm.setValue({ boar_id: 'boar-1' });
+    component.filterForm.setValue({ code: 'B-001' });
     await component.search();
 
     stub.listBoarRemovals = vi.fn(() => of([buildRemoval('1')]));
     await component.clearFilters();
 
     expect(stub.listBoarRemovals).toHaveBeenCalledWith({});
-    expect(component.filterForm.getRawValue()).toEqual({ boar_id: '' });
+    expect(component.filterForm.getRawValue()).toEqual({ code: '' });
   });
 });

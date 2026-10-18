@@ -34,12 +34,19 @@
     (ngSubmit)="search()"
   >
     <div class="space-y-1.5">
-      <span class="block text-xs font-medium text-muted-foreground">Verraco</span>
-      <app-search-dropdown
-        formControlName="boar_id"
-        [options]="boarOptions()"
-        placeholder="Todos"
+      <label for="filter-code" class="block text-xs font-medium text-muted-foreground"
+        >Código</label
+      >
+      <input
+        id="filter-code"
+        type="text"
+        formControlName="code"
+        autocomplete="off"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
       />
+      @if (filterForm.controls.code.touched && filterForm.controls.code.invalid) {
+        <p class="text-xs text-danger">El código debe tener como máximo 50 caracteres.</p>
+      }
     </div>
 
     <div class="flex items-end gap-2">

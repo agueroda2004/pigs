@@ -17,8 +17,8 @@ export class BoarRemovalsService {
 
   listBoarRemovals(filters: BoarRemovalFilters = {}): Observable<BoarRemoval[]> {
     let params = new HttpParams();
-    if (filters.boar_id) {
-      params = params.set('boar_id', filters.boar_id);
+    if (filters.boar_code) {
+      params = params.set('boar_code', filters.boar_code);
     }
 
     return this.http.get<BoarRemoval[]>(this.baseUrl, { params });

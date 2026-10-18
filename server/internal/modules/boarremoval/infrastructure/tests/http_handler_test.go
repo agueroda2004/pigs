@@ -152,7 +152,7 @@ func TestBoarRemovalHandlerList(t *testing.T) {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)
 		}
 		body := response.Body.String()
-		for _, want := range []string{"Muerte", "Enfermedad", "last_state", "2026-01-20"} {
+		for _, want := range []string{"Muerte", "Enfermedad", "last_state", "2026-01-20", "boar_code", "B-001"} {
 			if !strings.Contains(body, want) {
 				t.Fatalf("body missing %q: %s", want, body)
 			}
@@ -169,17 +169,26 @@ func TestBoarRemovalHandlerList(t *testing.T) {
 		}
 	})
 
-	t.Run("parses the boar_id filter", func(t *testing.T) {
-		boarID := uuid.New()
+	t.Run("parses the boar_code filter", func(t *testing.T) {
 		list := &fakeListBoarRemovalsUseCase{}
 		handler := newTestHandler(&fakeCreateBoarRemovalUseCase{}, list)
-		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boar-removals?boar_id="+boarID.String(), nil))
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boar-removals?boar_code=B-001", nil))
 
 		if response.Code != http.StatusOK || !list.called {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)
 		}
-		if list.filter.BoarID == nil || *list.filter.BoarID != boarID {
-			t.Fatalf("unexpected boar id: %#v", list.filter.BoarID)
+		if list.filter.BoarCode == nil || *list.filter.BoarCode != "B-001" {
+			t.Fatalf("unexpected boar code: %#v", list.filter.BoarCode)
+		}
+	})
+
+	t.Run("trims the boar_code filter", func(t *testing.T) {
+		list := &fakeListBoarRemovalsUseCase{}
+		handler := newTestHandler(&fakeCreateBoarRemovalUseCase{}, list)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boar-removals?boar_code=+b-001+", nil))
+
+		if response.Code != http.StatusOK || list.filter.BoarCode == nil || *list.filter.BoarCode != "B-001" {
+			t.Fatalf("status=%d filter=%#v", response.Code, list.filter.BoarCode)
 		}
 	})
 
@@ -188,15 +197,15 @@ func TestBoarRemovalHandlerList(t *testing.T) {
 		handler := newTestHandler(&fakeCreateBoarRemovalUseCase{}, list)
 		serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boar-removals", nil))
 
-		if list.filter.BoarID != nil {
+		if list.filter.BoarCode != nil {
 			t.Fatalf("unexpected filter: %#v", list.filter)
 		}
 	})
 
-	t.Run("rejects invalid filter values", func(t *testing.T) {
+	t.Run("rejects an over-length boar_code filter", func(t *testing.T) {
 		list := &fakeListBoarRemovalsUseCase{}
 		handler := newTestHandler(&fakeCreateBoarRemovalUseCase{}, list)
-		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boar-removals?boar_id=not-a-uuid", nil))
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/boar-removals?boar_code="+strings.Repeat("a", 51), nil))
 
 		if response.Code != http.StatusBadRequest || list.called {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)

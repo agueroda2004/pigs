@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	authdomain "server/internal/modules/auth/domain"
+	boardomain "server/internal/modules/boar/domain"
 	boarremovalapplication "server/internal/modules/boarremoval/application"
 	boarremovaldomain "server/internal/modules/boarremoval/domain"
 	"server/internal/modules/boarremoval/ports"
@@ -90,6 +91,7 @@ type updateBoarRemovalRequest struct {
 type boarRemovalResponse struct {
 	ID          uuid.UUID `json:"id"`
 	BoarID      uuid.UUID `json:"boar_id"`
+	BoarCode    string    `json:"boar_code"`
 	RemovalDate string    `json:"removal_date"`
 	Type        string    `json:"type"`
 	Reason      string    `json:"reason"`
@@ -254,7 +256,7 @@ func (h *BoarRemovalHandler) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // list handles GET /api/v1/boar-removals and returns the removals matching the filter.
-// It parses the optional boar_id query parameter.
+// It parses the optional boar_code query parameter.
 func (h *BoarRemovalHandler) list(w http.ResponseWriter, r *http.Request) {
 	filter, err := parseBoarRemovalFilter(r)
 	if err != nil {
@@ -272,28 +274,29 @@ func (h *BoarRemovalHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseBoarRemovalFilter reads the optional list filters from the query string.
-// It returns an error for a malformed boar_id value.
+// It trims the boar code and returns an error when it is longer than allowed.
 func parseBoarRemovalFilter(r *http.Request) (ports.BoarRemovalFilter, error) {
 	query := r.URL.Query()
 	var filter ports.BoarRemovalFilter
 
-	if boar := strings.TrimSpace(query.Get("boar_id")); boar != "" {
-		boarID, err := uuid.Parse(boar)
+	if boarCode := strings.TrimSpace(query.Get("boar_code")); boarCode != "" {
+		parsedCode, err := boardomain.ParseCodeFilter(boarCode)
 		if err != nil {
-			return ports.BoarRemovalFilter{}, errors.New("El identificador del verraco no es válido")
+			return ports.BoarRemovalFilter{}, errors.New("El código del verraco no es válido")
 		}
-		filter.BoarID = &boarID
+		filter.BoarCode = &parsedCode
 	}
 
 	return filter, nil
 }
 
 // toBoarRemovalResponse maps a domain removal to the HTTP response shape.
-// It formats the date as YYYY-MM-DD and omits the audit fields.
+// It formats the date as YYYY-MM-DD, includes the boar code and omits the audit fields.
 func toBoarRemovalResponse(removal *boarremovaldomain.BoarRemoval) boarRemovalResponse {
 	return boarRemovalResponse{
 		ID:          removal.ID,
 		BoarID:      removal.BoarID,
+		BoarCode:    removal.BoarCode,
 		RemovalDate: removal.RemovalDate.UTC().Format(dateLayout),
 		Type:        string(removal.Type),
 		Reason:      string(removal.Reason),

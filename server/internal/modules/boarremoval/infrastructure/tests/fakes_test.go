@@ -112,6 +112,7 @@ func handlerRemoval() *boarremovaldomain.BoarRemoval {
 	return &boarremovaldomain.BoarRemoval{
 		ID:          uuid.New(),
 		BoarID:      uuid.New(),
+		BoarCode:    "B-001",
 		RemovalDate: time.Date(2026, time.January, 20, 0, 0, 0, 0, time.UTC),
 		Type:        boarremovaldomain.TypeDeath,
 		Reason:      boarremovaldomain.ReasonDisease,

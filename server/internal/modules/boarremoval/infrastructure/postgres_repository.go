@@ -293,15 +293,17 @@ func (r *PostgresBoarRemovalRepository) Delete(
 }
 
 // List fetches the removals matching the filter, newest first.
-// It returns an empty slice when no removal matches and wraps any query failure.
+// It joins the boars table to filter by code and fill the read-model code, and
+// returns an empty slice when no removal matches.
 func (r *PostgresBoarRemovalRepository) List(ctx context.Context, filter ports.BoarRemovalFilter) ([]*boarremovaldomain.BoarRemoval, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, boar_id, removal_date, type, reason, note, last_state,
-		       created_at, updated_at, created_by, updated_by
-		FROM boar_removals
-		WHERE ($1::uuid IS NULL OR boar_id = $1)
-		ORDER BY removal_date DESC, created_at DESC
-	`, filter.BoarID)
+		SELECT r.id, r.boar_id, r.removal_date, r.type, r.reason, r.note, r.last_state,
+		       r.created_at, r.updated_at, r.created_by, r.updated_by, b.code
+		FROM boar_removals r
+		JOIN boars b ON b.id = r.boar_id
+		WHERE ($1::text IS NULL OR LOWER(b.code) = LOWER($1))
+		ORDER BY r.removal_date DESC, r.created_at DESC
+	`, filter.BoarCode)
 	if err != nil {
 		return nil, fmt.Errorf("No se pudieron consultar las bajas: %w", err)
 	}
@@ -322,6 +324,7 @@ func (r *PostgresBoarRemovalRepository) List(ctx context.Context, filter ports.B
 			&result.UpdatedAt,
 			&result.CreatedBy,
 			&result.UpdatedBy,
+			&result.BoarCode,
 		); err != nil {
 			return nil, fmt.Errorf("No se pudieron consultar las bajas: %w", err)
 		}

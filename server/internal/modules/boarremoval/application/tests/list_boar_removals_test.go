@@ -26,13 +26,13 @@ func TestListBoarRemovalsExecute(t *testing.T) {
 	})
 
 	t.Run("forwards the filter to the repository", func(t *testing.T) {
-		boarID := uuid.New()
+		boarCode := "B-001"
 		repository := &fakeBoarRemovalRepository{}
 		useCase := boarremovalapplication.NewListBoarRemovalsService(repository)
 
-		_, err := useCase.Execute(context.Background(), ports.BoarRemovalFilter{BoarID: &boarID})
+		_, err := useCase.Execute(context.Background(), ports.BoarRemovalFilter{BoarCode: &boarCode})
 
-		if err != nil || repository.listFilter.BoarID == nil || *repository.listFilter.BoarID != boarID {
+		if err != nil || repository.listFilter.BoarCode == nil || *repository.listFilter.BoarCode != boarCode {
 			t.Fatalf("unexpected filter: %#v err=%v", repository.listFilter, err)
 		}
 	})

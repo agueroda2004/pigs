@@ -11,9 +11,10 @@ import (
 )
 
 // BoarRemovalFilter narrows the removals returned by the list operation.
-// A nil field is ignored so an empty filter returns every removal.
+// A nil field is ignored so an empty filter returns every removal and the code
+// is matched case-insensitively against the related boar.
 type BoarRemovalFilter struct {
-	BoarID *uuid.UUID
+	BoarCode *string
 }
 
 // BoarRemovalRepository defines the persistence operations of the removal module.
