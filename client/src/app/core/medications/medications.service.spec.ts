@@ -9,10 +9,6 @@ const medicationPayload = {
   id: '1',
   name: 'Ivermectina',
   active: true,
-  created_at: '',
-  updated_at: '',
-  created_by: 'admin',
-  updated_by: 'admin',
 };
 
 describe('MedicationsService', () => {
@@ -86,9 +82,9 @@ describe('MedicationsService', () => {
       (request) => request.url.endsWith('/medications') && request.method === 'POST',
     );
     expect(call.request.body).toEqual({ name: 'Ivermectina' });
-    call.flush(medicationPayload);
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ name: 'Ivermectina' });
+    await expect(promise).resolves.toBeNull();
   });
 
   it('updates a medication', async () => {
@@ -99,8 +95,19 @@ describe('MedicationsService', () => {
       (request) => request.url.endsWith('/medications/7') && request.method === 'PATCH',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush({ ...medicationPayload, name: 'Penicilina', active: false });
+    call.flush(null);
 
-    await expect(promise).resolves.toMatchObject({ name: 'Penicilina', active: false });
+    await expect(promise).resolves.toBeNull();
+  });
+
+  it('deletes a medication', async () => {
+    const promise = firstValueFrom(service.deleteMedication('7'));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/medications/7') && request.method === 'DELETE',
+    );
+    call.flush(null);
+
+    await expect(promise).resolves.toBeNull();
   });
 });

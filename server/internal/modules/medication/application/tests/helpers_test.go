@@ -14,3 +14,7 @@ func testMedication(id uuid.UUID) *medicationdomain.Medication {
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 }
+
+func testMedicationListItem(id uuid.UUID) medicationdomain.MedicationListItem {
+	return medicationdomain.MedicationListItem{ID: id, Name: "Old Name", Active: true}
+}

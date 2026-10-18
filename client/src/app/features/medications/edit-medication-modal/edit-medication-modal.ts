@@ -68,8 +68,8 @@ export class EditMedicationModal {
     this.loading.set(true);
 
     try {
-      const updated = await firstValueFrom(this.medications.updateMedication(current.id, request));
-      this.updated.emit(updated);
+      await firstValueFrom(this.medications.updateMedication(current.id, request));
+      this.updated.emit({ ...current, ...request });
     } catch (error) {
       this.notifications.error(this.mapError(error));
     } finally {

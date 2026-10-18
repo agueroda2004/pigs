@@ -21,7 +21,7 @@ type CreateMedicationUseCase interface {
 }
 
 type ListMedicationsUseCase interface {
-	Execute(context.Context, ports.MedicationFilter) ([]*medicationdomain.Medication, error)
+	Execute(context.Context, ports.MedicationFilter) ([]medicationdomain.MedicationListItem, error)
 }
 
 type ListMedicationOptionsUseCase interface {
@@ -32,11 +32,16 @@ type UpdateMedicationUseCase interface {
 	Execute(context.Context, uuid.UUID, medicationapplication.UpdateMedicationCommand) (*medicationdomain.Medication, error)
 }
 
+type DeleteMedicationUseCase interface {
+	Execute(context.Context, uuid.UUID) error
+}
+
 type MedicationHandler struct {
 	createMedication      CreateMedicationUseCase
 	listMedications       ListMedicationsUseCase
 	listMedicationOptions ListMedicationOptionsUseCase
 	updateMedication      UpdateMedicationUseCase
+	deleteMedication      DeleteMedicationUseCase
 	authMiddleware        func(http.Handler) http.Handler
 	adminMiddleware       func(http.Handler) http.Handler
 }
@@ -48,6 +53,7 @@ func NewMedicationHandler(
 	listMedications ListMedicationsUseCase,
 	listMedicationOptions ListMedicationOptionsUseCase,
 	updateMedication UpdateMedicationUseCase,
+	deleteMedication DeleteMedicationUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *MedicationHandler {
@@ -56,18 +62,20 @@ func NewMedicationHandler(
 		listMedications:       listMedications,
 		listMedicationOptions: listMedicationOptions,
 		updateMedication:      updateMedication,
+		deleteMedication:      deleteMedication,
 		authMiddleware:        authMiddleware,
 		adminMiddleware:       adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the medication create, list, options and update endpoints.
+// RegisterRoutes registers the medication create, list, options, update and delete endpoints.
 // Write routes are admin-only while the read routes only require authentication.
 func (h *MedicationHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/medications", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/v1/medications", h.authMiddleware(http.HandlerFunc(h.list)))
 	mux.Handle("GET /api/v1/medications/options", h.authMiddleware(http.HandlerFunc(h.listOptions)))
 	mux.Handle("PATCH /api/v1/medications/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
+	mux.Handle("DELETE /api/v1/medications/{id}", h.adminMiddleware(http.HandlerFunc(h.delete)))
 }
 
 type createMedicationRequest struct {
@@ -79,14 +87,10 @@ type updateMedicationRequest struct {
 	Active *bool   `json:"active"`
 }
 
-type medicationResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Active    bool      `json:"active"`
-	CreatedAt string    `json:"created_at"`
-	UpdatedAt string    `json:"updated_at"`
-	CreatedBy uuid.UUID `json:"created_by"`
-	UpdatedBy uuid.UUID `json:"updated_by"`
+type medicationListResponse struct {
+	ID     uuid.UUID `json:"id"`
+	Name   string    `json:"name"`
+	Active bool      `json:"active"`
 }
 
 type medicationOptionResponse struct {
@@ -95,7 +99,7 @@ type medicationOptionResponse struct {
 }
 
 // create handles POST /api/v1/medications and creates a medication from the request body.
-// It reads the actor from the context to set CreatedBy.
+// It reads the actor from the context to set CreatedBy and answers with a status code only.
 func (h *MedicationHandler) create(w http.ResponseWriter, r *http.Request) {
 	var request createMedicationRequest
 	if err := platformhttp.DecodeJSON(w, r, &request); err != nil {
@@ -109,16 +113,15 @@ func (h *MedicationHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdMedication, err := h.createMedication.Execute(r.Context(), medicationapplication.CreateMedicationCommand{
+	if _, err := h.createMedication.Execute(r.Context(), medicationapplication.CreateMedicationCommand{
 		Name:      request.Name,
 		CreatedBy: actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeMedicationError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusCreated, toMedicationResponse(createdMedication))
+	w.WriteHeader(http.StatusCreated)
 }
 
 // list handles GET /api/v1/medications and returns the medications matching the query filter.
@@ -136,7 +139,7 @@ func (h *MedicationHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toMedicationResponses(medications))
+	platformhttp.WriteJSON(w, http.StatusOK, toMedicationListResponses(medications))
 }
 
 // listOptions handles GET /api/v1/medications/options and returns the dropdown options.
@@ -177,12 +180,15 @@ func parseMedicationOptionsActive(r *http.Request) (*bool, error) {
 }
 
 // parseMedicationFilter reads the optional list filters from the query string.
-// It returns an error for a malformed active value.
+// It rejects a name longer than MaxNameLength and a malformed active value.
 func parseMedicationFilter(r *http.Request) (ports.MedicationFilter, error) {
 	query := r.URL.Query()
 	var filter ports.MedicationFilter
 
 	if name := strings.TrimSpace(query.Get("name")); name != "" {
+		if len([]rune(name)) > medicationdomain.MaxNameLength {
+			return ports.MedicationFilter{}, medicationdomain.ErrInvalidName
+		}
 		filter.Name = &name
 	}
 
@@ -198,7 +204,7 @@ func parseMedicationFilter(r *http.Request) (ports.MedicationFilter, error) {
 }
 
 // update handles PATCH /api/v1/medications/{id} and applies the provided fields.
-// It parses the id path value and reads the actor to set UpdatedBy.
+// It parses the id path value, reads the actor to set UpdatedBy and answers with a status code only.
 func (h *MedicationHandler) update(w http.ResponseWriter, r *http.Request) {
 	medicationID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -218,39 +224,46 @@ func (h *MedicationHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedMedication, err := h.updateMedication.Execute(r.Context(), medicationID, medicationapplication.UpdateMedicationCommand{
+	if _, err := h.updateMedication.Execute(r.Context(), medicationID, medicationapplication.UpdateMedicationCommand{
 		Name:      request.Name,
 		Active:    request.Active,
 		UpdatedBy: actor.UserID,
-	})
-	if err != nil {
+	}); err != nil {
 		writeMedicationError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toMedicationResponse(updatedMedication))
+	w.WriteHeader(http.StatusOK)
 }
 
-// toMedicationResponse maps a domain medication to the HTTP response shape.
-// It formats timestamps in UTC.
-func toMedicationResponse(medication *medicationdomain.Medication) medicationResponse {
-	return medicationResponse{
-		ID:        medication.ID,
-		Name:      medication.Name,
-		Active:    medication.Active,
-		CreatedAt: medication.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt: medication.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		CreatedBy: medication.CreatedBy,
-		UpdatedBy: medication.UpdatedBy,
+// delete handles DELETE /api/v1/medications/{id} and removes a medication.
+// It parses the id path value, maps a linked-records conflict to 409 and
+// responds with 204 and no body.
+func (h *MedicationHandler) delete(w http.ResponseWriter, r *http.Request) {
+	medicationID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador del medicamento no es válido"))
+		return
 	}
+
+	if err := h.deleteMedication.Execute(r.Context(), medicationID); err != nil {
+		writeMedicationError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
-// toMedicationResponses maps a list of domain medications to HTTP response shapes.
+// toMedicationListResponses maps medication read models to their list response shape.
 // It returns an empty slice instead of null when there are no medications.
-func toMedicationResponses(medications []*medicationdomain.Medication) []medicationResponse {
-	responses := make([]medicationResponse, 0, len(medications))
+func toMedicationListResponses(medications []medicationdomain.MedicationListItem) []medicationListResponse {
+	responses := make([]medicationListResponse, 0, len(medications))
 	for _, medication := range medications {
-		responses = append(responses, toMedicationResponse(medication))
+		responses = append(responses, medicationListResponse{
+			ID:     medication.ID,
+			Name:   medication.Name,
+			Active: medication.Active,
+		})
 	}
 	return responses
 }
@@ -270,7 +283,8 @@ func toMedicationOptionResponses(options []medicationdomain.MedicationOption) []
 func writeMedicationError(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, ports.ErrMedicationNameAlreadyUsed):
+	case errors.Is(err, ports.ErrMedicationNameAlreadyUsed),
+		errors.Is(err, ports.ErrMedicationInUse):
 		status = http.StatusConflict
 	case errors.Is(err, ports.ErrMedicationNotFound):
 		status = http.StatusNotFound

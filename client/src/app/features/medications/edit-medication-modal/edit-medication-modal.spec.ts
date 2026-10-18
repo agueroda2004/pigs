@@ -13,15 +13,11 @@ function buildMedication(): Medication {
     id: '42',
     name: 'Ivermectina',
     active: true,
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
   };
 }
 
 class MedicationsStub {
-  updateMedication = vi.fn(() => of(buildMedication()));
+  updateMedication = vi.fn(() => of(undefined));
 }
 
 class NotificationsStub {
@@ -73,7 +69,7 @@ describe('EditMedicationModal', () => {
       name: 'Penicilina',
       active: false,
     });
-    expect(updated).toHaveBeenCalled();
+    expect(updated).toHaveBeenCalledWith({ id: '42', name: 'Penicilina', active: false });
   });
 
   it('does not call the API when nothing changed', async () => {

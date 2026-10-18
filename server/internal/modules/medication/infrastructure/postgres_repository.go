@@ -89,11 +89,11 @@ func (r *PostgresMedicationRepository) ExistsByName(ctx context.Context, name st
 	return exists, nil
 }
 
-// List fetches the medications matching the filter, ordered by name.
-// It returns an empty slice when no medication matches and wraps any query failure.
-func (r *PostgresMedicationRepository) List(ctx context.Context, filter ports.MedicationFilter) ([]*medicationdomain.Medication, error) {
+// List fetches the lightweight medication read models matching the filter, ordered by name.
+// It omits the audit fields and returns an empty slice when no medication matches.
+func (r *PostgresMedicationRepository) List(ctx context.Context, filter ports.MedicationFilter) ([]medicationdomain.MedicationListItem, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, name, active, created_at, updated_at, created_by, updated_by
+		SELECT id, name, active
 		FROM medications
 		WHERE ($1::text IS NULL OR name ILIKE '%' || $1 || '%')
 		  AND ($2::boolean IS NULL OR active = $2)
@@ -107,17 +107,13 @@ func (r *PostgresMedicationRepository) List(ctx context.Context, filter ports.Me
 	}
 	defer rows.Close()
 
-	medications := make([]*medicationdomain.Medication, 0)
+	medications := make([]medicationdomain.MedicationListItem, 0)
 	for rows.Next() {
-		result := &medicationdomain.Medication{}
+		var result medicationdomain.MedicationListItem
 		if err := rows.Scan(
 			&result.ID,
 			&result.Name,
 			&result.Active,
-			&result.CreatedAt,
-			&result.UpdatedAt,
-			&result.CreatedBy,
-			&result.UpdatedBy,
 		); err != nil {
 			return nil, fmt.Errorf("No se pudo consultar los medicamentos: %w", err)
 		}
@@ -185,11 +181,34 @@ func (r *PostgresMedicationRepository) Update(ctx context.Context, medication *m
 }
 
 // mapPostgresError translates PostgreSQL errors into domain port errors.
-// Unique violations become ErrMedicationNameAlreadyUsed; others are wrapped.
+// Unique violations become ErrMedicationNameAlreadyUsed, foreign key violations
+// become ErrMedicationInUse; others are wrapped.
 func mapPostgresError(err error) error {
 	var postgresError *pgconn.PgError
-	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
-		return ports.ErrMedicationNameAlreadyUsed
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return ports.ErrMedicationNameAlreadyUsed
+		case "23503":
+			return ports.ErrMedicationInUse
+		}
 	}
 	return fmt.Errorf("No se pudo guardar el medicamento: %w", err)
+}
+
+// Delete removes a medication row by its identifier.
+// It returns ErrMedicationNotFound when no row was affected and maps a
+// linked-records foreign key violation to ErrMedicationInUse.
+func (r *PostgresMedicationRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	commandTag, err := r.pool.Exec(ctx, `
+		DELETE FROM medications
+		WHERE id = $1
+	`, id)
+	if err != nil {
+		return mapPostgresError(err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ErrMedicationNotFound
+	}
+	return nil
 }

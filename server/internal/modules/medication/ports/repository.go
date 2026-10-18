@@ -19,7 +19,8 @@ type MedicationRepository interface {
 	Create(ctx context.Context, medication *medicationdomain.Medication) error
 	GetByID(ctx context.Context, id uuid.UUID) (*medicationdomain.Medication, error)
 	ExistsByName(ctx context.Context, name string) (bool, error)
-	List(ctx context.Context, filter MedicationFilter) ([]*medicationdomain.Medication, error)
+	List(ctx context.Context, filter MedicationFilter) ([]medicationdomain.MedicationListItem, error)
 	ListOptions(ctx context.Context, active *bool) ([]medicationdomain.MedicationOption, error)
 	Update(ctx context.Context, medication *medicationdomain.Medication) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }

@@ -37,6 +37,18 @@ type MedicationOption struct {
 	Name string
 }
 
+// MedicationListItem is a lightweight medication read model for the list screen.
+// It exposes the identity fields only and omits every audit field.
+type MedicationListItem struct {
+	ID     uuid.UUID
+	Name   string
+	Active bool
+}
+
+// MaxNameLength is the maximum number of characters allowed for a medication name.
+// It is exported so the HTTP layer can reject oversized names before querying.
+const MaxNameLength = maxNameLength
+
 // NewMedication builds a medication after validating id, name and createdBy.
 // It defaults Active to true and sets CreatedBy/UpdatedBy to the creator.
 func NewMedication(id uuid.UUID, name string, createdBy uuid.UUID, now time.Time) (*Medication, error) {

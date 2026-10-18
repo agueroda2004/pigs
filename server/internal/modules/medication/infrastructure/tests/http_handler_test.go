@@ -28,8 +28,8 @@ func TestMedicationHandlerCreate(t *testing.T) {
 		if response.Code != http.StatusCreated || create.command.CreatedBy != actorID || create.command.Name != "Ivermectina" {
 			t.Fatalf("status=%d command=%#v", response.Code, create.command)
 		}
-		if response.Header().Get("Content-Type") != "application/json" {
-			t.Fatalf("unexpected content type: %q", response.Header().Get("Content-Type"))
+		if response.Body.Len() != 0 {
+			t.Fatalf("expected no body, got %q", response.Body.String())
 		}
 	})
 
@@ -79,7 +79,7 @@ func TestMedicationHandlerCreate(t *testing.T) {
 
 func TestMedicationHandlerList(t *testing.T) {
 	t.Run("forwards the name and active filters", func(t *testing.T) {
-		list := &fakeListMedicationsUseCase{medications: []*medicationdomain.Medication{handlerMedication()}}
+		list := &fakeListMedicationsUseCase{medications: []medicationdomain.MedicationListItem{handlerMedicationListItem()}}
 		handler := newTestHandler(&fakeCreateMedicationUseCase{}, list, &fakeUpdateMedicationUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/medications?name=%20Iver%20&active=false", nil))
 
@@ -94,6 +94,19 @@ func TestMedicationHandlerList(t *testing.T) {
 		}
 	})
 
+	t.Run("omits the audit fields from the list", func(t *testing.T) {
+		list := &fakeListMedicationsUseCase{medications: []medicationdomain.MedicationListItem{handlerMedicationListItem()}}
+		handler := newTestHandler(&fakeCreateMedicationUseCase{}, list, &fakeUpdateMedicationUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/medications", nil))
+
+		body := response.Body.String()
+		for _, field := range []string{"created_at", "updated_at", "created_by", "updated_by"} {
+			if strings.Contains(body, field) {
+				t.Fatalf("body should not contain %q: %s", field, body)
+			}
+		}
+	})
+
 	t.Run("returns bad request for an invalid active value", func(t *testing.T) {
 		list := &fakeListMedicationsUseCase{}
 		handler := newTestHandler(&fakeCreateMedicationUseCase{}, list, &fakeUpdateMedicationUseCase{})
@@ -104,8 +117,28 @@ func TestMedicationHandlerList(t *testing.T) {
 		}
 	})
 
+	t.Run("returns bad request for an oversized name filter", func(t *testing.T) {
+		list := &fakeListMedicationsUseCase{}
+		handler := newTestHandler(&fakeCreateMedicationUseCase{}, list, &fakeUpdateMedicationUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/medications?name="+strings.Repeat("a", 51), nil))
+
+		if response.Code != http.StatusBadRequest || list.called {
+			t.Fatalf("status=%d called=%v", response.Code, list.called)
+		}
+	})
+
+	t.Run("accepts a name filter at the maximum length", func(t *testing.T) {
+		list := &fakeListMedicationsUseCase{}
+		handler := newTestHandler(&fakeCreateMedicationUseCase{}, list, &fakeUpdateMedicationUseCase{})
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/medications?name="+strings.Repeat("a", 50), nil))
+
+		if response.Code != http.StatusOK || !list.called {
+			t.Fatalf("status=%d called=%v", response.Code, list.called)
+		}
+	})
+
 	t.Run("returns an empty array when there are no medications", func(t *testing.T) {
-		list := &fakeListMedicationsUseCase{medications: []*medicationdomain.Medication{}}
+		list := &fakeListMedicationsUseCase{medications: []medicationdomain.MedicationListItem{}}
 		handler := newTestHandler(&fakeCreateMedicationUseCase{}, list, &fakeUpdateMedicationUseCase{})
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/medications", nil))
 
@@ -222,6 +255,9 @@ func TestMedicationHandlerUpdate(t *testing.T) {
 		if response.Code != http.StatusOK || update.medicationID != medicationID || update.command.UpdatedBy != actorID || update.command.Name == nil || *update.command.Name != "New Name" || update.command.Active == nil || *update.command.Active {
 			t.Fatalf("status=%d id=%v command=%#v", response.Code, update.medicationID, update.command)
 		}
+		if response.Body.Len() != 0 {
+			t.Fatalf("expected no body, got %q", response.Body.String())
+		}
 	})
 
 	t.Run("returns bad request for invalid UUID", func(t *testing.T) {
@@ -260,6 +296,71 @@ func TestMedicationHandlerUpdate(t *testing.T) {
 				handler := newTestHandler(&fakeCreateMedicationUseCase{}, &fakeListMedicationsUseCase{}, update)
 				request := httptest.NewRequest(http.MethodPatch, "/api/v1/medications/"+uuid.New().String(), strings.NewReader(`{"name":"New"}`))
 				request = authenticatedRequest(request, actorID)
+				response := serve(handler, request)
+				if response.Code != test.status {
+					t.Fatalf("status=%d, want %d", response.Code, test.status)
+				}
+			})
+		}
+	})
+}
+
+func TestMedicationHandlerDelete(t *testing.T) {
+	medicationID := uuid.New()
+
+	newDeleteHandler := func(deleteUseCase *fakeDeleteMedicationUseCase) *medicationinfra.MedicationHandler {
+		return newTestHandlerWithDelete(
+			&fakeCreateMedicationUseCase{},
+			&fakeListMedicationsUseCase{},
+			&fakeListMedicationOptionsUseCase{},
+			&fakeUpdateMedicationUseCase{},
+			deleteUseCase,
+		)
+	}
+
+	t.Run("deletes the medication and returns no body", func(t *testing.T) {
+		deleteUseCase := &fakeDeleteMedicationUseCase{}
+		handler := newDeleteHandler(deleteUseCase)
+		request := httptest.NewRequest(http.MethodDelete, "/api/v1/medications/"+medicationID.String(), nil)
+		request = authenticatedRequest(request, uuid.New())
+		response := serve(handler, request)
+
+		if response.Code != http.StatusNoContent || !deleteUseCase.called {
+			t.Fatalf("status=%d called=%v", response.Code, deleteUseCase.called)
+		}
+		if deleteUseCase.medicationID != medicationID {
+			t.Fatalf("unexpected medication id: %v", deleteUseCase.medicationID)
+		}
+		if response.Body.Len() != 0 {
+			t.Fatalf("expected no body, got %q", response.Body.String())
+		}
+	})
+
+	t.Run("returns bad request for invalid UUID", func(t *testing.T) {
+		deleteUseCase := &fakeDeleteMedicationUseCase{}
+		handler := newDeleteHandler(deleteUseCase)
+		response := serve(handler, httptest.NewRequest(http.MethodDelete, "/api/v1/medications/not-a-uuid", nil))
+
+		if response.Code != http.StatusBadRequest || deleteUseCase.called {
+			t.Fatalf("status=%d called=%v", response.Code, deleteUseCase.called)
+		}
+	})
+
+	t.Run("maps application errors", func(t *testing.T) {
+		for _, test := range []struct {
+			name   string
+			err    error
+			status int
+		}{
+			{"not found", ports.ErrMedicationNotFound, http.StatusNotFound},
+			{"in use", ports.ErrMedicationInUse, http.StatusConflict},
+			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				deleteUseCase := &fakeDeleteMedicationUseCase{err: test.err}
+				handler := newDeleteHandler(deleteUseCase)
+				request := httptest.NewRequest(http.MethodDelete, "/api/v1/medications/"+uuid.New().String(), nil)
+				request = authenticatedRequest(request, uuid.New())
 				response := serve(handler, request)
 				if response.Code != test.status {
 					t.Fatalf("status=%d, want %d", response.Code, test.status)

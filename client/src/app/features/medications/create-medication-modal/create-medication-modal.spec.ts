@@ -8,7 +8,7 @@ import { NotificationService } from '../../../core/notifications/notification.se
 import { CreateMedicationModal } from './create-medication-modal';
 
 class MedicationsStub {
-  createMedication = vi.fn(() => of({}));
+  createMedication = vi.fn(() => of(undefined));
 }
 
 class NotificationsStub {

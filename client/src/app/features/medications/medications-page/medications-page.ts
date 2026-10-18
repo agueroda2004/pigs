@@ -1,5 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 
 import { AuthService } from '../../../core/auth/auth.service';
@@ -8,12 +8,20 @@ import { MedicationsService } from '../../../core/medications/medications.servic
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { Dropdown, DropdownOption } from '../../../shared/ui/dropdown/dropdown';
 import { CreateMedicationModal } from '../create-medication-modal/create-medication-modal';
+import { DeleteMedicationModal } from '../delete-medication-modal/delete-medication-modal';
 import { EditMedicationModal } from '../edit-medication-modal/edit-medication-modal';
 import { MedicationCard } from '../medication-card/medication-card';
 
 @Component({
   selector: 'app-medications-page',
-  imports: [ReactiveFormsModule, MedicationCard, CreateMedicationModal, EditMedicationModal, Dropdown],
+  imports: [
+    ReactiveFormsModule,
+    MedicationCard,
+    CreateMedicationModal,
+    EditMedicationModal,
+    DeleteMedicationModal,
+    Dropdown,
+  ],
   styleUrl: './medications-page.css',
   templateUrl: './medications-page.html',
 })
@@ -31,6 +39,8 @@ export class MedicationsPage implements OnInit {
   protected readonly modalOpen = signal(false);
   protected readonly editOpen = signal(false);
   protected readonly editingMedication = signal<Medication | null>(null);
+  protected readonly deleteOpen = signal(false);
+  protected readonly deletingMedication = signal<Medication | null>(null);
 
   protected readonly activeOptions: DropdownOption[] = [
     { value: '', label: 'Todos' },
@@ -41,7 +51,7 @@ export class MedicationsPage implements OnInit {
   protected readonly hasFilters = computed(() => Object.keys(this.appliedFilters()).length > 0);
 
   protected readonly filterForm = this.formBuilder.nonNullable.group({
-    name: [''],
+    name: ['', [Validators.maxLength(50)]],
     active: [''],
   });
 
@@ -78,7 +88,27 @@ export class MedicationsPage implements OnInit {
     await this.loadMedications();
   }
 
+  protected openDelete(medication: Medication): void {
+    this.deletingMedication.set(medication);
+    this.deleteOpen.set(true);
+  }
+
+  protected closeDelete(): void {
+    this.deleteOpen.set(false);
+  }
+
+  protected async onDeleted(medication: Medication): Promise<void> {
+    this.deleteOpen.set(false);
+    this.notifications.success(`Medicamento "${medication.name}" eliminado correctamente`);
+    await this.loadMedications();
+  }
+
   protected async search(): Promise<void> {
+    if (this.filterForm.invalid) {
+      this.filterForm.markAllAsTouched();
+      return;
+    }
+
     const { name, active } = this.filterForm.getRawValue();
     const filters: MedicationFilters = {};
     const trimmedName = name.trim();

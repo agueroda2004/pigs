@@ -34,11 +34,15 @@ export class MedicationsService {
     return this.http.get<MedicationOption[]>(`${this.baseUrl}/options`, { params });
   }
 
-  createMedication(request: CreateMedicationRequest): Observable<Medication> {
-    return this.http.post<Medication>(this.baseUrl, request);
+  createMedication(request: CreateMedicationRequest): Observable<void> {
+    return this.http.post<void>(this.baseUrl, request);
   }
 
-  updateMedication(id: string, request: UpdateMedicationRequest): Observable<Medication> {
-    return this.http.patch<Medication>(`${this.baseUrl}/${id}`, request);
+  updateMedication(id: string, request: UpdateMedicationRequest): Observable<void> {
+    return this.http.patch<void>(`${this.baseUrl}/${id}`, request);
+  }
+
+  deleteMedication(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
 }

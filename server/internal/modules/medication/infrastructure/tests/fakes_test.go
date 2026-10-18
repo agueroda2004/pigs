@@ -30,13 +30,13 @@ func (f *fakeCreateMedicationUseCase) Execute(_ context.Context, command medicat
 }
 
 type fakeListMedicationsUseCase struct {
-	medications []*medicationdomain.Medication
+	medications []medicationdomain.MedicationListItem
 	err         error
 	filter      ports.MedicationFilter
 	called      bool
 }
 
-func (f *fakeListMedicationsUseCase) Execute(_ context.Context, filter ports.MedicationFilter) ([]*medicationdomain.Medication, error) {
+func (f *fakeListMedicationsUseCase) Execute(_ context.Context, filter ports.MedicationFilter) ([]medicationdomain.MedicationListItem, error) {
 	f.called = true
 	f.filter = filter
 	return f.medications, f.err
@@ -70,6 +70,18 @@ func (f *fakeUpdateMedicationUseCase) Execute(_ context.Context, medicationID uu
 	return f.medication, f.err
 }
 
+type fakeDeleteMedicationUseCase struct {
+	err          error
+	medicationID uuid.UUID
+	called       bool
+}
+
+func (f *fakeDeleteMedicationUseCase) Execute(_ context.Context, medicationID uuid.UUID) error {
+	f.called = true
+	f.medicationID = medicationID
+	return f.err
+}
+
 func newTestHandler(create medicationinfra.CreateMedicationUseCase, list medicationinfra.ListMedicationsUseCase, update medicationinfra.UpdateMedicationUseCase) *medicationinfra.MedicationHandler {
 	return newTestHandlerWithOptions(create, list, &fakeListMedicationOptionsUseCase{}, update)
 }
@@ -80,8 +92,18 @@ func newTestHandlerWithOptions(
 	options medicationinfra.ListMedicationOptionsUseCase,
 	update medicationinfra.UpdateMedicationUseCase,
 ) *medicationinfra.MedicationHandler {
+	return newTestHandlerWithDelete(create, list, options, update, &fakeDeleteMedicationUseCase{})
+}
+
+func newTestHandlerWithDelete(
+	create medicationinfra.CreateMedicationUseCase,
+	list medicationinfra.ListMedicationsUseCase,
+	options medicationinfra.ListMedicationOptionsUseCase,
+	update medicationinfra.UpdateMedicationUseCase,
+	deleteUseCase medicationinfra.DeleteMedicationUseCase,
+) *medicationinfra.MedicationHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return medicationinfra.NewMedicationHandler(create, list, options, update, passThrough, passThrough)
+	return medicationinfra.NewMedicationHandler(create, list, options, update, deleteUseCase, passThrough, passThrough)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {
@@ -109,5 +131,13 @@ func handlerMedication() *medicationdomain.Medication {
 		UpdatedAt: time.Date(2026, time.January, 10, 3, 4, 5, 0, time.UTC),
 		CreatedBy: actor,
 		UpdatedBy: actor,
+	}
+}
+
+func handlerMedicationListItem() medicationdomain.MedicationListItem {
+	return medicationdomain.MedicationListItem{
+		ID:     uuid.New(),
+		Name:   "Ivermectina",
+		Active: true,
 	}
 }

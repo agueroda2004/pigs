@@ -17,8 +17,8 @@ func NewListMedicationsService(repository ports.MedicationRepository) *ListMedic
 	return &ListMedicationsService{repository: repository}
 }
 
-// Execute returns the medications matching the filter, ordered by name.
-// A zero-value filter returns every registered medication.
-func (s *ListMedicationsService) Execute(ctx context.Context, filter ports.MedicationFilter) ([]*medicationdomain.Medication, error) {
+// Execute returns the medication read models matching the filter, ordered by name.
+// A zero-value filter returns every registered medication without audit fields.
+func (s *ListMedicationsService) Execute(ctx context.Context, filter ports.MedicationFilter) ([]medicationdomain.MedicationListItem, error) {
 	return s.repository.List(ctx, filter)
 }

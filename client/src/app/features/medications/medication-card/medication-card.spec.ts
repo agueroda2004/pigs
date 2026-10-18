@@ -8,10 +8,6 @@ function buildMedication(active = true): Medication {
     id: '1',
     name: 'Ivermectina',
     active,
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
   };
 }
 
@@ -22,7 +18,7 @@ describe('MedicationCard', () => {
     }).compileComponents();
   });
 
-  it('renders the name, status and created date', () => {
+  it('renders the name and status', () => {
     const fixture = TestBed.createComponent(MedicationCard);
     fixture.componentRef.setInput('medication', buildMedication(true));
     fixture.detectChanges();
@@ -30,7 +26,6 @@ describe('MedicationCard', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Ivermectina');
     expect(text).toContain('Activo');
-    expect(text).toContain('02/01/2026');
   });
 
   it('shows the inactive status for inactive medications', () => {
@@ -60,6 +55,21 @@ describe('MedicationCard', () => {
     const emitted: Medication[] = [];
     fixture.componentInstance.editRequested.subscribe((value) => emitted.push(value));
     (fixture.nativeElement.querySelector('button') as HTMLButtonElement).click();
+
+    expect(emitted).toEqual([medication]);
+  });
+
+  it('emits the medication when the delete button is clicked', () => {
+    const medication = buildMedication();
+    const fixture = TestBed.createComponent(MedicationCard);
+    fixture.componentRef.setInput('medication', medication);
+    fixture.componentRef.setInput('canEdit', true);
+    fixture.detectChanges();
+
+    const emitted: Medication[] = [];
+    fixture.componentInstance.deleteRequested.subscribe((value) => emitted.push(value));
+    const buttons = fixture.nativeElement.querySelectorAll('button');
+    (buttons[buttons.length - 1] as HTMLButtonElement).click();
 
     expect(emitted).toEqual([medication]);
   });

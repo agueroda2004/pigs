@@ -14,9 +14,9 @@ import (
 
 func TestListMedicationsServiceExecute(t *testing.T) {
 	t.Run("returns the medications matching the filter", func(t *testing.T) {
-		medications := []*medicationdomain.Medication{
-			testMedication(uuid.New()),
-			testMedication(uuid.New()),
+		medications := []medicationdomain.MedicationListItem{
+			testMedicationListItem(uuid.New()),
+			testMedicationListItem(uuid.New()),
 		}
 		name := "Iver"
 		active := true
@@ -40,7 +40,7 @@ func TestListMedicationsServiceExecute(t *testing.T) {
 	})
 
 	t.Run("forwards a zero-value filter", func(t *testing.T) {
-		repository := &fakeMedicationRepository{listMedications: []*medicationdomain.Medication{}}
+		repository := &fakeMedicationRepository{listMedications: []medicationdomain.MedicationListItem{}}
 		service := medicationapplication.NewListMedicationsService(repository)
 
 		result, err := service.Execute(context.Background(), ports.MedicationFilter{})

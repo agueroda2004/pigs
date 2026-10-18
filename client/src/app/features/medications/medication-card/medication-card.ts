@@ -5,7 +5,6 @@ import { Medication } from '../../../core/medications/medication.models';
 
 @Component({
   selector: 'app-medication-card',
-  imports: [DatePipe],
   styleUrl: './medication-card.css',
   templateUrl: './medication-card.html',
 })
@@ -13,6 +12,7 @@ export class MedicationCard {
   readonly medication = input.required<Medication>();
   readonly canEdit = input(false);
   readonly editRequested = output<Medication>();
+  readonly deleteRequested = output<Medication>();
 
   protected readonly statusLabel = computed(() =>
     this.medication().active ? 'Activo' : 'Inactivo',

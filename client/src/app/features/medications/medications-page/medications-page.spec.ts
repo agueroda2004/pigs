@@ -14,10 +14,6 @@ function buildMedication(id: string): Medication {
     id,
     name: `Medicamento ${id}`,
     active: true,
-    created_at: '2026-01-02T12:00:00',
-    updated_at: '2026-01-02T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
   };
 }
 
@@ -110,6 +106,30 @@ describe('MedicationsPage', () => {
     expect(component.medications()).toHaveLength(1);
   });
 
+  it('opens the delete modal for the selected medication', () => {
+    const component = create();
+    const medication = buildMedication('1');
+
+    component.openDelete(medication);
+
+    expect(component.deleteOpen()).toBe(true);
+    expect(component.deletingMedication()).toBe(medication);
+  });
+
+  it('reloads the list after deleting a medication', async () => {
+    const component = create();
+    await component.loadMedications();
+
+    stub.listMedications = vi.fn(() => of([buildMedication('2')]));
+    await component.onDeleted(buildMedication('1'));
+
+    expect(notifications.success).toHaveBeenCalledWith(
+      'Medicamento "Medicamento 1" eliminado correctamente',
+    );
+    expect(component.deleteOpen()).toBe(false);
+    expect(component.medications()).toHaveLength(1);
+  });
+
   it('hides the create button for non-admins', () => {
     isAdmin.set(false);
     const fixture = TestBed.createComponent(MedicationsPage);
@@ -147,6 +167,16 @@ describe('MedicationsPage', () => {
 
     expect(stub.listMedications).not.toHaveBeenCalled();
     expect(component.filterForm.getRawValue()).toEqual({ name: '', active: '' });
+  });
+
+  it('blocks the request when the name filter is too long', async () => {
+    const component = create();
+    component.filterForm.setValue({ name: 'a'.repeat(51), active: '' });
+
+    await component.search();
+
+    expect(stub.listMedications).not.toHaveBeenCalled();
+    expect(component.filterForm.controls.name.hasError('maxlength')).toBe(true);
   });
 
   it('keeps the applied filters when reloading after a create', async () => {

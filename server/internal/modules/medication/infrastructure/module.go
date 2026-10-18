@@ -13,6 +13,7 @@ type Module struct {
 	ListMedications       *medicationapplication.ListMedicationsService
 	ListMedicationOptions *medicationapplication.ListMedicationOptionsService
 	UpdateMedication      *medicationapplication.UpdateMedicationService
+	DeleteMedication      *medicationapplication.DeleteMedicationService
 	Handler               *MedicationHandler
 }
 
@@ -28,12 +29,14 @@ func NewModule(
 	listMedications := medicationapplication.NewListMedicationsService(repository)
 	listMedicationOptions := medicationapplication.NewListMedicationOptionsService(repository)
 	updateMedication := medicationapplication.NewUpdateMedicationService(repository, clock)
+	deleteMedication := medicationapplication.NewDeleteMedicationService(repository)
 
 	return &Module{
 		CreateMedication:      createMedication,
 		ListMedications:       listMedications,
 		ListMedicationOptions: listMedicationOptions,
 		UpdateMedication:      updateMedication,
-		Handler:               NewMedicationHandler(createMedication, listMedications, listMedicationOptions, updateMedication, authMiddleware, adminMiddleware),
+		DeleteMedication:      deleteMedication,
+		Handler:               NewMedicationHandler(createMedication, listMedications, listMedicationOptions, updateMedication, deleteMedication, authMiddleware, adminMiddleware),
 	}
 }
