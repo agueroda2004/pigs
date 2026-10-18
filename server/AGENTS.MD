@@ -25,4 +25,8 @@ Apply this in every folder that has its own tests methods
 
 ---
 
+Always used the opencode questions tab
+
+---
+
 If you load this file tell "Daniel I'm ready"
