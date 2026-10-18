@@ -171,6 +171,45 @@ func (r *PostgresAbortionRepository) GetLastService(ctx context.Context, sowID u
 	return result, nil
 }
 
+// GetNextService fetches the service of a sow that immediately follows the given
+// service, with its mounts. It returns ports.ErrServiceNotFound when there is none.
+func (r *PostgresAbortionRepository) GetNextService(ctx context.Context, sowID uuid.UUID, serviceID uuid.UUID) (*servicedomain.Service, error) {
+	result := &servicedomain.Service{}
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, sow_id, expected_farrowing_date, note, state, location,
+		       created_at, updated_at, created_by, updated_by
+		FROM services
+		WHERE sow_id = $1
+		  AND created_at > (SELECT created_at FROM services WHERE id = $2)
+		ORDER BY created_at ASC
+		LIMIT 1
+	`, sowID, serviceID).Scan(
+		&result.ID,
+		&result.SowID,
+		&result.ExpectedFarrowingDate,
+		&result.Note,
+		&result.State,
+		&result.Location,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.CreatedBy,
+		&result.UpdatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrServiceNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el servicio: %w", err)
+	}
+
+	result.Mounts, err = r.listMounts(ctx, result.ID)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // listMounts fetches every mount of a service ordered by mount number.
 // It returns an empty slice when the service has no mounts.
 func (r *PostgresAbortionRepository) listMounts(ctx context.Context, serviceID uuid.UUID) ([]*servicedomain.Mount, error) {

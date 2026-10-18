@@ -18,6 +18,9 @@ type fakeAbortionRepository struct {
 	service    *servicedomain.Service
 	serviceErr error
 
+	nextService    *servicedomain.Service
+	nextServiceErr error
+
 	getAbortion    *abortiondomain.Abortion
 	getAbortionErr error
 
@@ -60,6 +63,10 @@ func (f *fakeAbortionRepository) GetService(_ context.Context, _ uuid.UUID) (*se
 
 func (f *fakeAbortionRepository) GetLastService(_ context.Context, _ uuid.UUID) (*servicedomain.Service, error) {
 	return f.service, f.serviceErr
+}
+
+func (f *fakeAbortionRepository) GetNextService(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*servicedomain.Service, error) {
+	return f.nextService, f.nextServiceErr
 }
 
 func (f *fakeAbortionRepository) Update(_ context.Context, abortion *abortiondomain.Abortion) error {

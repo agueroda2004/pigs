@@ -24,19 +24,20 @@ const (
 )
 
 var (
-	ErrInvalidID               = errors.New("El identificador del aborto es obligatorio")
-	ErrInvalidSow              = errors.New("La cerda del aborto es obligatoria")
-	ErrInvalidService          = errors.New("El servicio del aborto es obligatorio")
-	ErrInvalidAbortionDate     = errors.New("La fecha del aborto es obligatoria")
-	ErrInvalidLastMount        = errors.New("La fecha de la última monta es obligatoria")
-	ErrInvalidCause            = errors.New("La causa del aborto no es válida")
-	ErrInvalidNote             = errors.New("La nota debe tener como máximo 500 caracteres")
-	ErrInvalidUpdate           = errors.New("Debe actualizar al menos un campo del aborto")
-	ErrInvalidCreatedBy        = errors.New("El usuario que crea el aborto es obligatorio")
-	ErrInvalidUpdatedBy        = errors.New("El usuario que actualiza el aborto es obligatorio")
-	ErrAbortionDateBeforeMount = errors.New("La fecha del aborto debe ser posterior a la última monta")
-	ErrAbortionDateBeforeEntry = errors.New("La fecha del aborto no puede ser anterior al ingreso de la cerda")
-	ErrAbortionDateInFuture    = errors.New("La fecha del aborto no puede ser futura")
+	ErrInvalidID                    = errors.New("El identificador del aborto es obligatorio")
+	ErrInvalidSow                   = errors.New("La cerda del aborto es obligatoria")
+	ErrInvalidService               = errors.New("El servicio del aborto es obligatorio")
+	ErrInvalidAbortionDate          = errors.New("La fecha del aborto es obligatoria")
+	ErrInvalidLastMount             = errors.New("La fecha de la última monta es obligatoria")
+	ErrInvalidCause                 = errors.New("La causa del aborto no es válida")
+	ErrInvalidNote                  = errors.New("La nota debe tener como máximo 500 caracteres")
+	ErrInvalidUpdate                = errors.New("Debe actualizar al menos un campo del aborto")
+	ErrInvalidCreatedBy             = errors.New("El usuario que crea el aborto es obligatorio")
+	ErrInvalidUpdatedBy             = errors.New("El usuario que actualiza el aborto es obligatorio")
+	ErrAbortionDateBeforeMount      = errors.New("La fecha del aborto debe ser posterior a la última monta")
+	ErrAbortionDateBeforeEntry      = errors.New("La fecha del aborto no puede ser anterior al ingreso de la cerda")
+	ErrAbortionDateInFuture         = errors.New("La fecha del aborto no puede ser futura")
+	ErrAbortionDateAfterNextService = errors.New("La fecha del aborto debe ser anterior a la siguiente monta")
 )
 
 // Reference groups the bounds an abortion date must respect. A zero time means
@@ -44,6 +45,9 @@ var (
 type Reference struct {
 	EntryDate     time.Time
 	LastMountDate time.Time
+	// NextMountDate is the earliest mount of the service that follows the
+	// abortion's service. It is only set on updates, when a later service exists.
+	NextMountDate time.Time
 }
 
 // Abortion is the aggregate root that represents a sow abortion (aborto).
@@ -183,8 +187,9 @@ func (a *Abortion) Update(params UpdateAbortionParams, reference Reference, upda
 }
 
 // validateAbortionDate checks the abortion date bounds against the reference.
-// It rejects dates after today, dates before the entry date and dates on or
-// before the last mount date. Zero reference bounds are skipped.
+// It rejects dates after today, dates before the entry date, dates on or before
+// the last mount date and dates on or after the next service's first mount.
+// Zero reference bounds are skipped.
 func validateAbortionDate(abortionDate time.Time, reference Reference, now time.Time) error {
 	abortion := truncateToDay(abortionDate)
 	if abortion.After(truncateToDay(now)) {
@@ -195,6 +200,9 @@ func validateAbortionDate(abortionDate time.Time, reference Reference, now time.
 	}
 	if !reference.LastMountDate.IsZero() && !abortion.After(truncateToDay(reference.LastMountDate)) {
 		return ErrAbortionDateBeforeMount
+	}
+	if !reference.NextMountDate.IsZero() && !abortion.Before(truncateToDay(reference.NextMountDate)) {
+		return ErrAbortionDateAfterNextService
 	}
 	return nil
 }

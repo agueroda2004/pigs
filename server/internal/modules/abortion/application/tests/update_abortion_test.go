@@ -98,6 +98,61 @@ func TestUpdateAbortionExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects a date on or after the next service first mount", func(t *testing.T) {
+		nextServiceID := uuid.New()
+		nextMountDay := time.Date(2026, time.January, 25, 0, 0, 0, 0, time.UTC)
+
+		for _, newDate := range []time.Time{nextMountDay, nextMountDay.AddDate(0, 0, 1)} {
+			repository := repositoryWith()
+			repository.nextService = testService(nextServiceID, sowID, servicedomain.StateConfirmed, testMount(nextServiceID, 1, nextMountDay))
+			useCase := abortionapplication.NewUpdateAbortionService(repository, func() time.Time { return nowReference })
+
+			err := useCase.Execute(context.Background(), repository.getAbortion.ID, abortionapplication.UpdateAbortionCommand{
+				AbortionDate: &newDate,
+				UpdatedBy:    actorID,
+			})
+
+			if !errors.Is(err, abortiondomain.ErrAbortionDateAfterNextService) {
+				t.Fatalf("date=%v error = %v, want ErrAbortionDateAfterNextService", newDate, err)
+			}
+			if repository.updated != nil {
+				t.Fatalf("abortion must not be persisted on validation error")
+			}
+		}
+	})
+
+	t.Run("accepts a date before the next service first mount", func(t *testing.T) {
+		nextServiceID := uuid.New()
+		nextMountDay := time.Date(2026, time.January, 25, 0, 0, 0, 0, time.UTC)
+		repository := repositoryWith()
+		repository.nextService = testService(nextServiceID, sowID, servicedomain.StateConfirmed, testMount(nextServiceID, 1, nextMountDay))
+		useCase := abortionapplication.NewUpdateAbortionService(repository, func() time.Time { return nowReference })
+		newDate := time.Date(2026, time.January, 20, 0, 0, 0, 0, time.UTC)
+
+		err := useCase.Execute(context.Background(), repository.getAbortion.ID, abortionapplication.UpdateAbortionCommand{
+			AbortionDate: &newDate,
+			UpdatedBy:    actorID,
+		})
+
+		if err != nil || repository.updated == nil || !repository.updated.AbortionDate.Equal(newDate) {
+			t.Fatalf("unexpected result: err=%v updated=%#v", err, repository.updated)
+		}
+	})
+
+	t.Run("propagates a next service lookup error", func(t *testing.T) {
+		repository := repositoryWith()
+		repository.nextServiceErr = errors.New("boom")
+		useCase := abortionapplication.NewUpdateAbortionService(repository, func() time.Time { return nowReference })
+
+		err := useCase.Execute(context.Background(), repository.getAbortion.ID, abortionapplication.UpdateAbortionCommand{
+			UpdatedBy: actorID,
+		})
+
+		if !errors.Is(err, repository.nextServiceErr) {
+			t.Fatalf("error = %v, want the next service error", err)
+		}
+	})
+
 	t.Run("propagates a missing abortion", func(t *testing.T) {
 		repository := &fakeAbortionRepository{getAbortionErr: ports.ErrAbortionNotFound}
 		useCase := abortionapplication.NewUpdateAbortionService(repository, func() time.Time { return nowReference })

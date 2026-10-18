@@ -30,6 +30,9 @@ type AbortionRepository interface {
 	// It returns ErrServiceNotFound when no row matches.
 	GetService(ctx context.Context, id uuid.UUID) (*servicedomain.Service, error)
 	GetLastService(ctx context.Context, sowID uuid.UUID) (*servicedomain.Service, error)
+	// GetNextService fetches the service of a sow that immediately follows the
+	// given service, with its mounts. It returns ErrServiceNotFound when none.
+	GetNextService(ctx context.Context, sowID uuid.UUID, serviceID uuid.UUID) (*servicedomain.Service, error)
 	Create(ctx context.Context, abortion *abortiondomain.Abortion, sow *sowdomain.Sow, service *servicedomain.Service) error
 	// Update persists the editable fields of an abortion.
 	Update(ctx context.Context, abortion *abortiondomain.Abortion) error

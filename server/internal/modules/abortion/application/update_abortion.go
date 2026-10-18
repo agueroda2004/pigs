@@ -2,12 +2,14 @@ package application
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 
 	abortiondomain "server/internal/modules/abortion/domain"
 	"server/internal/modules/abortion/ports"
+	servicedomain "server/internal/modules/service/domain"
 )
 
 // UpdateAbortionCommand carries the editable fields of an abortion update.
@@ -31,8 +33,9 @@ func NewUpdateAbortionService(repository ports.AbortionRepository, clock func() 
 }
 
 // Execute applies the editable fields to an abortion. It reloads the sow entry
-// date and the service mounts so a changed date is validated against the same
-// bounds used on creation, then persists the abortion.
+// date, the service mounts and the next service so a changed date is validated
+// against the same bounds used on creation plus the following service, then
+// persists the abortion.
 func (s *UpdateAbortionService) Execute(ctx context.Context, id uuid.UUID, command UpdateAbortionCommand) error {
 	abortion, err := s.repository.GetByID(ctx, id)
 	if err != nil {
@@ -49,9 +52,17 @@ func (s *UpdateAbortionService) Execute(ctx context.Context, id uuid.UUID, comma
 		return err
 	}
 
+	nextService, err := s.repository.GetNextService(ctx, abortion.SowID, abortion.ServiceID)
+	if err != nil && !errors.Is(err, ports.ErrServiceNotFound) {
+		return err
+	}
+
 	reference := abortiondomain.Reference{
 		EntryDate:     sow.EntryDate,
 		LastMountDate: latestMountDate(service),
+	}
+	if nextService != nil {
+		reference.NextMountDate = earliestMountDate(nextService)
 	}
 
 	if err := abortion.Update(abortiondomain.UpdateAbortionParams{
@@ -63,4 +74,16 @@ func (s *UpdateAbortionService) Execute(ctx context.Context, id uuid.UUID, comma
 	}
 
 	return s.repository.Update(ctx, abortion)
+}
+
+// earliestMountDate returns the first mount date of a service.
+// It returns the zero time when the service has no mounts.
+func earliestMountDate(service *servicedomain.Service) time.Time {
+	var earliest time.Time
+	for _, mount := range service.Mounts {
+		if earliest.IsZero() || mount.MountDate.Before(earliest) {
+			earliest = mount.MountDate
+		}
+	}
+	return earliest
 }

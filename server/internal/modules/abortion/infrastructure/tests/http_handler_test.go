@@ -335,6 +335,7 @@ func TestAbortionHandlerUpdate(t *testing.T) {
 			{"before mount", abortiondomain.ErrAbortionDateBeforeMount, http.StatusBadRequest},
 			{"before entry", abortiondomain.ErrAbortionDateBeforeEntry, http.StatusBadRequest},
 			{"in future", abortiondomain.ErrAbortionDateInFuture, http.StatusBadRequest},
+			{"after next service", abortiondomain.ErrAbortionDateAfterNextService, http.StatusBadRequest},
 			{"no fields", abortiondomain.ErrInvalidUpdate, http.StatusBadRequest},
 			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
 		} {

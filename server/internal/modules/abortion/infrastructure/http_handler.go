@@ -354,7 +354,8 @@ func writeAbortionError(w http.ResponseWriter, err error) {
 		errors.Is(err, abortiondomain.ErrInvalidUpdatedBy),
 		errors.Is(err, abortiondomain.ErrAbortionDateBeforeMount),
 		errors.Is(err, abortiondomain.ErrAbortionDateBeforeEntry),
-		errors.Is(err, abortiondomain.ErrAbortionDateInFuture):
+		errors.Is(err, abortiondomain.ErrAbortionDateInFuture),
+		errors.Is(err, abortiondomain.ErrAbortionDateAfterNextService):
 		status = http.StatusBadRequest
 	}
 	platformhttp.WriteError(w, status, err)

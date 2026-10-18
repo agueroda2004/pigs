@@ -316,6 +316,36 @@ func TestUpdateAbortion(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects a changed date on or after the next service mount", func(t *testing.T) {
+		nextMountDay := time.Date(2026, time.January, 25, 0, 0, 0, 0, time.UTC)
+		referenceWithNext := reference
+		referenceWithNext.NextMountDate = nextMountDay
+
+		for _, newDate := range []time.Time{nextMountDay, nextMountDay.AddDate(0, 0, 1)} {
+			abortion := newAbortion()
+
+			err := abortion.Update(abortiondomain.UpdateAbortionParams{AbortionDate: &newDate}, referenceWithNext, uuid.New(), updatedAt)
+
+			if !errors.Is(err, abortiondomain.ErrAbortionDateAfterNextService) {
+				t.Fatalf("date=%v error = %v, want ErrAbortionDateAfterNextService", newDate, err)
+			}
+		}
+	})
+
+	t.Run("accepts a changed date before the next service mount", func(t *testing.T) {
+		nextMountDay := time.Date(2026, time.January, 25, 0, 0, 0, 0, time.UTC)
+		referenceWithNext := reference
+		referenceWithNext.NextMountDate = nextMountDay
+		newDate := time.Date(2026, time.January, 20, 0, 0, 0, 0, time.UTC)
+		abortion := newAbortion()
+
+		err := abortion.Update(abortiondomain.UpdateAbortionParams{AbortionDate: &newDate}, referenceWithNext, uuid.New(), updatedAt)
+
+		if err != nil || !abortion.AbortionDate.Equal(newDate) {
+			t.Fatalf("unexpected result: err=%v abortion=%#v", err, abortion)
+		}
+	})
+
 	t.Run("rejects an invalid cause", func(t *testing.T) {
 		abortion := newAbortion()
 		invalid := abortiondomain.Cause("Mágica")
