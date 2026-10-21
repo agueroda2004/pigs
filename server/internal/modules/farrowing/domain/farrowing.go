@@ -13,22 +13,35 @@ const (
 	maxLocationLength = 100
 	maxNoteLength     = 500
 	maxTimeLength     = 5
+	maxPigletCount    = 30
 )
 
 var timeLayout = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 
 var (
-	ErrInvalidID               = errors.New("El identificador del parto es obligatorio")
-	ErrInvalidService          = errors.New("El servicio del parto es obligatorio")
-	ErrInvalidSow              = errors.New("La cerda del parto es obligatoria")
-	ErrInvalidFarrowDate       = errors.New("La fecha del parto es obligatoria")
-	ErrInvalidLastMount        = errors.New("La fecha de la última monta es obligatoria")
-	ErrInvalidStartTime        = errors.New("La hora de inicio no es válida")
-	ErrInvalidEndTime          = errors.New("La hora de fin no es válida")
-	ErrInvalidLocation         = errors.New("La ubicación debe tener como máximo 100 caracteres")
-	ErrInvalidLiveBorn         = errors.New("La cantidad de nacidos vivos no puede ser negativa")
-	ErrInvalidStillborn        = errors.New("La cantidad de nacidos muertos no puede ser negativa")
-	ErrInvalidMummified        = errors.New("La cantidad de momificados no puede ser negativa")
+	ErrInvalidID         = errors.New("El identificador del parto es obligatorio")
+	ErrInvalidService    = errors.New("El servicio del parto es obligatorio")
+	ErrInvalidSow        = errors.New("La cerda del parto es obligatoria")
+	ErrInvalidFarrowDate = errors.New("La fecha del parto es obligatoria")
+	ErrInvalidLastMount  = errors.New("La fecha de la última monta es obligatoria")
+	ErrInvalidStartTime  = errors.New("La hora de inicio no es válida")
+	ErrInvalidEndTime    = errors.New("La hora de fin no es válida")
+	ErrInvalidLocation   = errors.New("La ubicación debe tener como máximo 100 caracteres")
+	ErrInvalidLiveBorn   = errors.New("La cantidad de nacidos vivos no puede ser negativa")
+	ErrInvalidStillborn  = errors.New("La cantidad de nacidos muertos no puede ser negativa")
+	ErrInvalidMummified  = errors.New("La cantidad de momificados no puede ser negativa")
+	// ErrLiveBornTooHigh is returned when the live born count is greater than the limit.
+	ErrLiveBornTooHigh = errors.New("La cantidad de nacidos vivos no puede ser mayor a 30")
+	// ErrStillbornTooHigh is returned when the stillborn count is greater than the limit.
+	ErrStillbornTooHigh = errors.New("La cantidad de nacidos muertos no puede ser mayor a 30")
+	// ErrMummifiedTooHigh is returned when the mummified count is greater than the limit.
+	ErrMummifiedTooHigh = errors.New("La cantidad de momificados no puede ser mayor a 30")
+	// ErrLiveBornRequired is returned when the create request omits the live born count.
+	ErrLiveBornRequired = errors.New("La cantidad de nacidos vivos es obligatoria")
+	// ErrStillbornRequired is returned when the create request omits the stillborn count.
+	ErrStillbornRequired = errors.New("La cantidad de nacidos muertos es obligatoria")
+	// ErrMummifiedRequired is returned when the create request omits the mummified count.
+	ErrMummifiedRequired       = errors.New("La cantidad de momificados es obligatoria")
 	ErrInvalidLitterWeight     = errors.New("El peso de la camada no puede ser negativo")
 	ErrInvalidStillbornWeight  = errors.New("El peso de los nacidos muertos no puede ser negativo")
 	ErrInvalidNote             = errors.New("La nota debe tener como máximo 500 caracteres")
@@ -107,9 +120,9 @@ type NewFarrowingParams struct {
 // NewFarrowing builds a farrowing with its operators and medications after
 // validating every field. It rejects a farrow date in the future or not later
 // than the last mount date, validates time formats without comparing them (so
-// overnight farrowings are allowed) and rejects duplicate operators or
-// medications. It sets the audit fields to the creator and both timestamps to now.
-// The current piglets balance starts at the live born count.
+// overnight farrowings are allowed), rejects any piglet count over 30 and rejects
+// duplicate operators or medications. It sets the audit fields to the creator and
+// both timestamps to now. The current piglets balance starts at the live born count.
 func NewFarrowing(
 	params NewFarrowingParams,
 	operators []NewFarrowingOperatorParams,
@@ -158,11 +171,20 @@ func NewFarrowing(
 	if params.LiveBorn < 0 {
 		return nil, ErrInvalidLiveBorn
 	}
+	if params.LiveBorn > maxPigletCount {
+		return nil, ErrLiveBornTooHigh
+	}
 	if params.Stillborn < 0 {
 		return nil, ErrInvalidStillborn
 	}
+	if params.Stillborn > maxPigletCount {
+		return nil, ErrStillbornTooHigh
+	}
 	if params.Mummified < 0 {
 		return nil, ErrInvalidMummified
+	}
+	if params.Mummified > maxPigletCount {
+		return nil, ErrMummifiedTooHigh
 	}
 	if params.LitterWeight != nil && *params.LitterWeight < 0 {
 		return nil, ErrInvalidLitterWeight

@@ -186,6 +186,34 @@ func TestCreateFarrowingExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects counts greater than 30", func(t *testing.T) {
+		for _, test := range []struct {
+			name string
+			set  func(*farrowingapplication.CreateFarrowingCommand)
+			want error
+		}{
+			{"live born", func(c *farrowingapplication.CreateFarrowingCommand) { c.LiveBorn = 31 }, farrowingdomain.ErrLiveBornTooHigh},
+			{"stillborn", func(c *farrowingapplication.CreateFarrowingCommand) { c.Stillborn = 31 }, farrowingdomain.ErrStillbornTooHigh},
+			{"mummified", func(c *farrowingapplication.CreateFarrowingCommand) { c.Mummified = 31 }, farrowingdomain.ErrMummifiedTooHigh},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				repository := repositoryWith()
+				command := validCommand(sowID, actorID)
+				test.set(&command)
+				useCase := farrowingapplication.NewCreateFarrowingService(repository, func() time.Time { return nowReference })
+
+				_, err := useCase.Execute(context.Background(), command)
+
+				if !errors.Is(err, test.want) {
+					t.Fatalf("error = %v, want %v", err, test.want)
+				}
+				if repository.created != nil {
+					t.Fatalf("farrowing must not be persisted")
+				}
+			})
+		}
+	})
+
 	t.Run("propagates a persistence error", func(t *testing.T) {
 		repository := repositoryWith()
 		repository.createErr = errors.New("boom")

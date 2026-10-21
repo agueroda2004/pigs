@@ -67,6 +67,7 @@ func TestFarrowingHandlerCreate(t *testing.T) {
 		handler := newTestHandler(create, &fakeListFarrowingsUseCase{})
 		decimalBody := fmt.Sprintf(
 			`{"sow_id":"%s","farrow_date":"2026-04-20",`+
+				`"live_born":10,"stillborn":0,"mummified":0,`+
 				`"medications":[{"medication_id":"%s","dose":0.5,"applied_by":"%s"}]}`,
 			sowID, medicationID, operatorID,
 		)
@@ -120,6 +121,25 @@ func TestFarrowingHandlerCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects a missing piglet count", func(t *testing.T) {
+		create := &fakeCreateFarrowingUseCase{farrowing: farrowing}
+		handler := newTestHandler(create, &fakeListFarrowingsUseCase{})
+
+		for _, invalid := range []string{
+			fmt.Sprintf(`{"sow_id":"%s","farrow_date":"2026-04-20","stillborn":1,"mummified":0}`, sowID),
+			fmt.Sprintf(`{"sow_id":"%s","farrow_date":"2026-04-20","live_born":10,"mummified":0}`, sowID),
+			fmt.Sprintf(`{"sow_id":"%s","farrow_date":"2026-04-20","live_born":10,"stillborn":1}`, sowID),
+			fmt.Sprintf(`{"sow_id":"%s","farrow_date":"2026-04-20","live_born":null,"stillborn":1,"mummified":0}`, sowID),
+		} {
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/farrowings", strings.NewReader(invalid))
+			request = authenticatedRequest(request, actorID)
+			response := serve(handler, request)
+			if response.Code != http.StatusBadRequest || create.called {
+				t.Fatalf("status=%d called=%v body=%s", response.Code, create.called, invalid)
+			}
+		}
+	})
+
 	t.Run("returns bad request for invalid fields", func(t *testing.T) {
 		create := &fakeCreateFarrowingUseCase{farrowing: farrowing}
 		handler := newTestHandler(create, &fakeListFarrowingsUseCase{})
@@ -156,6 +176,12 @@ func TestFarrowingHandlerCreate(t *testing.T) {
 			{"date in future", farrowingdomain.ErrFarrowDateInFuture, http.StatusBadRequest},
 			{"duplicate operator", farrowingdomain.ErrDuplicateOperator, http.StatusBadRequest},
 			{"invalid dose", farrowingdomain.ErrInvalidFarrowingMedicationDose, http.StatusBadRequest},
+			{"live born too high", farrowingdomain.ErrLiveBornTooHigh, http.StatusBadRequest},
+			{"stillborn too high", farrowingdomain.ErrStillbornTooHigh, http.StatusBadRequest},
+			{"mummified too high", farrowingdomain.ErrMummifiedTooHigh, http.StatusBadRequest},
+			{"live born required", farrowingdomain.ErrLiveBornRequired, http.StatusBadRequest},
+			{"stillborn required", farrowingdomain.ErrStillbornRequired, http.StatusBadRequest},
+			{"mummified required", farrowingdomain.ErrMummifiedRequired, http.StatusBadRequest},
 			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
 		} {
 			t.Run(test.name, func(t *testing.T) {

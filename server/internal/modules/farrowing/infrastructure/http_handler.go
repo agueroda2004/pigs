@@ -89,9 +89,9 @@ type createFarrowingRequest struct {
 	StartTime       *string                      `json:"start_time"`
 	EndTime         *string                      `json:"end_time"`
 	Location        *string                      `json:"location"`
-	LiveBorn        int                          `json:"live_born"`
-	Stillborn       int                          `json:"stillborn"`
-	Mummified       int                          `json:"mummified"`
+	LiveBorn        *int                         `json:"live_born"`
+	Stillborn       *int                         `json:"stillborn"`
+	Mummified       *int                         `json:"mummified"`
 	LitterWeight    *float64                     `json:"litter_weight"`
 	StillbornWeight *float64                     `json:"stillborn_weight"`
 	IsManipulated   bool                         `json:"is_manipulated"`
@@ -163,7 +163,7 @@ type farrowingPageResponse struct {
 }
 
 // create handles POST /api/v1/farrowings and registers a farrowing.
-// It parses the sow, date, times, reproductive result, operators and medications,
+// It parses the sow, date, times, required piglet counts, operators and medications,
 // reads the actor from the context and lets the use case derive the service and
 // apply the state changes.
 func (h *FarrowingHandler) create(w http.ResponseWriter, r *http.Request) {
@@ -182,6 +182,12 @@ func (h *FarrowingHandler) create(w http.ResponseWriter, r *http.Request) {
 	farrowDate, err := time.Parse(dateLayout, request.FarrowDate)
 	if err != nil {
 		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("La fecha del parto no es válida"))
+		return
+	}
+
+	liveBorn, stillborn, mummified, err := parsePigletCounts(request)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -209,9 +215,9 @@ func (h *FarrowingHandler) create(w http.ResponseWriter, r *http.Request) {
 		StartTime:       request.StartTime,
 		EndTime:         request.EndTime,
 		Location:        request.Location,
-		LiveBorn:        request.LiveBorn,
-		Stillborn:       request.Stillborn,
-		Mummified:       request.Mummified,
+		LiveBorn:        liveBorn,
+		Stillborn:       stillborn,
+		Mummified:       mummified,
 		LitterWeight:    request.LitterWeight,
 		StillbornWeight: request.StillbornWeight,
 		IsManipulated:   request.IsManipulated,
@@ -355,6 +361,21 @@ func (h *FarrowingHandler) delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// parsePigletCounts reads the required live born, stillborn and mummified counts.
+// It returns the matching domain error when any of them is missing or null.
+func parsePigletCounts(request createFarrowingRequest) (int, int, int, error) {
+	if request.LiveBorn == nil {
+		return 0, 0, 0, farrowingdomain.ErrLiveBornRequired
+	}
+	if request.Stillborn == nil {
+		return 0, 0, 0, farrowingdomain.ErrStillbornRequired
+	}
+	if request.Mummified == nil {
+		return 0, 0, 0, farrowingdomain.ErrMummifiedRequired
+	}
+	return *request.LiveBorn, *request.Stillborn, *request.Mummified, nil
 }
 
 // parseOperators parses the operator identifiers of a create request.
@@ -555,6 +576,12 @@ func writeFarrowingError(w http.ResponseWriter, err error) {
 		errors.Is(err, farrowingdomain.ErrInvalidLiveBorn),
 		errors.Is(err, farrowingdomain.ErrInvalidStillborn),
 		errors.Is(err, farrowingdomain.ErrInvalidMummified),
+		errors.Is(err, farrowingdomain.ErrLiveBornTooHigh),
+		errors.Is(err, farrowingdomain.ErrStillbornTooHigh),
+		errors.Is(err, farrowingdomain.ErrMummifiedTooHigh),
+		errors.Is(err, farrowingdomain.ErrLiveBornRequired),
+		errors.Is(err, farrowingdomain.ErrStillbornRequired),
+		errors.Is(err, farrowingdomain.ErrMummifiedRequired),
 		errors.Is(err, farrowingdomain.ErrInvalidLitterWeight),
 		errors.Is(err, farrowingdomain.ErrInvalidStillbornWeight),
 		errors.Is(err, farrowingdomain.ErrInvalidNote),

@@ -193,6 +193,45 @@ func TestNewFarrowing(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts counts up to 30", func(t *testing.T) {
+		params := validParams()
+		params.LiveBorn = 30
+		params.Stillborn = 30
+		params.Mummified = 30
+
+		farrowing, err := farrowingdomain.NewFarrowing(params, nil, nil, lastMount, now)
+
+		if err != nil {
+			t.Fatalf("NewFarrowing() error = %v", err)
+		}
+		if farrowing.LiveBorn != 30 || farrowing.Stillborn != 30 || farrowing.Mummified != 30 {
+			t.Fatalf("unexpected counts: %#v", farrowing)
+		}
+	})
+
+	t.Run("rejects counts greater than 30", func(t *testing.T) {
+		for _, test := range []struct {
+			name string
+			set  func(*farrowingdomain.NewFarrowingParams)
+			want error
+		}{
+			{"live born", func(p *farrowingdomain.NewFarrowingParams) { p.LiveBorn = 31 }, farrowingdomain.ErrLiveBornTooHigh},
+			{"stillborn", func(p *farrowingdomain.NewFarrowingParams) { p.Stillborn = 31 }, farrowingdomain.ErrStillbornTooHigh},
+			{"mummified", func(p *farrowingdomain.NewFarrowingParams) { p.Mummified = 31 }, farrowingdomain.ErrMummifiedTooHigh},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				params := validParams()
+				test.set(&params)
+
+				_, err := farrowingdomain.NewFarrowing(params, nil, nil, lastMount, now)
+
+				if !errors.Is(err, test.want) {
+					t.Fatalf("error = %v, want %v", err, test.want)
+				}
+			})
+		}
+	})
+
 	t.Run("rejects negative weights", func(t *testing.T) {
 		negative := -1.5
 		params := validParams()
