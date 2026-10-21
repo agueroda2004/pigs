@@ -69,8 +69,14 @@ export class RegisterFarrowingModal {
       null as number | null,
       [Validators.required, Validators.min(0), Validators.max(30)],
     ],
-    litter_weight: [null as number | null, [Validators.min(0)]],
-    stillborn_weight: [null as number | null, [Validators.min(0)]],
+    litter_weight: [
+      null as number | null,
+      [Validators.required, Validators.min(0), Validators.max(30)],
+    ],
+    stillborn_weight: [
+      null as number | null,
+      [Validators.required, Validators.min(0), Validators.max(30)],
+    ],
     is_manipulated: [false],
     note: ['', [Validators.maxLength(500)]],
     operators: this.operatorsArray,
@@ -116,7 +122,13 @@ export class RegisterFarrowingModal {
     }
 
     const value = this.form.getRawValue();
-    if (value.live_born === null || value.stillborn === null || value.mummified === null) {
+    if (
+      value.live_born === null ||
+      value.stillborn === null ||
+      value.mummified === null ||
+      value.litter_weight === null ||
+      value.stillborn_weight === null
+    ) {
       this.form.markAllAsTouched();
       return;
     }
@@ -129,6 +141,8 @@ export class RegisterFarrowingModal {
       live_born: value.live_born,
       stillborn: value.stillborn,
       mummified: value.mummified,
+      litter_weight: value.litter_weight,
+      stillborn_weight: value.stillborn_weight,
       is_manipulated: value.is_manipulated,
       operators: value.operators.map((operator): CreateFarrowingOperatorRequest => ({
         operator_id: operator.operator_id,
@@ -147,12 +161,6 @@ export class RegisterFarrowingModal {
     }
     if (value.location) {
       request.location = value.location;
-    }
-    if (value.litter_weight !== null) {
-      request.litter_weight = value.litter_weight;
-    }
-    if (value.stillborn_weight !== null) {
-      request.stillborn_weight = value.stillborn_weight;
     }
     if (value.note) {
       request.note = value.note;
@@ -180,7 +188,7 @@ export class RegisterFarrowingModal {
   private newMedicationGroup() {
     return this.formBuilder.nonNullable.group({
       medication_id: ['', [Validators.required]],
-      dose: [1, [Validators.required, Validators.min(0.01)]],
+      dose: [1, [Validators.required, Validators.min(0.01), Validators.max(30)]],
       applied_by: ['', [Validators.required]],
     });
   }

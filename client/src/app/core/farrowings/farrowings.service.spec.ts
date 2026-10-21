@@ -97,6 +97,8 @@ describe('FarrowingsService', () => {
       live_born: 10,
       stillborn: 1,
       mummified: 0,
+      litter_weight: 15.5,
+      stillborn_weight: 1.5,
       is_manipulated: false,
       operators: [],
       medications: [],

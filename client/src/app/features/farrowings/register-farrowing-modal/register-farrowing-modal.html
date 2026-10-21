@@ -100,11 +100,20 @@
           id="farrowing-litter-weight"
           type="number"
           min="0"
+          max="30"
           step="0.01"
           formControlName="litter_weight"
           class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
         />
-        @if (form.controls.litter_weight.touched && form.controls.litter_weight.invalid) {
+        @if (
+          form.controls.litter_weight.touched && form.controls.litter_weight.hasError('required')
+        ) {
+          <p class="text-xs text-danger">El peso de la camada es obligatorio.</p>
+        } @else if (
+          form.controls.litter_weight.touched && form.controls.litter_weight.hasError('max')
+        ) {
+          <p class="text-xs text-danger">El peso no puede ser mayor a 30 kg.</p>
+        } @else if (form.controls.litter_weight.touched && form.controls.litter_weight.invalid) {
           <p class="text-xs text-danger">El peso no puede ser negativo.</p>
         }
       </div>
@@ -117,11 +126,23 @@
           id="farrowing-stillborn-weight"
           type="number"
           min="0"
+          max="30"
           step="0.01"
           formControlName="stillborn_weight"
           class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
         />
-        @if (form.controls.stillborn_weight.touched && form.controls.stillborn_weight.invalid) {
+        @if (
+          form.controls.stillborn_weight.touched &&
+          form.controls.stillborn_weight.hasError('required')
+        ) {
+          <p class="text-xs text-danger">El peso de los nacidos muertos es obligatorio.</p>
+        } @else if (
+          form.controls.stillborn_weight.touched && form.controls.stillborn_weight.hasError('max')
+        ) {
+          <p class="text-xs text-danger">El peso no puede ser mayor a 30 kg.</p>
+        } @else if (
+          form.controls.stillborn_weight.touched && form.controls.stillborn_weight.invalid
+        ) {
           <p class="text-xs text-danger">El peso no puede ser negativo.</p>
         }
       </div>
@@ -251,6 +272,7 @@
             <input
               type="number"
               min="0.01"
+              max="30"
               step="0.01"
               formControlName="dose"
               aria-label="Dosis"
@@ -261,7 +283,7 @@
               medicationGroup(index).controls.dose.touched &&
               medicationGroup(index).controls.dose.invalid
             ) {
-              <p class="text-xs text-danger">La dosis debe ser mayor que cero.</p>
+              <p class="text-xs text-danger">La dosis debe estar entre 0.01 y 30.</p>
             }
           </div>
 

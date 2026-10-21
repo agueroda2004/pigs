@@ -60,6 +60,8 @@ describe('RegisterFarrowingModal', () => {
       live_born: 10,
       stillborn: 1,
       mummified: 0,
+      litter_weight: 15.5,
+      stillborn_weight: 1.5,
     });
   };
 
@@ -143,7 +145,61 @@ describe('RegisterFarrowingModal', () => {
     );
   });
 
-  it('includes the optional times, weights, location and note when provided', async () => {
+  it('does not submit when a weight is missing', async () => {
+    for (const field of ['litter_weight', 'stillborn_weight'] as const) {
+      const component = create();
+      fill(component);
+      component.form.controls[field].setValue(null);
+
+      await component.submit();
+
+      expect(component.form.controls[field].hasError('required')).toBe(true);
+      expect(stub.createFarrowing).not.toHaveBeenCalled();
+    }
+  });
+
+  it('does not submit when a weight is greater than 30', async () => {
+    for (const field of ['litter_weight', 'stillborn_weight'] as const) {
+      const component = create();
+      fill(component);
+      component.form.controls[field].setValue(31);
+
+      await component.submit();
+
+      expect(component.form.controls[field].hasError('max')).toBe(true);
+      expect(stub.createFarrowing).not.toHaveBeenCalled();
+    }
+  });
+
+  it('accepts weights of 30', async () => {
+    const component = create();
+    fill(component);
+    component.form.patchValue({ litter_weight: 30, stillborn_weight: 30 });
+
+    await component.submit();
+
+    expect(stub.createFarrowing).toHaveBeenCalledWith(
+      expect.objectContaining({ litter_weight: 30, stillborn_weight: 30 }),
+    );
+  });
+
+  it('does not submit when a medication dose is greater than 30', async () => {
+    const component = create();
+    fill(component);
+    component.addMedication();
+    component.medicationsArray.at(0).patchValue({
+      medication_id: 'med-1',
+      dose: 31,
+      applied_by: 'op-1',
+    });
+
+    await component.submit();
+
+    expect(component.medicationsArray.at(0).controls.dose.hasError('max')).toBe(true);
+    expect(stub.createFarrowing).not.toHaveBeenCalled();
+  });
+
+  it('includes the times, weights, location and note when provided', async () => {
     const component = create();
     fill(component);
     component.form.patchValue({
@@ -206,6 +262,25 @@ describe('RegisterFarrowingModal', () => {
     expect(stub.createFarrowing).toHaveBeenCalledWith(
       expect.objectContaining({
         medications: [{ medication_id: 'med-1', dose: 0.5, applied_by: 'op-1' }],
+      }),
+    );
+  });
+
+  it('accepts a medication dose of 30', async () => {
+    const component = create();
+    fill(component);
+    component.addMedication();
+    component.medicationsArray.at(0).patchValue({
+      medication_id: 'med-1',
+      dose: 30,
+      applied_by: 'op-1',
+    });
+
+    await component.submit();
+
+    expect(stub.createFarrowing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        medications: [{ medication_id: 'med-1', dose: 30, applied_by: 'op-1' }],
       }),
     );
   });

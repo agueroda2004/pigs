@@ -60,8 +60,8 @@ export interface CreateFarrowingRequest {
   live_born: number;
   stillborn: number;
   mummified: number;
-  litter_weight?: number;
-  stillborn_weight?: number;
+  litter_weight: number;
+  stillborn_weight: number;
   is_manipulated: boolean;
   note?: string;
   operators: CreateFarrowingOperatorRequest[];
