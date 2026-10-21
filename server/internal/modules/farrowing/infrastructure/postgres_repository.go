@@ -595,12 +595,16 @@ func (r *PostgresFarrowingRepository) Delete(ctx context.Context, farrowing *far
 	return nil
 }
 
-// mapDeleteError translates a linked-records foreign key violation into
-// ports.ErrFarrowingHasRelatedRecords and wraps any other error with context.
+// mapDeleteError translates PostgreSQL errors into port errors.
+// A linked-records foreign key violation becomes ports.ErrFarrowingHasRelatedRecords
+// and any other error is wrapped with context.
 func mapDeleteError(err error) error {
 	var postgresError *pgconn.PgError
-	if errors.As(err, &postgresError) && postgresError.Code == "23503" {
-		return ports.ErrFarrowingHasRelatedRecords
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23503":
+			return ports.ErrFarrowingHasRelatedRecords
+		}
 	}
 	return fmt.Errorf("No se pudo eliminar el parto: %w", err)
 }

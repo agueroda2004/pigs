@@ -39,6 +39,14 @@ func (s *DeleteFarrowingService) Execute(ctx context.Context, command DeleteFarr
 		return err
 	}
 
+	earliest, err := s.repository.GetEarliestRelatedDate(ctx, command.ID)
+	if err != nil {
+		return err
+	}
+	if earliest != nil {
+		return ports.ErrFarrowingHasRelatedRecords
+	}
+
 	sow, err := s.repository.GetSow(ctx, farrowing.SowID)
 	if err != nil {
 		return err

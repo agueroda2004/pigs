@@ -126,6 +126,51 @@ func TestDeleteFarrowingExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("blocks the delete when the farrowing has related records", func(t *testing.T) {
+		farrowing := testFarrowing()
+		repository := deleteRepository(farrowing)
+		related := farrowDay
+		repository.earliestDate = &related
+		useCase := farrowingapplication.NewDeleteFarrowingService(repository, clock)
+
+		err := useCase.Execute(context.Background(), farrowingapplication.DeleteFarrowingCommand{
+			ID:        farrowing.ID,
+			DeletedBy: actor,
+		})
+
+		if !errors.Is(err, ports.ErrFarrowingHasRelatedRecords) {
+			t.Fatalf("error = %v, want ErrFarrowingHasRelatedRecords", err)
+		}
+		if repository.deleted != nil {
+			t.Fatalf("the farrowing must not be deleted")
+		}
+		if repository.sow.State != sowdomain.StateLactating {
+			t.Fatalf("sow state = %v, want Lactando", repository.sow.State)
+		}
+		if repository.serviceByID.State != servicedomain.StateFinished {
+			t.Fatalf("service state = %v, want Finalizado", repository.serviceByID.State)
+		}
+	})
+
+	t.Run("propagates an error while looking up related records", func(t *testing.T) {
+		farrowing := testFarrowing()
+		repository := deleteRepository(farrowing)
+		repository.earliestDateErr = errors.New("boom")
+		useCase := farrowingapplication.NewDeleteFarrowingService(repository, clock)
+
+		err := useCase.Execute(context.Background(), farrowingapplication.DeleteFarrowingCommand{
+			ID:        farrowing.ID,
+			DeletedBy: actor,
+		})
+
+		if !errors.Is(err, repository.earliestDateErr) {
+			t.Fatalf("error = %v, want the lookup error", err)
+		}
+		if repository.deleted != nil {
+			t.Fatalf("the farrowing must not be deleted")
+		}
+	})
+
 	t.Run("propagates the linked-records error from the repository", func(t *testing.T) {
 		farrowing := testFarrowing()
 		repository := deleteRepository(farrowing)
