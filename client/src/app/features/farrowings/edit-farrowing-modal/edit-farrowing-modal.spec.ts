@@ -25,7 +25,7 @@ function buildFarrowing(overrides: Partial<Farrowing> = {}): Farrowing {
     mummified: 0,
     current_piglets: 10,
     litter_weight: 15.5,
-    stillborn_weight: null,
+    stillborn_weight: 1.5,
     is_manipulated: false,
     is_nurse: false,
     nurse_start_date: null,
@@ -131,7 +131,15 @@ describe('EditFarrowingModal', () => {
     ]);
   });
 
-  it('sends the update request and emits when saved', async () => {
+  it('keeps the date and the piglet counts disabled', async () => {
+    const component = await create();
+
+    for (const name of ['farrow_date', 'live_born', 'stillborn', 'mummified'] as const) {
+      expect(component.form.controls[name].disabled).toBe(true);
+    }
+  });
+
+  it('sends the update request without the locked fields and emits when saved', async () => {
     const component = await create();
     const updated = vi.fn();
     component.updated.subscribe(updated);
@@ -142,33 +150,62 @@ describe('EditFarrowingModal', () => {
     expect(stub.updateFarrowing).toHaveBeenCalledWith(
       '42',
       expect.objectContaining({
-        farrow_date: '2026-04-20',
         location: 'Corral 9',
-        live_born: 10,
         litter_weight: 15.5,
         stillborn_weight: 2.5,
         operators: [{ operator_id: 'op-1' }],
         medications: [{ medication_id: 'med-1', dose: 2, applied_by: 'op-1' }],
       }),
     );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const request = stub.updateFarrowing.mock.calls[0][1] as any;
+    for (const locked of ['farrow_date', 'live_born', 'stillborn', 'mummified']) {
+      expect(request).not.toHaveProperty(locked);
+    }
+    expect(request).not.toHaveProperty('clear_litter_weight');
+    expect(request).not.toHaveProperty('clear_stillborn_weight');
     expect(updated).toHaveBeenCalled();
   });
 
-  it('clears the weights when they are left empty', async () => {
-    const component = await create(buildFarrowing({ litter_weight: null, stillborn_weight: null }));
+  it('requires both weights', async () => {
+    for (const field of ['litter_weight', 'stillborn_weight'] as const) {
+      stub.updateFarrowing.mockClear();
+      const component = await create();
+      component.form.controls[field].setValue(null);
+
+      await component.submit();
+
+      expect(component.form.controls[field].hasError('required')).toBe(true);
+      expect(stub.updateFarrowing).not.toHaveBeenCalled();
+    }
+  });
+
+  it('rejects weights greater than 30', async () => {
+    for (const field of ['litter_weight', 'stillborn_weight'] as const) {
+      stub.updateFarrowing.mockClear();
+      const component = await create();
+      component.form.controls[field].setValue(31);
+
+      await component.submit();
+
+      expect(component.form.controls[field].hasError('max')).toBe(true);
+      expect(stub.updateFarrowing).not.toHaveBeenCalled();
+    }
+  });
+
+  it('rejects a medication dose greater than 30', async () => {
+    const component = await create();
+    component.medicationsArray.at(0).controls.dose.setValue(31);
 
     await component.submit();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const request = stub.updateFarrowing.mock.calls[0][1] as any;
-    expect(request.clear_litter_weight).toBe(true);
-    expect(request.clear_stillborn_weight).toBe(true);
-    expect(request.litter_weight).toBeUndefined();
+    expect(component.medicationsArray.at(0).controls.dose.hasError('max')).toBe(true);
+    expect(stub.updateFarrowing).not.toHaveBeenCalled();
   });
 
   it('does not submit when the form is invalid', async () => {
     const component = await create();
-    component.form.patchValue({ farrow_date: '' });
+    component.form.controls.litter_weight.setValue(null);
 
     await component.submit();
 
@@ -182,8 +219,7 @@ describe('EditFarrowingModal', () => {
           new HttpErrorResponse({
             status: 400,
             error: {
-              error:
-                'No se puede cambiar la cantidad de nacidos vivos porque el parto tiene registros enlazados',
+              error: 'La fecha y las cantidades de lechones del parto no se pueden editar',
             },
           }),
       ),
@@ -193,7 +229,7 @@ describe('EditFarrowingModal', () => {
     await component.submit();
 
     expect(notifications.error).toHaveBeenCalledWith(
-      'No se puede cambiar la cantidad de nacidos vivos porque el parto tiene registros enlazados',
+      'La fecha y las cantidades de lechones del parto no se pueden editar',
     );
   });
 });

@@ -115,7 +115,7 @@ describe('FarrowingsService', () => {
   });
 
   it('updates a farrowing', async () => {
-    const payload = { live_born: 12, clear_litter_weight: true };
+    const payload = { litter_weight: 15.5, stillborn_weight: 1.5, location: 'Corral 9' };
     const promise = firstValueFrom(service.updateFarrowing('7', payload));
 
     const call = http.expectOne(

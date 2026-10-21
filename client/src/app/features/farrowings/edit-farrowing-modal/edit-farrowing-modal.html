@@ -20,9 +20,7 @@
           [maxDate]="today"
           placeholder="Seleccionar fecha"
         />
-        @if (form.controls.farrow_date.touched && form.controls.farrow_date.invalid) {
-          <p class="text-xs text-danger">La fecha del parto es obligatoria.</p>
-        }
+        <p class="text-xs text-muted-foreground">La fecha del parto no se puede cambiar.</p>
       </div>
 
       <div class="space-y-1.5">
@@ -44,11 +42,8 @@
           type="number"
           min="0"
           formControlName="live_born"
-          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
         />
-        @if (form.controls.live_born.touched && form.controls.live_born.invalid) {
-          <p class="text-xs text-danger">La cantidad no puede ser negativa.</p>
-        }
       </div>
 
       <div class="space-y-1.5">
@@ -60,11 +55,8 @@
           type="number"
           min="0"
           formControlName="stillborn"
-          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
         />
-        @if (form.controls.stillborn.touched && form.controls.stillborn.invalid) {
-          <p class="text-xs text-danger">La cantidad no puede ser negativa.</p>
-        }
       </div>
 
       <div class="space-y-1.5">
@@ -74,11 +66,11 @@
           type="number"
           min="0"
           formControlName="mummified"
-          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
         />
-        @if (form.controls.mummified.touched && form.controls.mummified.invalid) {
-          <p class="text-xs text-danger">La cantidad no puede ser negativa.</p>
-        }
+        <p class="text-xs text-muted-foreground">
+          Las cantidades de lechones no se pueden cambiar.
+        </p>
       </div>
 
       <div class="space-y-1.5">
@@ -89,11 +81,20 @@
           id="edit-farrowing-litter-weight"
           type="number"
           min="0"
+          max="30"
           step="0.01"
           formControlName="litter_weight"
           class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
         />
-        @if (form.controls.litter_weight.touched && form.controls.litter_weight.invalid) {
+        @if (
+          form.controls.litter_weight.touched && form.controls.litter_weight.hasError('required')
+        ) {
+          <p class="text-xs text-danger">El peso de la camada es obligatorio.</p>
+        } @else if (
+          form.controls.litter_weight.touched && form.controls.litter_weight.hasError('max')
+        ) {
+          <p class="text-xs text-danger">El peso no puede ser mayor a 30 kg.</p>
+        } @else if (form.controls.litter_weight.touched && form.controls.litter_weight.invalid) {
           <p class="text-xs text-danger">El peso no puede ser negativo.</p>
         }
       </div>
@@ -106,11 +107,23 @@
           id="edit-farrowing-stillborn-weight"
           type="number"
           min="0"
+          max="30"
           step="0.01"
           formControlName="stillborn_weight"
           class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
         />
-        @if (form.controls.stillborn_weight.touched && form.controls.stillborn_weight.invalid) {
+        @if (
+          form.controls.stillborn_weight.touched &&
+          form.controls.stillborn_weight.hasError('required')
+        ) {
+          <p class="text-xs text-danger">El peso de los nacidos muertos es obligatorio.</p>
+        } @else if (
+          form.controls.stillborn_weight.touched && form.controls.stillborn_weight.hasError('max')
+        ) {
+          <p class="text-xs text-danger">El peso no puede ser mayor a 30 kg.</p>
+        } @else if (
+          form.controls.stillborn_weight.touched && form.controls.stillborn_weight.invalid
+        ) {
           <p class="text-xs text-danger">El peso no puede ser negativo.</p>
         }
       </div>
@@ -240,6 +253,7 @@
             <input
               type="number"
               min="0.01"
+              max="30"
               step="0.01"
               formControlName="dose"
               aria-label="Dosis"
@@ -250,7 +264,7 @@
               medicationGroup(index).controls.dose.touched &&
               medicationGroup(index).controls.dose.invalid
             ) {
-              <p class="text-xs text-danger">La dosis debe ser mayor que cero.</p>
+              <p class="text-xs text-danger">La dosis debe estar entre 0.01 y 30.</p>
             }
           </div>
 

@@ -69,17 +69,11 @@ export interface CreateFarrowingRequest {
 }
 
 export interface UpdateFarrowingRequest {
-  farrow_date?: string;
   start_time?: string;
   end_time?: string;
   location?: string;
-  live_born?: number;
-  stillborn?: number;
-  mummified?: number;
-  litter_weight?: number;
-  clear_litter_weight?: boolean;
-  stillborn_weight?: number;
-  clear_stillborn_weight?: boolean;
+  litter_weight: number;
+  stillborn_weight: number;
   is_manipulated?: boolean;
   note?: string;
   operators?: CreateFarrowingOperatorRequest[];

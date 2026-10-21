@@ -60,8 +60,14 @@ export class EditFarrowingModal {
     live_born: [null as number | null, [Validators.min(0)]],
     stillborn: [null as number | null, [Validators.min(0)]],
     mummified: [null as number | null, [Validators.min(0)]],
-    litter_weight: [null as number | null, [Validators.min(0)]],
-    stillborn_weight: [null as number | null, [Validators.min(0)]],
+    litter_weight: [
+      null as number | null,
+      [Validators.required, Validators.min(0), Validators.max(30)],
+    ],
+    stillborn_weight: [
+      null as number | null,
+      [Validators.required, Validators.min(0), Validators.max(30)],
+    ],
     is_manipulated: [false],
     note: ['', [Validators.maxLength(500)]],
     operators: this.operatorsArray,
@@ -69,10 +75,12 @@ export class EditFarrowingModal {
   });
 
   constructor() {
+    this.lockImmutableFields();
     effect(() => {
       const current = this.farrowing();
       if (current && this.open()) {
         this.prefill(current);
+        this.lockImmutableFields();
         void this.loadOptions();
       }
     });
@@ -114,14 +122,17 @@ export class EditFarrowingModal {
     }
 
     const value = this.form.getRawValue();
+    if (value.litter_weight === null || value.stillborn_weight === null) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
     const request: UpdateFarrowingRequest = {
-      farrow_date: value.farrow_date,
       start_time: value.start_time,
       end_time: value.end_time,
       location: value.location,
-      live_born: value.live_born ?? 0,
-      stillborn: value.stillborn ?? 0,
-      mummified: value.mummified ?? 0,
+      litter_weight: value.litter_weight,
+      stillborn_weight: value.stillborn_weight,
       is_manipulated: value.is_manipulated,
       note: value.note,
       operators: value.operators.map((operator): CreateFarrowingOperatorRequest => ({
@@ -133,16 +144,6 @@ export class EditFarrowingModal {
         applied_by: medication.applied_by,
       })),
     };
-    if (value.litter_weight !== null) {
-      request.litter_weight = value.litter_weight;
-    } else {
-      request.clear_litter_weight = true;
-    }
-    if (value.stillborn_weight !== null) {
-      request.stillborn_weight = value.stillborn_weight;
-    } else {
-      request.clear_stillborn_weight = true;
-    }
 
     this.loading.set(true);
     try {
@@ -164,9 +165,20 @@ export class EditFarrowingModal {
   private newMedicationGroup(medication?: FarrowingMedicationLink) {
     return this.formBuilder.nonNullable.group({
       medication_id: [medication?.medication_id ?? '', [Validators.required]],
-      dose: [medication?.dose ?? 1, [Validators.required, Validators.min(0.01)]],
+      dose: [
+        medication?.dose ?? 1,
+        [Validators.required, Validators.min(0.01), Validators.max(30)],
+      ],
       applied_by: [medication?.applied_by ?? '', [Validators.required]],
     });
+  }
+
+  // Disables the farrow date and the piglet counts, which are fixed after creation.
+  // The disabled values stay visible in the form but are never sent on update.
+  private lockImmutableFields(): void {
+    for (const name of ['farrow_date', 'live_born', 'stillborn', 'mummified'] as const) {
+      this.form.controls[name].disable({ emitEvent: false });
+    }
   }
 
   private prefill(current: Farrowing): void {
