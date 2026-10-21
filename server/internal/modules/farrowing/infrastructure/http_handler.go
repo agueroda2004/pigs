@@ -101,21 +101,19 @@ type createFarrowingRequest struct {
 }
 
 type updateFarrowingRequest struct {
-	FarrowDate           *string                       `json:"farrow_date"`
-	StartTime            *string                       `json:"start_time"`
-	EndTime              *string                       `json:"end_time"`
-	Location             *string                       `json:"location"`
-	LiveBorn             *int                          `json:"live_born"`
-	Stillborn            *int                          `json:"stillborn"`
-	Mummified            *int                          `json:"mummified"`
-	LitterWeight         *float64                      `json:"litter_weight"`
-	ClearLitterWeight    *bool                         `json:"clear_litter_weight"`
-	StillbornWeight      *float64                      `json:"stillborn_weight"`
-	ClearStillbornWeight *bool                         `json:"clear_stillborn_weight"`
-	IsManipulated        *bool                         `json:"is_manipulated"`
-	Note                 *string                       `json:"note"`
-	Operators            *[]farrowingOperatorRequest   `json:"operators"`
-	Medications          *[]farrowingMedicationRequest `json:"medications"`
+	FarrowDate      *string                       `json:"farrow_date"`
+	StartTime       *string                       `json:"start_time"`
+	EndTime         *string                       `json:"end_time"`
+	Location        *string                       `json:"location"`
+	LiveBorn        *int                          `json:"live_born"`
+	Stillborn       *int                          `json:"stillborn"`
+	Mummified       *int                          `json:"mummified"`
+	LitterWeight    *float64                      `json:"litter_weight"`
+	StillbornWeight *float64                      `json:"stillborn_weight"`
+	IsManipulated   *bool                         `json:"is_manipulated"`
+	Note            *string                       `json:"note"`
+	Operators       *[]farrowingOperatorRequest   `json:"operators"`
+	Medications     *[]farrowingMedicationRequest `json:"medications"`
 }
 
 type farrowingOperatorResponse struct {
@@ -295,12 +293,6 @@ func (h *FarrowingHandler) update(w http.ResponseWriter, r *http.Request) {
 		StillbornWeight: request.StillbornWeight,
 		IsManipulated:   request.IsManipulated,
 		Note:            request.Note,
-	}
-	if request.ClearLitterWeight != nil {
-		command.ClearLitterWeight = *request.ClearLitterWeight
-	}
-	if request.ClearStillbornWeight != nil {
-		command.ClearStillbornWeight = *request.ClearStillbornWeight
 	}
 
 	if request.Operators != nil {
@@ -596,8 +588,7 @@ func writeFarrowingError(w http.ResponseWriter, err error) {
 		errors.Is(err, farrowingdomain.ErrFarrowDateInFuture),
 		errors.Is(err, farrowingdomain.ErrFarrowDateBeforeMount),
 		errors.Is(err, farrowingdomain.ErrInvalidUpdate),
-		errors.Is(err, farrowingdomain.ErrFarrowDateAfterRelatedRecords),
-		errors.Is(err, farrowingdomain.ErrLiveBornLocked),
+		errors.Is(err, farrowingdomain.ErrImmutableFarrowField),
 		errors.Is(err, farrowingdomain.ErrDuplicateOperator),
 		errors.Is(err, farrowingdomain.ErrDuplicateMedication),
 		errors.Is(err, farrowingdomain.ErrInvalidFarrowingOperatorID),

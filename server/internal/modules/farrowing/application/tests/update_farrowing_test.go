@@ -13,19 +13,10 @@ import (
 	"server/internal/modules/farrowing/ports"
 	medicationdomain "server/internal/modules/medication/domain"
 	operatordomain "server/internal/modules/operator/domain"
-	servicedomain "server/internal/modules/service/domain"
 )
 
 func updateRepository(farrowing *farrowingdomain.Farrowing) *fakeFarrowingRepository {
-	return &fakeFarrowingRepository{
-		farrowing: farrowing,
-		serviceByID: testService(
-			farrowing.ServiceID,
-			farrowing.SowID,
-			servicedomain.StateFinished,
-			testMount(farrowing.ServiceID, 1, mountDayOne),
-		),
-	}
+	return &fakeFarrowingRepository{farrowing: farrowing}
 }
 
 func testFarrowing() *farrowingdomain.Farrowing {
@@ -136,72 +127,92 @@ func TestUpdateFarrowingExecute(t *testing.T) {
 		}
 	})
 
-	t.Run("propagates a missing service", func(t *testing.T) {
-		farrowing := testFarrowing()
-		repository := &fakeFarrowingRepository{farrowing: farrowing, serviceByIDErr: ports.ErrServiceNotFound}
-		useCase := farrowingapplication.NewUpdateFarrowingService(repository, clock)
-		location := "Corral"
+	t.Run("rejects changes to the immovable fields", func(t *testing.T) {
+		for _, test := range []struct {
+			name    string
+			command func(*farrowingapplication.UpdateFarrowingCommand)
+		}{
+			{"farrow date", func(c *farrowingapplication.UpdateFarrowingCommand) {
+				value := farrowDay.AddDate(0, 0, 1)
+				c.FarrowDate = &value
+			}},
+			{"live born", func(c *farrowingapplication.UpdateFarrowingCommand) {
+				value := 11
+				c.LiveBorn = &value
+			}},
+			{"stillborn", func(c *farrowingapplication.UpdateFarrowingCommand) {
+				value := 2
+				c.Stillborn = &value
+			}},
+			{"mummified", func(c *farrowingapplication.UpdateFarrowingCommand) {
+				value := 1
+				c.Mummified = &value
+			}},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				farrowing := testFarrowing()
+				repository := updateRepository(farrowing)
+				useCase := farrowingapplication.NewUpdateFarrowingService(repository, clock)
+				command := farrowingapplication.UpdateFarrowingCommand{UpdatedBy: actor}
+				test.command(&command)
 
-		err := useCase.Execute(context.Background(), farrowing.ID, farrowingapplication.UpdateFarrowingCommand{
-			Location:  &location,
-			UpdatedBy: actor,
-		})
+				err := useCase.Execute(context.Background(), farrowing.ID, command)
 
-		if !errors.Is(err, ports.ErrServiceNotFound) {
-			t.Fatalf("error = %v, want ErrServiceNotFound", err)
+				if !errors.Is(err, farrowingdomain.ErrImmutableFarrowField) {
+					t.Fatalf("error = %v, want ErrImmutableFarrowField", err)
+				}
+				if repository.updated != nil {
+					t.Fatalf("the farrowing must not be persisted")
+				}
+			})
 		}
 	})
 
-	t.Run("propagates a related-records error from the repository", func(t *testing.T) {
+	t.Run("rejects weights greater than 30", func(t *testing.T) {
 		farrowing := testFarrowing()
 		repository := updateRepository(farrowing)
-		repository.earliestDateErr = errors.New("boom")
 		useCase := farrowingapplication.NewUpdateFarrowingService(repository, clock)
-		location := "Corral"
+		weight := 30.5
 
 		err := useCase.Execute(context.Background(), farrowing.ID, farrowingapplication.UpdateFarrowingCommand{
-			Location:  &location,
-			UpdatedBy: actor,
+			LitterWeight: &weight,
+			UpdatedBy:    actor,
 		})
 
-		if !errors.Is(err, repository.earliestDateErr) {
-			t.Fatalf("error = %v, want the persistence error", err)
+		if !errors.Is(err, farrowingdomain.ErrLitterWeightTooHigh) {
+			t.Fatalf("error = %v, want ErrLitterWeightTooHigh", err)
+		}
+		if repository.updated != nil {
+			t.Fatalf("the farrowing must not be persisted")
 		}
 	})
 
-	t.Run("locks the live born count when related records exist", func(t *testing.T) {
+	t.Run("rejects a medication dose greater than 30", func(t *testing.T) {
 		farrowing := testFarrowing()
 		repository := updateRepository(farrowing)
-		earliest := time.Date(2026, time.April, 25, 0, 0, 0, 0, time.UTC)
-		repository.earliestDate = &earliest
+		operatorID := uuid.New()
+		medicationID := uuid.New()
+		repository.operators = map[uuid.UUID]*operatordomain.Operator{
+			operatorID: testOperator(operatorID),
+		}
+		repository.medications = map[uuid.UUID]*medicationdomain.Medication{
+			medicationID: testMedication(medicationID),
+		}
 		useCase := farrowingapplication.NewUpdateFarrowingService(repository, clock)
-		liveBorn := 12
 
 		err := useCase.Execute(context.Background(), farrowing.ID, farrowingapplication.UpdateFarrowingCommand{
-			LiveBorn:  &liveBorn,
+			UpdateMedications: true,
+			Medications: []farrowingapplication.CreateFarrowingMedicationInput{
+				{MedicationID: medicationID, Dose: 31, AppliedBy: operatorID},
+			},
 			UpdatedBy: actor,
 		})
 
-		if !errors.Is(err, farrowingdomain.ErrLiveBornLocked) {
-			t.Fatalf("error = %v, want ErrLiveBornLocked", err)
+		if !errors.Is(err, farrowingdomain.ErrMedicationDoseTooHigh) {
+			t.Fatalf("error = %v, want ErrMedicationDoseTooHigh", err)
 		}
-	})
-
-	t.Run("bounds the farrow date with the earliest related record", func(t *testing.T) {
-		farrowing := testFarrowing()
-		repository := updateRepository(farrowing)
-		earliest := time.Date(2026, time.April, 10, 0, 0, 0, 0, time.UTC)
-		repository.earliestDate = &earliest
-		useCase := farrowingapplication.NewUpdateFarrowingService(repository, clock)
-		newDate := time.Date(2026, time.April, 15, 0, 0, 0, 0, time.UTC)
-
-		err := useCase.Execute(context.Background(), farrowing.ID, farrowingapplication.UpdateFarrowingCommand{
-			FarrowDate: &newDate,
-			UpdatedBy:  actor,
-		})
-
-		if !errors.Is(err, farrowingdomain.ErrFarrowDateAfterRelatedRecords) {
-			t.Fatalf("error = %v, want ErrFarrowDateAfterRelatedRecords", err)
+		if repository.updated != nil {
+			t.Fatalf("the farrowing must not be persisted")
 		}
 	})
 

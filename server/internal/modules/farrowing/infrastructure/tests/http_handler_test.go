@@ -348,7 +348,7 @@ func TestFarrowingHandlerUpdate(t *testing.T) {
 
 	body := fmt.Sprintf(
 		`{"farrow_date":"2026-05-01","live_born":12,"stillborn":0,"mummified":0,`+
-			`"location":"Corral 5","clear_litter_weight":true,"is_manipulated":true,`+
+			`"location":"Corral 5","litter_weight":15.5,"stillborn_weight":1.5,"is_manipulated":true,`+
 			`"operators":[{"operator_id":"%s"}],`+
 			`"medications":[{"medication_id":"%s","dose":2,"applied_by":"%s"}]}`,
 		operatorID, medicationID, operatorID,
@@ -373,8 +373,11 @@ func TestFarrowingHandlerUpdate(t *testing.T) {
 		if update.command.LiveBorn == nil || *update.command.LiveBorn != 12 {
 			t.Fatalf("unexpected live born: %#v", update.command.LiveBorn)
 		}
-		if update.command.IsManipulated == nil || !*update.command.IsManipulated || !update.command.ClearLitterWeight {
+		if update.command.IsManipulated == nil || !*update.command.IsManipulated {
 			t.Fatalf("unexpected flags: %#v", update.command)
+		}
+		if update.command.LitterWeight == nil || *update.command.LitterWeight != 15.5 {
+			t.Fatalf("unexpected litter weight: %#v", update.command.LitterWeight)
 		}
 		if !update.command.UpdateOperators || len(update.command.Operators) != 1 {
 			t.Fatalf("unexpected operators: %#v", update.command)
@@ -467,8 +470,9 @@ func TestFarrowingHandlerUpdate(t *testing.T) {
 		}{
 			{"not found", ports.ErrFarrowingNotFound, http.StatusNotFound},
 			{"invalid update", farrowingdomain.ErrInvalidUpdate, http.StatusBadRequest},
-			{"live born locked", farrowingdomain.ErrLiveBornLocked, http.StatusBadRequest},
-			{"date after related", farrowingdomain.ErrFarrowDateAfterRelatedRecords, http.StatusBadRequest},
+			{"immutable field", farrowingdomain.ErrImmutableFarrowField, http.StatusBadRequest},
+			{"weight over 30", farrowingdomain.ErrLitterWeightTooHigh, http.StatusBadRequest},
+			{"dose over 30", farrowingdomain.ErrMedicationDoseTooHigh, http.StatusBadRequest},
 			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
 		} {
 			t.Run(test.name, func(t *testing.T) {

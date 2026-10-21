@@ -69,13 +69,9 @@ var (
 	ErrWeagingQuantityMismatch = errors.New("La cantidad del destete debe coincidir con los lechones actuales")
 	// ErrInvalidUpdate is returned when an update request carries no editable field.
 	ErrInvalidUpdate = errors.New("Debe actualizar al menos un campo del parto")
-	// ErrFarrowDateAfterRelatedRecords is returned when the new farrow date falls
-	// after the earliest record (death, fostering or weaging) linked to the farrowing.
-	ErrFarrowDateAfterRelatedRecords = errors.New("La fecha del parto no puede ser posterior a un registro de lechones")
-	// ErrLiveBornLocked is returned when the live born count is changed on a
-	// farrowing that already has related records, because its current piglets
-	// balance has since been adjusted and could no longer be recomputed.
-	ErrLiveBornLocked = errors.New("No se puede cambiar la cantidad de nacidos vivos porque el parto tiene registros enlazados")
+	// ErrImmutableFarrowField is returned when an update tries to change the farrow
+	// date or the piglet counts, which are fixed once the farrowing is registered.
+	ErrImmutableFarrowField = errors.New("La fecha y las cantidades de lechones del parto no se pueden editar")
 )
 
 // Farrowing is the aggregate root that represents a sow farrowing (parto).
@@ -263,48 +259,35 @@ func NewFarrowing(
 
 // UpdateFarrowingParams holds the editable fields of a farrowing update.
 // A nil pointer means the field is omitted and stays unchanged. Nullable string
-// fields are cleared to NULL by providing an empty string, while the nullable
-// weights use their Clear flag because they cannot carry an empty value. The
-// operator and medication lists are only replaced when their Update flag is set;
-// an empty provided list clears every link. Sow, service, state and the nurse
-// fields are intentionally absent because they are not editable here.
+// fields are cleared to NULL by providing an empty string. The farrow date and the
+// piglet counts are only accepted when they match the stored values, because they
+// cannot be edited. The operator and medication lists are only replaced when their
+// Update flag is set; an empty provided list clears every link. Sow, service, state
+// and the nurse fields are intentionally absent because they are not editable here.
 type UpdateFarrowingParams struct {
-	FarrowDate           *time.Time
-	StartTime            *string
-	EndTime              *string
-	Location             *string
-	LiveBorn             *int
-	Stillborn            *int
-	Mummified            *int
-	LitterWeight         *float64
-	ClearLitterWeight    bool
-	StillbornWeight      *float64
-	ClearStillbornWeight bool
-	IsManipulated        *bool
-	Note                 *string
-	Operators            []NewFarrowingOperatorParams
-	UpdateOperators      bool
-	Medications          []NewFarrowingMedicationParams
-	UpdateMedications    bool
+	FarrowDate        *time.Time
+	StartTime         *string
+	EndTime           *string
+	Location          *string
+	LiveBorn          *int
+	Stillborn         *int
+	Mummified         *int
+	LitterWeight      *float64
+	StillbornWeight   *float64
+	IsManipulated     *bool
+	Note              *string
+	Operators         []NewFarrowingOperatorParams
+	UpdateOperators   bool
+	Medications       []NewFarrowingMedicationParams
+	UpdateMedications bool
 }
 
-// UpdateFarrowingReference carries the validation context of an update.
-// LastMountDate bounds the earliest valid farrow date and EarliestRelatedDate is
-// the earliest linked death, fostering or weaging date; it also signals that the
-// farrowing has related records when it is not nil.
-type UpdateFarrowingReference struct {
-	LastMountDate       time.Time
-	EarliestRelatedDate *time.Time
-}
-
-// Update applies only the provided fields to the farrowing.
-// It validates the farrow date against the last mount, the future and the
-// earliest related record, locks the live born count when related records exist,
-// recomputes the current piglets balance when the live born count changes without
-// related records, and replaces the operator and medication links when requested.
-// It records updatedBy plus the timestamp and returns ErrInvalidUpdate when no
-// field is provided.
-func (f *Farrowing) Update(params UpdateFarrowingParams, reference UpdateFarrowingReference, updatedBy uuid.UUID, now time.Time) error {
+// Update applies only the provided editable fields to the farrowing.
+// It rejects any change to the farrow date or the piglet counts, validates the
+// weights and medication doses against the 30 limit, and replaces the operator and
+// medication links when requested. It records updatedBy plus the timestamp and
+// returns ErrInvalidUpdate when no field is provided.
+func (f *Farrowing) Update(params UpdateFarrowingParams, updatedBy uuid.UUID, now time.Time) error {
 	if f == nil || f.ID == uuid.Nil {
 		return ErrInvalidID
 	}
@@ -313,45 +296,40 @@ func (f *Farrowing) Update(params UpdateFarrowingParams, reference UpdateFarrowi
 	}
 	if params.FarrowDate == nil && params.StartTime == nil && params.EndTime == nil &&
 		params.Location == nil && params.LiveBorn == nil && params.Stillborn == nil &&
-		params.Mummified == nil && params.LitterWeight == nil && !params.ClearLitterWeight &&
-		params.StillbornWeight == nil && !params.ClearStillbornWeight &&
-		params.IsManipulated == nil && params.Note == nil &&
+		params.Mummified == nil && params.LitterWeight == nil &&
+		params.StillbornWeight == nil && params.IsManipulated == nil && params.Note == nil &&
 		!params.UpdateOperators && !params.UpdateMedications {
 		return ErrInvalidUpdate
 	}
 
-	if params.FarrowDate != nil {
-		if params.FarrowDate.IsZero() {
-			return ErrInvalidFarrowDate
+	if params.FarrowDate != nil &&
+		!truncateToDay(*params.FarrowDate).Equal(truncateToDay(f.FarrowDate)) {
+		return ErrImmutableFarrowField
+	}
+	if params.LiveBorn != nil && *params.LiveBorn != f.LiveBorn {
+		return ErrImmutableFarrowField
+	}
+	if params.Stillborn != nil && *params.Stillborn != f.Stillborn {
+		return ErrImmutableFarrowField
+	}
+	if params.Mummified != nil && *params.Mummified != f.Mummified {
+		return ErrImmutableFarrowField
+	}
+	if params.LitterWeight != nil {
+		if *params.LitterWeight < 0 {
+			return ErrInvalidLitterWeight
 		}
-		if err := validateFarrowDate(*params.FarrowDate, reference.LastMountDate, now); err != nil {
-			return err
-		}
-		if reference.EarliestRelatedDate != nil &&
-			truncateToDay(*params.FarrowDate).After(truncateToDay(*reference.EarliestRelatedDate)) {
-			return ErrFarrowDateAfterRelatedRecords
+		if *params.LitterWeight > maxWeight {
+			return ErrLitterWeightTooHigh
 		}
 	}
-
-	if params.LiveBorn != nil {
-		if *params.LiveBorn < 0 {
-			return ErrInvalidLiveBorn
+	if params.StillbornWeight != nil {
+		if *params.StillbornWeight < 0 {
+			return ErrInvalidStillbornWeight
 		}
-		if reference.EarliestRelatedDate != nil && *params.LiveBorn != f.LiveBorn {
-			return ErrLiveBornLocked
+		if *params.StillbornWeight > maxWeight {
+			return ErrStillbornWeightTooHigh
 		}
-	}
-	if params.Stillborn != nil && *params.Stillborn < 0 {
-		return ErrInvalidStillborn
-	}
-	if params.Mummified != nil && *params.Mummified < 0 {
-		return ErrInvalidMummified
-	}
-	if params.LitterWeight != nil && !params.ClearLitterWeight && *params.LitterWeight < 0 {
-		return ErrInvalidLitterWeight
-	}
-	if params.StillbornWeight != nil && !params.ClearStillbornWeight && *params.StillbornWeight < 0 {
-		return ErrInvalidStillbornWeight
 	}
 
 	startTime, err := validateTime(params.StartTime, ErrInvalidStartTime)
@@ -379,14 +357,14 @@ func (f *Farrowing) Update(params UpdateFarrowingParams, reference UpdateFarrowi
 	}
 	var replacedMedications []*FarrowingMedication
 	if params.UpdateMedications {
+		if err := validateMedicationDoses(params.Medications); err != nil {
+			return err
+		}
 		if replacedMedications, err = buildMedications(params.Medications, f.ID, now); err != nil {
 			return err
 		}
 	}
 
-	if params.FarrowDate != nil {
-		f.FarrowDate = *params.FarrowDate
-	}
 	if params.StartTime != nil {
 		f.StartTime = startTime
 	}
@@ -396,28 +374,10 @@ func (f *Farrowing) Update(params UpdateFarrowingParams, reference UpdateFarrowi
 	if params.Location != nil {
 		f.Location = location
 	}
-	if params.LiveBorn != nil {
-		f.LiveBorn = *params.LiveBorn
-		if reference.EarliestRelatedDate == nil {
-			f.CurrentPiglets = *params.LiveBorn
-		}
-	}
-	if params.Stillborn != nil {
-		f.Stillborn = *params.Stillborn
-	}
-	if params.Mummified != nil {
-		f.Mummified = *params.Mummified
-	}
-	switch {
-	case params.ClearLitterWeight:
-		f.LitterWeight = nil
-	case params.LitterWeight != nil:
+	if params.LitterWeight != nil {
 		f.LitterWeight = params.LitterWeight
 	}
-	switch {
-	case params.ClearStillbornWeight:
-		f.StillbornWeight = nil
-	case params.StillbornWeight != nil:
+	if params.StillbornWeight != nil {
 		f.StillbornWeight = params.StillbornWeight
 	}
 	if params.IsManipulated != nil {

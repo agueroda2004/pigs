@@ -652,18 +652,21 @@ func TestNewFarrowingMedication(t *testing.T) {
 	})
 }
 
-func newTestFarrowing() (*farrowingdomain.Farrowing, farrowingdomain.UpdateFarrowingReference) {
-	lastMount := time.Date(2025, time.October, 10, 0, 0, 0, 0, time.UTC)
+func newTestFarrowing() *farrowingdomain.Farrowing {
 	farrowDate := time.Date(2026, time.February, 1, 0, 0, 0, 0, time.UTC)
+	litterWeight := 15.5
+	stillbornWeight := 1.5
 	return &farrowingdomain.Farrowing{
-		ID:             uuid.New(),
-		FarrowDate:     farrowDate,
-		LiveBorn:       10,
-		Stillborn:      1,
-		CurrentPiglets: 10,
-		Operators:      []*farrowingdomain.FarrowingOperator{},
-		Medications:    []*farrowingdomain.FarrowingMedication{},
-	}, farrowingdomain.UpdateFarrowingReference{LastMountDate: lastMount}
+		ID:              uuid.New(),
+		FarrowDate:      farrowDate,
+		LiveBorn:        10,
+		Stillborn:       1,
+		CurrentPiglets:  10,
+		LitterWeight:    &litterWeight,
+		StillbornWeight: &stillbornWeight,
+		Operators:       []*farrowingdomain.FarrowingOperator{},
+		Medications:     []*farrowingdomain.FarrowingMedication{},
+	}
 }
 
 func TestFarrowingUpdate(t *testing.T) {
@@ -671,23 +674,21 @@ func TestFarrowingUpdate(t *testing.T) {
 	actor := uuid.New()
 
 	t.Run("updates the provided scalar fields", func(t *testing.T) {
-		farrowing, reference := newTestFarrowing()
-		stillborn := 2
+		farrowing := newTestFarrowing()
 		location := "Corral 5"
 		note := "Actualizado"
 		manipulated := true
 
 		err := farrowing.Update(farrowingdomain.UpdateFarrowingParams{
-			Stillborn:     &stillborn,
 			Location:      &location,
 			Note:          &note,
 			IsManipulated: &manipulated,
-		}, reference, actor, now)
+		}, actor, now)
 
 		if err != nil {
 			t.Fatalf("Update() error = %v", err)
 		}
-		if farrowing.Stillborn != 2 || farrowing.Location == nil || *farrowing.Location != "Corral 5" {
+		if farrowing.Location == nil || *farrowing.Location != "Corral 5" {
 			t.Fatalf("unexpected fields: %#v", farrowing)
 		}
 		if farrowing.Note == nil || *farrowing.Note != "Actualizado" || !farrowing.IsManipulated {
@@ -698,30 +699,67 @@ func TestFarrowingUpdate(t *testing.T) {
 		}
 	})
 
-	t.Run("clears nullable fields with an empty string or a clear flag", func(t *testing.T) {
-		farrowing, reference := newTestFarrowing()
-		weight := 12.5
-		farrowing.LitterWeight = &weight
+	t.Run("clears nullable string fields with an empty string", func(t *testing.T) {
+		farrowing := newTestFarrowing()
 		farrowing.StartTime = ptr("22:00")
 		empty := ""
 
 		err := farrowing.Update(farrowingdomain.UpdateFarrowingParams{
-			StartTime:         &empty,
-			ClearLitterWeight: true,
-		}, reference, actor, now)
+			StartTime: &empty,
+		}, actor, now)
 
 		if err != nil {
 			t.Fatalf("Update() error = %v", err)
 		}
-		if farrowing.StartTime != nil || farrowing.LitterWeight != nil {
-			t.Fatalf("expected nullable fields cleared: %#v", farrowing)
+		if farrowing.StartTime != nil {
+			t.Fatalf("expected the start time cleared: %#v", farrowing)
+		}
+	})
+
+	t.Run("keeps the weights when they are omitted", func(t *testing.T) {
+		farrowing := newTestFarrowing()
+		location := "Corral 5"
+
+		err := farrowing.Update(farrowingdomain.UpdateFarrowingParams{
+			Location: &location,
+		}, actor, now)
+
+		if err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if farrowing.LitterWeight == nil || *farrowing.LitterWeight != 15.5 {
+			t.Fatalf("unexpected litter weight: %#v", farrowing.LitterWeight)
+		}
+		if farrowing.StillbornWeight == nil || *farrowing.StillbornWeight != 1.5 {
+			t.Fatalf("unexpected stillborn weight: %#v", farrowing.StillbornWeight)
+		}
+	})
+
+	t.Run("updates the weights", func(t *testing.T) {
+		farrowing := newTestFarrowing()
+		litter := 30.0
+		stillborn := 0.0
+
+		err := farrowing.Update(farrowingdomain.UpdateFarrowingParams{
+			LitterWeight:    &litter,
+			StillbornWeight: &stillborn,
+		}, actor, now)
+
+		if err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if farrowing.LitterWeight == nil || *farrowing.LitterWeight != 30 {
+			t.Fatalf("unexpected litter weight: %#v", farrowing.LitterWeight)
+		}
+		if farrowing.StillbornWeight == nil || *farrowing.StillbornWeight != 0 {
+			t.Fatalf("unexpected stillborn weight: %#v", farrowing.StillbornWeight)
 		}
 	})
 
 	t.Run("rejects an empty update", func(t *testing.T) {
-		farrowing, reference := newTestFarrowing()
+		farrowing := newTestFarrowing()
 
-		err := farrowing.Update(farrowingdomain.UpdateFarrowingParams{}, reference, actor, now)
+		err := farrowing.Update(farrowingdomain.UpdateFarrowingParams{}, actor, now)
 
 		if !errors.Is(err, farrowingdomain.ErrInvalidUpdate) {
 			t.Fatalf("error = %v, want ErrInvalidUpdate", err)
@@ -731,129 +769,100 @@ func TestFarrowingUpdate(t *testing.T) {
 	t.Run("rejects nil id and nil actor", func(t *testing.T) {
 		location := "Corral"
 		if err := (&farrowingdomain.Farrowing{}).Update(
-			farrowingdomain.UpdateFarrowingParams{Location: &location},
-			farrowingdomain.UpdateFarrowingReference{}, actor, now,
+			farrowingdomain.UpdateFarrowingParams{Location: &location}, actor, now,
 		); !errors.Is(err, farrowingdomain.ErrInvalidID) {
 			t.Fatalf("error = %v, want ErrInvalidID", err)
 		}
 
-		farrowing, reference := newTestFarrowing()
+		farrowing := newTestFarrowing()
 		if err := farrowing.Update(
-			farrowingdomain.UpdateFarrowingParams{Location: &location},
-			reference, uuid.Nil, now,
+			farrowingdomain.UpdateFarrowingParams{Location: &location}, uuid.Nil, now,
 		); !errors.Is(err, farrowingdomain.ErrInvalidUpdatedBy) {
 			t.Fatalf("error = %v, want ErrInvalidUpdatedBy", err)
 		}
 	})
 
-	t.Run("validates the new farrow date", func(t *testing.T) {
-		future := now.AddDate(0, 0, 1)
-		beforeMount := time.Date(2025, time.October, 9, 0, 0, 0, 0, time.UTC)
+	t.Run("rejects changes to the immovable fields", func(t *testing.T) {
+		for _, test := range []struct {
+			name string
+			run  func(*farrowingdomain.Farrowing) error
+		}{
+			{"farrow date", func(f *farrowingdomain.Farrowing) error {
+				value := f.FarrowDate.AddDate(0, 0, 1)
+				return f.Update(farrowingdomain.UpdateFarrowingParams{FarrowDate: &value}, actor, now)
+			}},
+			{"live born", func(f *farrowingdomain.Farrowing) error {
+				value := 11
+				return f.Update(farrowingdomain.UpdateFarrowingParams{LiveBorn: &value}, actor, now)
+			}},
+			{"stillborn", func(f *farrowingdomain.Farrowing) error {
+				value := 2
+				return f.Update(farrowingdomain.UpdateFarrowingParams{Stillborn: &value}, actor, now)
+			}},
+			{"mummified", func(f *farrowingdomain.Farrowing) error {
+				value := 1
+				return f.Update(farrowingdomain.UpdateFarrowingParams{Mummified: &value}, actor, now)
+			}},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				farrowing := newTestFarrowing()
 
-		farrowing, reference := newTestFarrowing()
-		if err := farrowing.Update(
-			farrowingdomain.UpdateFarrowingParams{FarrowDate: &future}, reference, actor, now,
-		); !errors.Is(err, farrowingdomain.ErrFarrowDateInFuture) {
-			t.Fatalf("error = %v, want ErrFarrowDateInFuture", err)
-		}
+				err := test.run(farrowing)
 
-		farrowing, reference = newTestFarrowing()
-		if err := farrowing.Update(
-			farrowingdomain.UpdateFarrowingParams{FarrowDate: &beforeMount}, reference, actor, now,
-		); !errors.Is(err, farrowingdomain.ErrFarrowDateBeforeMount) {
-			t.Fatalf("error = %v, want ErrFarrowDateBeforeMount", err)
-		}
-	})
-
-	t.Run("rejects a date after the earliest related record but allows the same day", func(t *testing.T) {
-		lateNow := time.Date(2026, time.February, 10, 3, 4, 5, 0, time.UTC)
-		earliest := time.Date(2026, time.February, 5, 0, 0, 0, 0, time.UTC)
-		after := time.Date(2026, time.February, 6, 0, 0, 0, 0, time.UTC)
-
-		farrowing, reference := newTestFarrowing()
-		reference.EarliestRelatedDate = &earliest
-		if err := farrowing.Update(
-			farrowingdomain.UpdateFarrowingParams{FarrowDate: &after}, reference, actor, lateNow,
-		); !errors.Is(err, farrowingdomain.ErrFarrowDateAfterRelatedRecords) {
-			t.Fatalf("error = %v, want ErrFarrowDateAfterRelatedRecords", err)
-		}
-
-		sameDay := earliest
-		farrowing, reference = newTestFarrowing()
-		reference.EarliestRelatedDate = &earliest
-		if err := farrowing.Update(
-			farrowingdomain.UpdateFarrowingParams{FarrowDate: &sameDay}, reference, actor, lateNow,
-		); err != nil {
-			t.Fatalf("Update() error = %v, want nil for the same day", err)
+				if !errors.Is(err, farrowingdomain.ErrImmutableFarrowField) {
+					t.Fatalf("error = %v, want ErrImmutableFarrowField", err)
+				}
+			})
 		}
 	})
 
-	t.Run("locks the live born count when related records exist", func(t *testing.T) {
-		earliest := time.Date(2026, time.February, 5, 0, 0, 0, 0, time.UTC)
-		liveBorn := 12
+	t.Run("accepts the current date and counts as a no-op", func(t *testing.T) {
+		farrowing := newTestFarrowing()
+		date := farrowing.FarrowDate
+		liveBorn := 10
+		stillborn := 1
+		mummified := 0
 
-		farrowing, reference := newTestFarrowing()
-		farrowing.CurrentPiglets = 8
-		reference.EarliestRelatedDate = &earliest
-		if err := farrowing.Update(
-			farrowingdomain.UpdateFarrowingParams{LiveBorn: &liveBorn}, reference, actor, now,
-		); !errors.Is(err, farrowingdomain.ErrLiveBornLocked) {
-			t.Fatalf("error = %v, want ErrLiveBornLocked", err)
-		}
+		err := farrowing.Update(farrowingdomain.UpdateFarrowingParams{
+			FarrowDate: &date,
+			LiveBorn:   &liveBorn,
+			Stillborn:  &stillborn,
+			Mummified:  &mummified,
+		}, actor, now)
 
-		same := farrowing.LiveBorn
-		farrowing, reference = newTestFarrowing()
-		farrowing.CurrentPiglets = 8
-		reference.EarliestRelatedDate = &earliest
-		if err := farrowing.Update(
-			farrowingdomain.UpdateFarrowingParams{LiveBorn: &same}, reference, actor, now,
-		); err != nil {
-			t.Fatalf("Update() error = %v, want nil for the unchanged count", err)
-		}
-		if farrowing.CurrentPiglets != 8 {
-			t.Fatalf("current piglets = %d, want 8", farrowing.CurrentPiglets)
-		}
-	})
-
-	t.Run("recomputes the current piglets balance without related records", func(t *testing.T) {
-		farrowing, reference := newTestFarrowing()
-		liveBorn := 14
-
-		if err := farrowing.Update(
-			farrowingdomain.UpdateFarrowingParams{LiveBorn: &liveBorn}, reference, actor, now,
-		); err != nil {
+		if err != nil {
 			t.Fatalf("Update() error = %v", err)
 		}
-		if farrowing.LiveBorn != 14 || farrowing.CurrentPiglets != 14 {
-			t.Fatalf("unexpected counts: %#v", farrowing)
+		if farrowing.CurrentPiglets != 10 {
+			t.Fatalf("current piglets = %d, want 10", farrowing.CurrentPiglets)
 		}
 	})
 
-	t.Run("rejects negative counts and weights", func(t *testing.T) {
+	t.Run("rejects invalid weights", func(t *testing.T) {
 		for _, test := range []struct {
 			name string
 			run  func(*farrowingdomain.Farrowing) error
 			want error
 		}{
-			{"live born", func(f *farrowingdomain.Farrowing) error {
-				value := -1
-				return f.Update(farrowingdomain.UpdateFarrowingParams{LiveBorn: &value}, farrowingdomain.UpdateFarrowingReference{}, actor, now)
-			}, farrowingdomain.ErrInvalidLiveBorn},
-			{"stillborn", func(f *farrowingdomain.Farrowing) error {
-				value := -1
-				return f.Update(farrowingdomain.UpdateFarrowingParams{Stillborn: &value}, farrowingdomain.UpdateFarrowingReference{}, actor, now)
-			}, farrowingdomain.ErrInvalidStillborn},
-			{"mummified", func(f *farrowingdomain.Farrowing) error {
-				value := -1
-				return f.Update(farrowingdomain.UpdateFarrowingParams{Mummified: &value}, farrowingdomain.UpdateFarrowingReference{}, actor, now)
-			}, farrowingdomain.ErrInvalidMummified},
-			{"litter weight", func(f *farrowingdomain.Farrowing) error {
+			{"negative litter weight", func(f *farrowingdomain.Farrowing) error {
 				value := -1.5
-				return f.Update(farrowingdomain.UpdateFarrowingParams{LitterWeight: &value}, farrowingdomain.UpdateFarrowingReference{}, actor, now)
+				return f.Update(farrowingdomain.UpdateFarrowingParams{LitterWeight: &value}, actor, now)
 			}, farrowingdomain.ErrInvalidLitterWeight},
+			{"negative stillborn weight", func(f *farrowingdomain.Farrowing) error {
+				value := -1.5
+				return f.Update(farrowingdomain.UpdateFarrowingParams{StillbornWeight: &value}, actor, now)
+			}, farrowingdomain.ErrInvalidStillbornWeight},
+			{"litter weight over 30", func(f *farrowingdomain.Farrowing) error {
+				value := 30.5
+				return f.Update(farrowingdomain.UpdateFarrowingParams{LitterWeight: &value}, actor, now)
+			}, farrowingdomain.ErrLitterWeightTooHigh},
+			{"stillborn weight over 30", func(f *farrowingdomain.Farrowing) error {
+				value := 30.5
+				return f.Update(farrowingdomain.UpdateFarrowingParams{StillbornWeight: &value}, actor, now)
+			}, farrowingdomain.ErrStillbornWeightTooHigh},
 		} {
 			t.Run(test.name, func(t *testing.T) {
-				farrowing, _ := newTestFarrowing()
+				farrowing := newTestFarrowing()
 				if err := test.run(farrowing); !errors.Is(err, test.want) {
 					t.Fatalf("error = %v, want %v", err, test.want)
 				}
@@ -861,19 +870,34 @@ func TestFarrowingUpdate(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects a medication dose greater than 30", func(t *testing.T) {
+		farrowing := newTestFarrowing()
+
+		err := farrowing.Update(farrowingdomain.UpdateFarrowingParams{
+			UpdateMedications: true,
+			Medications: []farrowingdomain.NewFarrowingMedicationParams{
+				{ID: uuid.New(), MedicationID: uuid.New(), Dose: 31, AppliedBy: uuid.New()},
+			},
+		}, actor, now)
+
+		if !errors.Is(err, farrowingdomain.ErrMedicationDoseTooHigh) {
+			t.Fatalf("error = %v, want ErrMedicationDoseTooHigh", err)
+		}
+	})
+
 	t.Run("rejects an invalid start time", func(t *testing.T) {
-		farrowing, reference := newTestFarrowing()
+		farrowing := newTestFarrowing()
 		bad := "25:00"
 
 		if err := farrowing.Update(
-			farrowingdomain.UpdateFarrowingParams{StartTime: &bad}, reference, actor, now,
+			farrowingdomain.UpdateFarrowingParams{StartTime: &bad}, actor, now,
 		); !errors.Is(err, farrowingdomain.ErrInvalidStartTime) {
 			t.Fatalf("error = %v, want ErrInvalidStartTime", err)
 		}
 	})
 
 	t.Run("replaces the operator and medication links", func(t *testing.T) {
-		farrowing, reference := newTestFarrowing()
+		farrowing := newTestFarrowing()
 
 		err := farrowing.Update(farrowingdomain.UpdateFarrowingParams{
 			UpdateOperators: true,
@@ -884,7 +908,7 @@ func TestFarrowingUpdate(t *testing.T) {
 			Medications: []farrowingdomain.NewFarrowingMedicationParams{
 				{ID: uuid.New(), MedicationID: uuid.New(), Dose: 1, AppliedBy: uuid.New()},
 			},
-		}, reference, actor, now)
+		}, actor, now)
 
 		if err != nil {
 			t.Fatalf("Update() error = %v", err)
@@ -898,13 +922,13 @@ func TestFarrowingUpdate(t *testing.T) {
 	})
 
 	t.Run("clears the links with empty lists", func(t *testing.T) {
-		farrowing, reference := newTestFarrowing()
+		farrowing := newTestFarrowing()
 		farrowing.Operators = []*farrowingdomain.FarrowingOperator{{ID: uuid.New(), FarrowingID: farrowing.ID, OperatorID: uuid.New()}}
 
 		err := farrowing.Update(farrowingdomain.UpdateFarrowingParams{
 			UpdateOperators: true,
 			Operators:       []farrowingdomain.NewFarrowingOperatorParams{},
-		}, reference, actor, now)
+		}, actor, now)
 
 		if err != nil {
 			t.Fatalf("Update() error = %v", err)
@@ -915,7 +939,7 @@ func TestFarrowingUpdate(t *testing.T) {
 	})
 
 	t.Run("rejects duplicate operators on replacement", func(t *testing.T) {
-		farrowing, reference := newTestFarrowing()
+		farrowing := newTestFarrowing()
 		operatorID := uuid.New()
 
 		err := farrowing.Update(farrowingdomain.UpdateFarrowingParams{
@@ -924,7 +948,7 @@ func TestFarrowingUpdate(t *testing.T) {
 				{ID: uuid.New(), OperatorID: operatorID},
 				{ID: uuid.New(), OperatorID: operatorID},
 			},
-		}, reference, actor, now)
+		}, actor, now)
 
 		if !errors.Is(err, farrowingdomain.ErrDuplicateOperator) {
 			t.Fatalf("error = %v, want ErrDuplicateOperator", err)
