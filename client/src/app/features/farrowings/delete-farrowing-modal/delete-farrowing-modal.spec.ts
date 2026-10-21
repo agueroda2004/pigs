@@ -100,10 +100,26 @@ describe('DeleteFarrowingModal', () => {
       ),
     );
     const component = create();
+    const deleted = vi.fn();
+    component.deleted.subscribe(deleted);
 
     await component.confirm();
 
     expect(notifications.error).toHaveBeenCalledWith('Este parto tiene registros enlazados');
+    expect(deleted).not.toHaveBeenCalled();
+    expect(component.loading()).toBe(false);
+  });
+
+  it('shows a fallback when the server returns no message', async () => {
+    stub.deleteFarrowing = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 500 })));
+    const component = create();
+    const deleted = vi.fn();
+    component.deleted.subscribe(deleted);
+
+    await component.confirm();
+
+    expect(notifications.error).toHaveBeenCalledWith('No se pudo eliminar el parto');
+    expect(deleted).not.toHaveBeenCalled();
   });
 
   it('shows a fallback when the farrowing is missing', async () => {
