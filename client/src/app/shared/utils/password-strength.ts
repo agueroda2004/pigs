@@ -2,6 +2,8 @@ export type PasswordStrength = 'low' | 'medium' | 'high';
 
 export const PASSWORD_MIN_LENGTH = 8;
 
+export const PASSWORD_MAX_LENGTH = 50;
+
 export const PASSWORD_PATTERN = /^(?=.*\d)(?=.*[^A-Za-z0-9]).+$/;
 
 export function passwordStrength(value: string): PasswordStrength {

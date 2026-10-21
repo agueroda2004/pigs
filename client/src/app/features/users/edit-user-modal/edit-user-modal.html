@@ -97,7 +97,7 @@
 
       @if (form.controls.password.touched && form.controls.password.invalid) {
         <p class="text-xs text-danger">
-          Mínimo {{ minLength }} caracteres, incluyendo números y símbolos.
+          Entre {{ minLength }} y {{ maxLength }} caracteres, incluyendo números y símbolos.
         </p>
       }
     </div>

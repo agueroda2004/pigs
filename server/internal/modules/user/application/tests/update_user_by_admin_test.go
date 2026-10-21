@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,6 +52,21 @@ func TestUpdateUserByAdminServiceExecute(t *testing.T) {
 
 		if err != nil || hasher.password != "" || user.Password != "old-hash" {
 			t.Fatalf("unexpected result: err=%v hashInput=%q password=%q", err, hasher.password, user.Password)
+		}
+	})
+
+	t.Run("rejects an invalid password before hashing", func(t *testing.T) {
+		user := testUser(userID)
+		repository := &fakeUserRepository{getUser: user}
+		hasher := &fakePasswordHasher{hash: "unused"}
+		service := userapplication.NewUpdateUserByAdminService(repository, hasher, time.Now)
+
+		for _, password := range []string{"", strings.Repeat("a", 51)} {
+			_, err := service.Execute(context.Background(), userID, userapplication.UpdateUserByAdminCommand{Password: &password, UpdatedBy: "admin-1"})
+
+			if !errors.Is(err, userdomain.ErrInvalidPassword) || hasher.password != "" || repository.updated != nil {
+				t.Fatalf("unexpected result: err=%v hashInput=%q updated=%v", err, hasher.password, repository.updated)
+			}
 		}
 	})
 

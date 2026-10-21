@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,10 +58,24 @@ func TestCreateUserServiceExecute(t *testing.T) {
 		repository := &fakeUserRepository{existsErr: expected}
 		service := userapplication.NewCreateUserService(repository, &fakePasswordHasher{}, time.Now)
 
-		_, err := service.Execute(context.Background(), userapplication.CreateUserCommand{Username: "ana"})
+		_, err := service.Execute(context.Background(), userapplication.CreateUserCommand{Username: "ana", Password: "secret"})
 
 		if !errors.Is(err, expected) {
 			t.Fatalf("Execute() error = %v, want %v", err, expected)
+		}
+	})
+
+	t.Run("rejects an invalid password before hashing", func(t *testing.T) {
+		repository := &fakeUserRepository{}
+		hasher := &fakePasswordHasher{hash: "unused"}
+		service := userapplication.NewCreateUserService(repository, hasher, time.Now)
+
+		for _, password := range []string{"", strings.Repeat("a", 51)} {
+			_, err := service.Execute(context.Background(), userapplication.CreateUserCommand{Name: "Ana", Username: "ana", Password: password})
+
+			if !errors.Is(err, userdomain.ErrInvalidPassword) || hasher.password != "" || repository.created != nil {
+				t.Fatalf("unexpected result: err=%v hashInput=%q created=%v", err, hasher.password, repository.created)
+			}
 		}
 	})
 

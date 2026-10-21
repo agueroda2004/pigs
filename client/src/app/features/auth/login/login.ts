@@ -4,6 +4,9 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { AuthService } from '../../../core/auth/auth.service';
 import { ThemeToggle } from '../../../shared/ui/theme-toggle/theme-toggle';
+import { PASSWORD_MAX_LENGTH } from '../../../shared/utils/password-strength';
+
+const MAX_CREDENTIAL_LENGTH = PASSWORD_MAX_LENGTH;
 
 @Component({
   selector: 'app-login',
@@ -17,10 +20,12 @@ export class Login {
   private readonly route = inject(ActivatedRoute);
 
   protected readonly form = inject(FormBuilder).nonNullable.group({
-    username: ['', Validators.required],
-    password: ['', Validators.required],
+    username: ['', [Validators.required, Validators.maxLength(MAX_CREDENTIAL_LENGTH)]],
+    password: ['', [Validators.required, Validators.maxLength(MAX_CREDENTIAL_LENGTH)]],
   });
 
+  protected readonly maxLength = MAX_CREDENTIAL_LENGTH;
+  protected readonly showPassword = signal(false);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
 

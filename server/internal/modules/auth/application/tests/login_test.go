@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -52,6 +53,30 @@ func TestLoginServiceExecute(t *testing.T) {
 		}
 		if !result.RefreshExpiresAt.Equal(now.Add(refreshTTL)) {
 			t.Fatalf("unexpected expiry: %v", result.RefreshExpiresAt)
+		}
+	})
+
+	t.Run("rejects credentials over the max length without querying the user", func(t *testing.T) {
+		for _, tt := range []struct {
+			name     string
+			username string
+			password string
+		}{
+			{"empty username", "   ", "secret"},
+			{"long username", strings.Repeat("a", 51), "secret"},
+			{"empty password", "ana", ""},
+			{"long password", "ana", strings.Repeat("b", 51)},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				users := &fakeUserReader{findUser: testUser(userID)}
+				service := newService(users, &fakePasswordVerifier{}, &fakeRefreshTokenRepository{})
+
+				_, err := service.Execute(context.Background(), authapplication.LoginCommand{Username: tt.username, Password: tt.password})
+
+				if !errors.Is(err, authapplication.ErrInvalidCredentials) || users.findCalls != 0 {
+					t.Fatalf("error = %v, find calls = %d, want ErrInvalidCredentials and 0 calls", err, users.findCalls)
+				}
+			})
 		}
 	})
 

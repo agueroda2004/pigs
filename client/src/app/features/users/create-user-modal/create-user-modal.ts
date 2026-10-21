@@ -16,6 +16,7 @@ import { UsersService } from '../../../core/users/users.service';
 import { Dropdown, DropdownOption } from '../../../shared/ui/dropdown/dropdown';
 import { Modal } from '../../../shared/ui/modal/modal';
 import {
+  PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
   PASSWORD_PATTERN,
   PasswordStrength,
@@ -44,6 +45,7 @@ export class CreateUserModal {
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly minLength = PASSWORD_MIN_LENGTH;
+  protected readonly maxLength = PASSWORD_MAX_LENGTH;
   protected readonly roleOptions: DropdownOption[] = [
     { value: 'User', label: 'Usuario' },
     { value: 'Admin', label: 'Administrador' },
@@ -62,6 +64,7 @@ export class CreateUserModal {
         [
           Validators.required,
           Validators.minLength(PASSWORD_MIN_LENGTH),
+          Validators.maxLength(PASSWORD_MAX_LENGTH),
           Validators.pattern(PASSWORD_PATTERN),
         ],
       ],

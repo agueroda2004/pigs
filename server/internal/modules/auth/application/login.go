@@ -63,7 +63,12 @@ func NewLoginService(
 // Execute authenticates a user and issues an access token plus a stored refresh token.
 // It returns ErrInvalidCredentials when the user is unknown or the password does not match.
 func (s *LoginService) Execute(ctx context.Context, command LoginCommand) (*LoginResult, error) {
-	user, err := s.users.FindByUsername(ctx, command.Username)
+	credentials, err := authdomain.NewLoginCredentials(command.Username, command.Password)
+	if err != nil {
+		return nil, ErrInvalidCredentials
+	}
+
+	user, err := s.users.FindByUsername(ctx, credentials.Username)
 	if err != nil {
 		if errors.Is(err, userports.ErrUserNotFound) {
 			return nil, ErrInvalidCredentials
@@ -71,7 +76,7 @@ func (s *LoginService) Execute(ctx context.Context, command LoginCommand) (*Logi
 		return nil, err
 	}
 
-	if err := s.passwordVerifier.Verify(user.Password, command.Password); err != nil {
+	if err := s.passwordVerifier.Verify(user.Password, credentials.Password); err != nil {
 		return nil, ErrInvalidCredentials
 	}
 

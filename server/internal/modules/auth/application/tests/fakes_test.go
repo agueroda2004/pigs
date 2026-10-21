@@ -10,13 +10,15 @@ import (
 )
 
 type fakeUserReader struct {
-	findUser *userdomain.User
-	findErr  error
-	getUser  *userdomain.User
-	getErr   error
+	findUser  *userdomain.User
+	findErr   error
+	findCalls int
+	getUser   *userdomain.User
+	getErr    error
 }
 
 func (f *fakeUserReader) FindByUsername(_ context.Context, _ string) (*userdomain.User, error) {
+	f.findCalls++
 	return f.findUser, f.findErr
 }
 

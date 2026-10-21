@@ -11,6 +11,30 @@ import (
 	userdomain "server/internal/modules/user/domain"
 )
 
+func TestValidatePassword(t *testing.T) {
+	t.Run("accepts a valid password", func(t *testing.T) {
+		if err := userdomain.ValidatePassword("secret"); err != nil {
+			t.Fatalf("ValidatePassword() error = %v", err)
+		}
+	})
+
+	t.Run("accepts a password at exactly the max length", func(t *testing.T) {
+		if err := userdomain.ValidatePassword(strings.Repeat("a", 50)); err != nil {
+			t.Fatalf("ValidatePassword() error = %v", err)
+		}
+	})
+
+	t.Run("rejects empty and too long passwords", func(t *testing.T) {
+		if err := userdomain.ValidatePassword(""); !errors.Is(err, userdomain.ErrInvalidPassword) {
+			t.Fatalf("error = %v, want ErrInvalidPassword", err)
+		}
+
+		if err := userdomain.ValidatePassword(strings.Repeat("a", 51)); !errors.Is(err, userdomain.ErrInvalidPassword) {
+			t.Fatalf("error = %v, want ErrInvalidPassword", err)
+		}
+	})
+}
+
 func TestNewUser(t *testing.T) {
 	now := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
 	userID := uuid.New()

@@ -53,6 +53,9 @@ func (s *UpdateUserByAdminService) Execute(
 
 	var passwordHash *string
 	if command.Password != nil {
+		if err := userdomain.ValidatePassword(*command.Password); err != nil {
+			return nil, err
+		}
 		hash, err := s.hasher.Hash(*command.Password)
 		if err != nil {
 			return nil, err

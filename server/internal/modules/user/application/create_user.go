@@ -44,6 +44,10 @@ func NewCreateUserService(
 // Execute creates a new user after ensuring the username is free and hashing the password.
 // It returns ErrUsernameAlreadyExists when the username is already taken.
 func (s *CreateUserService) Execute(ctx context.Context, command CreateUserCommand) (*userdomain.User, error) {
+	if err := userdomain.ValidatePassword(command.Password); err != nil {
+		return nil, err
+	}
+
 	username := strings.TrimSpace(command.Username)
 	exists, err := s.repository.ExistsByUsername(ctx, username)
 	if err != nil {

@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	maxNameLength     = 50
-	maxUsernameLength = 50
+	MaxNameLength     = 50
+	MaxUsernameLength = 50
+	MaxPasswordLength = 50
 )
 
 type Role string
@@ -24,7 +25,7 @@ var (
 	ErrInvalidID        = errors.New("El identificador del usuario es obligatorio")
 	ErrInvalidName      = errors.New("El nombre es obligatorio y debe tener como máximo 50 caracteres")
 	ErrInvalidUsername  = errors.New("El nombre de usuario es obligatorio y debe tener como máximo 50 caracteres")
-	ErrInvalidPassword  = errors.New("La contraseña es obligatoria")
+	ErrInvalidPassword  = errors.New("La contraseña es obligatoria y debe tener como máximo 50 caracteres")
 	ErrInvalidRole      = errors.New("El rol del usuario no es válido")
 	ErrInvalidUpdate    = errors.New("Debe actualizar al menos un campo del usuario")
 	ErrInvalidUpdatedBy = errors.New("El usuario que realiza la actualización es obligatorio")
@@ -199,7 +200,7 @@ func (u *User) UpdateByAdmin(
 // It returns ErrInvalidName when the name exceeds the maximum length.
 func validateName(name string) (string, error) {
 	name = strings.TrimSpace(name)
-	if name == "" || len([]rune(name)) > maxNameLength {
+	if name == "" || len([]rune(name)) > MaxNameLength {
 		return "", ErrInvalidName
 	}
 	return name, nil
@@ -209,10 +210,19 @@ func validateName(name string) (string, error) {
 // It returns ErrInvalidUsername when the username exceeds the maximum length.
 func validateUsername(username string) (string, error) {
 	username = strings.TrimSpace(username)
-	if username == "" || len([]rune(username)) > maxUsernameLength {
+	if username == "" || len([]rune(username)) > MaxUsernameLength {
 		return "", ErrInvalidUsername
 	}
 	return username, nil
+}
+
+// ValidatePassword checks a plain-text password before it is hashed.
+// It returns ErrInvalidPassword when the password is empty or exceeds the maximum length.
+func ValidatePassword(password string) error {
+	if password == "" || len([]rune(password)) > MaxPasswordLength {
+		return ErrInvalidPassword
+	}
+	return nil
 }
 
 // isValidRole checks whether the role belongs to the user domain.
