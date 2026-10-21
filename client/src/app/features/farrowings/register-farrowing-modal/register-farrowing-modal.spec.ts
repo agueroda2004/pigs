@@ -105,14 +105,41 @@ describe('RegisterFarrowingModal', () => {
     expect(created).toHaveBeenCalledWith('C-001');
   });
 
-  it('sends zero for counts left empty', async () => {
+  it('does not submit when a piglet count is missing', async () => {
+    for (const field of ['live_born', 'stillborn', 'mummified'] as const) {
+      const component = create();
+      fill(component);
+      component.form.controls[field].setValue(null);
+
+      await component.submit();
+
+      expect(component.form.controls[field].hasError('required')).toBe(true);
+      expect(stub.createFarrowing).not.toHaveBeenCalled();
+    }
+  });
+
+  it('does not submit when a piglet count is greater than 30', async () => {
+    for (const field of ['live_born', 'stillborn', 'mummified'] as const) {
+      const component = create();
+      fill(component);
+      component.form.controls[field].setValue(31);
+
+      await component.submit();
+
+      expect(component.form.controls[field].hasError('max')).toBe(true);
+      expect(stub.createFarrowing).not.toHaveBeenCalled();
+    }
+  });
+
+  it('accepts a piglet count of 30', async () => {
     const component = create();
-    component.form.patchValue({ sow_id: 'sow-1', farrow_date: '2026-04-20' });
+    fill(component);
+    component.form.patchValue({ live_born: 30, stillborn: 30, mummified: 30 });
 
     await component.submit();
 
     expect(stub.createFarrowing).toHaveBeenCalledWith(
-      expect.objectContaining({ live_born: 0, stillborn: 0, mummified: 0 }),
+      expect.objectContaining({ live_born: 30, stillborn: 30, mummified: 30 }),
     );
   });
 

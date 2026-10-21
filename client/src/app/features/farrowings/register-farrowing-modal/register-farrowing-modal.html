@@ -41,10 +41,15 @@
           id="farrowing-live-born"
           type="number"
           min="0"
+          max="30"
           formControlName="live_born"
           class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
         />
-        @if (form.controls.live_born.touched && form.controls.live_born.invalid) {
+        @if (form.controls.live_born.touched && form.controls.live_born.hasError('required')) {
+          <p class="text-xs text-danger">La cantidad de nacidos vivos es obligatoria.</p>
+        } @else if (form.controls.live_born.touched && form.controls.live_born.hasError('max')) {
+          <p class="text-xs text-danger">La cantidad no puede ser mayor a 30.</p>
+        } @else if (form.controls.live_born.touched && form.controls.live_born.invalid) {
           <p class="text-xs text-danger">La cantidad no puede ser negativa.</p>
         }
       </div>
@@ -55,10 +60,15 @@
           id="farrowing-stillborn"
           type="number"
           min="0"
+          max="30"
           formControlName="stillborn"
           class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
         />
-        @if (form.controls.stillborn.touched && form.controls.stillborn.invalid) {
+        @if (form.controls.stillborn.touched && form.controls.stillborn.hasError('required')) {
+          <p class="text-xs text-danger">La cantidad de nacidos muertos es obligatoria.</p>
+        } @else if (form.controls.stillborn.touched && form.controls.stillborn.hasError('max')) {
+          <p class="text-xs text-danger">La cantidad no puede ser mayor a 30.</p>
+        } @else if (form.controls.stillborn.touched && form.controls.stillborn.invalid) {
           <p class="text-xs text-danger">La cantidad no puede ser negativa.</p>
         }
       </div>
@@ -69,10 +79,15 @@
           id="farrowing-mummified"
           type="number"
           min="0"
+          max="30"
           formControlName="mummified"
           class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
         />
-        @if (form.controls.mummified.touched && form.controls.mummified.invalid) {
+        @if (form.controls.mummified.touched && form.controls.mummified.hasError('required')) {
+          <p class="text-xs text-danger">La cantidad de momificados es obligatoria.</p>
+        } @else if (form.controls.mummified.touched && form.controls.mummified.hasError('max')) {
+          <p class="text-xs text-danger">La cantidad no puede ser mayor a 30.</p>
+        } @else if (form.controls.mummified.touched && form.controls.mummified.invalid) {
           <p class="text-xs text-danger">La cantidad no puede ser negativa.</p>
         }
       </div>

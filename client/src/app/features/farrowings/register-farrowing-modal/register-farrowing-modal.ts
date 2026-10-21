@@ -57,9 +57,18 @@ export class RegisterFarrowingModal {
     start_time: [''],
     end_time: [''],
     location: ['', [Validators.maxLength(100)]],
-    live_born: [null as number | null, [Validators.min(0)]],
-    stillborn: [null as number | null, [Validators.min(0)]],
-    mummified: [null as number | null, [Validators.min(0)]],
+    live_born: [
+      null as number | null,
+      [Validators.required, Validators.min(0), Validators.max(30)],
+    ],
+    stillborn: [
+      null as number | null,
+      [Validators.required, Validators.min(0), Validators.max(30)],
+    ],
+    mummified: [
+      null as number | null,
+      [Validators.required, Validators.min(0), Validators.max(30)],
+    ],
     litter_weight: [null as number | null, [Validators.min(0)]],
     stillborn_weight: [null as number | null, [Validators.min(0)]],
     is_manipulated: [false],
@@ -106,15 +115,20 @@ export class RegisterFarrowingModal {
       return;
     }
 
+    const value = this.form.getRawValue();
+    if (value.live_born === null || value.stillborn === null || value.mummified === null) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
     this.loading.set(true);
 
-    const value = this.form.getRawValue();
     const request: CreateFarrowingRequest = {
       sow_id: value.sow_id,
       farrow_date: value.farrow_date,
-      live_born: value.live_born ?? 0,
-      stillborn: value.stillborn ?? 0,
-      mummified: value.mummified ?? 0,
+      live_born: value.live_born,
+      stillborn: value.stillborn,
+      mummified: value.mummified,
       is_manipulated: value.is_manipulated,
       operators: value.operators.map((operator): CreateFarrowingOperatorRequest => ({
         operator_id: operator.operator_id,
