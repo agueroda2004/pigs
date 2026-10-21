@@ -64,14 +64,18 @@ func testMedication(id uuid.UUID) *medicationdomain.Medication {
 func validCommand(sowID, createdBy uuid.UUID) farrowingapplication.CreateFarrowingCommand {
 	location := "Corral 3"
 	note := "Parto sin complicaciones"
+	litterWeight := 15.5
+	stillbornWeight := 1.5
 	return farrowingapplication.CreateFarrowingCommand{
-		SowID:      sowID,
-		FarrowDate: farrowDay,
-		Location:   &location,
-		LiveBorn:   10,
-		Stillborn:  1,
-		Mummified:  0,
-		Note:       &note,
-		CreatedBy:  createdBy,
+		SowID:           sowID,
+		FarrowDate:      farrowDay,
+		Location:        &location,
+		LiveBorn:        10,
+		Stillborn:       1,
+		Mummified:       0,
+		LitterWeight:    &litterWeight,
+		StillbornWeight: &stillbornWeight,
+		Note:            &note,
+		CreatedBy:       createdBy,
 	}
 }

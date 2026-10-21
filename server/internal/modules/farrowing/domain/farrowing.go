@@ -14,6 +14,8 @@ const (
 	maxNoteLength     = 500
 	maxTimeLength     = 5
 	maxPigletCount    = 30
+	maxWeight         = 30.0
+	maxMedicationDose = 30.0
 )
 
 var timeLayout = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
@@ -41,7 +43,17 @@ var (
 	// ErrStillbornRequired is returned when the create request omits the stillborn count.
 	ErrStillbornRequired = errors.New("La cantidad de nacidos muertos es obligatoria")
 	// ErrMummifiedRequired is returned when the create request omits the mummified count.
-	ErrMummifiedRequired       = errors.New("La cantidad de momificados es obligatoria")
+	ErrMummifiedRequired = errors.New("La cantidad de momificados es obligatoria")
+	// ErrLitterWeightRequired is returned when the create request omits the litter weight.
+	ErrLitterWeightRequired = errors.New("El peso de la camada es obligatorio")
+	// ErrStillbornWeightRequired is returned when the create request omits the stillborn weight.
+	ErrStillbornWeightRequired = errors.New("El peso de los nacidos muertos es obligatorio")
+	// ErrLitterWeightTooHigh is returned when the litter weight is greater than the limit.
+	ErrLitterWeightTooHigh = errors.New("El peso de la camada no puede ser mayor a 30 kg")
+	// ErrStillbornWeightTooHigh is returned when the stillborn weight is greater than the limit.
+	ErrStillbornWeightTooHigh = errors.New("El peso de los nacidos muertos no puede ser mayor a 30 kg")
+	// ErrMedicationDoseTooHigh is returned when a medication dose is greater than the limit.
+	ErrMedicationDoseTooHigh   = errors.New("La dosis del medicamento no puede ser mayor a 30")
 	ErrInvalidLitterWeight     = errors.New("El peso de la camada no puede ser negativo")
 	ErrInvalidStillbornWeight  = errors.New("El peso de los nacidos muertos no puede ser negativo")
 	ErrInvalidNote             = errors.New("La nota debe tener como máximo 500 caracteres")
@@ -97,8 +109,8 @@ type Farrowing struct {
 }
 
 // NewFarrowingParams holds the fields required to build a new farrowing.
-// Optional values are pointers and may be nil; the counts default to zero and
-// the manipulation flag defaults to false.
+// Optional values are pointers and may be nil; both weights are required, the
+// counts default to zero and the manipulation flag defaults to false.
 type NewFarrowingParams struct {
 	ID              uuid.UUID
 	ServiceID       uuid.UUID
@@ -120,9 +132,10 @@ type NewFarrowingParams struct {
 // NewFarrowing builds a farrowing with its operators and medications after
 // validating every field. It rejects a farrow date in the future or not later
 // than the last mount date, validates time formats without comparing them (so
-// overnight farrowings are allowed), rejects any piglet count over 30 and rejects
-// duplicate operators or medications. It sets the audit fields to the creator and
-// both timestamps to now. The current piglets balance starts at the live born count.
+// overnight farrowings are allowed), requires both weights, rejects any piglet
+// count, weight or medication dose over 30 and rejects duplicate operators or
+// medications. It sets the audit fields to the creator and both timestamps to now.
+// The current piglets balance starts at the live born count.
 func NewFarrowing(
 	params NewFarrowingParams,
 	operators []NewFarrowingOperatorParams,
@@ -186,15 +199,31 @@ func NewFarrowing(
 	if params.Mummified > maxPigletCount {
 		return nil, ErrMummifiedTooHigh
 	}
-	if params.LitterWeight != nil && *params.LitterWeight < 0 {
+	if params.LitterWeight == nil {
+		return nil, ErrLitterWeightRequired
+	}
+	if params.StillbornWeight == nil {
+		return nil, ErrStillbornWeightRequired
+	}
+	if *params.LitterWeight < 0 {
 		return nil, ErrInvalidLitterWeight
 	}
-	if params.StillbornWeight != nil && *params.StillbornWeight < 0 {
+	if *params.LitterWeight > maxWeight {
+		return nil, ErrLitterWeightTooHigh
+	}
+	if *params.StillbornWeight < 0 {
 		return nil, ErrInvalidStillbornWeight
+	}
+	if *params.StillbornWeight > maxWeight {
+		return nil, ErrStillbornWeightTooHigh
 	}
 
 	if params.CreatedBy == uuid.Nil {
 		return nil, ErrInvalidCreatedBy
+	}
+
+	if err := validateMedicationDoses(medications); err != nil {
+		return nil, err
 	}
 
 	builtOperators, err := buildOperators(operators, params.ID, now)
@@ -406,6 +435,17 @@ func (f *Farrowing) Update(params UpdateFarrowingParams, reference UpdateFarrowi
 
 	f.UpdatedAt = now
 	f.UpdatedBy = updatedBy
+	return nil
+}
+
+// validateMedicationDoses checks that every medication dose is at most 30.
+// It returns ErrMedicationDoseTooHigh for the first dose above the limit.
+func validateMedicationDoses(medications []NewFarrowingMedicationParams) error {
+	for _, medication := range medications {
+		if medication.Dose > maxMedicationDose {
+			return ErrMedicationDoseTooHigh
+		}
+	}
 	return nil
 }
 

@@ -27,6 +27,7 @@ func TestFarrowingHandlerCreate(t *testing.T) {
 		`{"sow_id":"%s","farrow_date":"2026-04-20",`+
 			`"start_time":"22:00","end_time":"02:00","location":"Corral 3",`+
 			`"live_born":10,"stillborn":1,"mummified":0,"is_manipulated":true,`+
+			`"litter_weight":15.5,"stillborn_weight":1.5,`+
 			`"operators":[{"operator_id":"%s"}],`+
 			`"medications":[{"medication_id":"%s","dose":2,"applied_by":"%s"}]}`,
 		sowID, operatorID, medicationID, operatorID,
@@ -48,6 +49,12 @@ func TestFarrowingHandlerCreate(t *testing.T) {
 		if create.command.LiveBorn != 10 || !create.command.IsManipulated {
 			t.Fatalf("unexpected command: %#v", create.command)
 		}
+		if create.command.LitterWeight == nil || *create.command.LitterWeight != 15.5 {
+			t.Fatalf("unexpected litter weight: %#v", create.command.LitterWeight)
+		}
+		if create.command.StillbornWeight == nil || *create.command.StillbornWeight != 1.5 {
+			t.Fatalf("unexpected stillborn weight: %#v", create.command.StillbornWeight)
+		}
 		if !create.command.FarrowDate.Equal(time.Date(2026, time.April, 20, 0, 0, 0, 0, time.UTC)) {
 			t.Fatalf("unexpected date: %v", create.command.FarrowDate)
 		}
@@ -68,6 +75,7 @@ func TestFarrowingHandlerCreate(t *testing.T) {
 		decimalBody := fmt.Sprintf(
 			`{"sow_id":"%s","farrow_date":"2026-04-20",`+
 				`"live_born":10,"stillborn":0,"mummified":0,`+
+				`"litter_weight":15.5,"stillborn_weight":1.5,`+
 				`"medications":[{"medication_id":"%s","dose":0.5,"applied_by":"%s"}]}`,
 			sowID, medicationID, operatorID,
 		)
@@ -182,6 +190,11 @@ func TestFarrowingHandlerCreate(t *testing.T) {
 			{"live born required", farrowingdomain.ErrLiveBornRequired, http.StatusBadRequest},
 			{"stillborn required", farrowingdomain.ErrStillbornRequired, http.StatusBadRequest},
 			{"mummified required", farrowingdomain.ErrMummifiedRequired, http.StatusBadRequest},
+			{"litter weight required", farrowingdomain.ErrLitterWeightRequired, http.StatusBadRequest},
+			{"stillborn weight required", farrowingdomain.ErrStillbornWeightRequired, http.StatusBadRequest},
+			{"litter weight too high", farrowingdomain.ErrLitterWeightTooHigh, http.StatusBadRequest},
+			{"stillborn weight too high", farrowingdomain.ErrStillbornWeightTooHigh, http.StatusBadRequest},
+			{"medication dose too high", farrowingdomain.ErrMedicationDoseTooHigh, http.StatusBadRequest},
 			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
 		} {
 			t.Run(test.name, func(t *testing.T) {

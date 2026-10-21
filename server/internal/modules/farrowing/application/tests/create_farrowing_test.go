@@ -214,6 +214,89 @@ func TestCreateFarrowingExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects missing weights", func(t *testing.T) {
+		for _, test := range []struct {
+			name string
+			set  func(*farrowingapplication.CreateFarrowingCommand)
+			want error
+		}{
+			{"litter weight", func(c *farrowingapplication.CreateFarrowingCommand) { c.LitterWeight = nil }, farrowingdomain.ErrLitterWeightRequired},
+			{"stillborn weight", func(c *farrowingapplication.CreateFarrowingCommand) { c.StillbornWeight = nil }, farrowingdomain.ErrStillbornWeightRequired},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				repository := repositoryWith()
+				command := validCommand(sowID, actorID)
+				test.set(&command)
+				useCase := farrowingapplication.NewCreateFarrowingService(repository, func() time.Time { return nowReference })
+
+				_, err := useCase.Execute(context.Background(), command)
+
+				if !errors.Is(err, test.want) {
+					t.Fatalf("error = %v, want %v", err, test.want)
+				}
+				if repository.created != nil {
+					t.Fatalf("farrowing must not be persisted")
+				}
+			})
+		}
+	})
+
+	t.Run("rejects weights greater than 30", func(t *testing.T) {
+		for _, test := range []struct {
+			name string
+			set  func(*farrowingapplication.CreateFarrowingCommand)
+			want error
+		}{
+			{"litter weight", func(c *farrowingapplication.CreateFarrowingCommand) {
+				value := 30.5
+				c.LitterWeight = &value
+			}, farrowingdomain.ErrLitterWeightTooHigh},
+			{"stillborn weight", func(c *farrowingapplication.CreateFarrowingCommand) {
+				value := 30.5
+				c.StillbornWeight = &value
+			}, farrowingdomain.ErrStillbornWeightTooHigh},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				repository := repositoryWith()
+				command := validCommand(sowID, actorID)
+				test.set(&command)
+				useCase := farrowingapplication.NewCreateFarrowingService(repository, func() time.Time { return nowReference })
+
+				_, err := useCase.Execute(context.Background(), command)
+
+				if !errors.Is(err, test.want) {
+					t.Fatalf("error = %v, want %v", err, test.want)
+				}
+				if repository.created != nil {
+					t.Fatalf("farrowing must not be persisted")
+				}
+			})
+		}
+	})
+
+	t.Run("rejects a medication dose greater than 30", func(t *testing.T) {
+		repository := repositoryWith()
+		operatorID := uuid.New()
+		medicationID := uuid.New()
+		repository.operators[operatorID] = testOperator(operatorID)
+		repository.medications[medicationID] = testMedication(medicationID)
+
+		command := validCommand(sowID, actorID)
+		command.Medications = []farrowingapplication.CreateFarrowingMedicationInput{
+			{MedicationID: medicationID, Dose: 31, AppliedBy: operatorID},
+		}
+		useCase := farrowingapplication.NewCreateFarrowingService(repository, func() time.Time { return nowReference })
+
+		_, err := useCase.Execute(context.Background(), command)
+
+		if !errors.Is(err, farrowingdomain.ErrMedicationDoseTooHigh) {
+			t.Fatalf("error = %v, want ErrMedicationDoseTooHigh", err)
+		}
+		if repository.created != nil {
+			t.Fatalf("farrowing must not be persisted")
+		}
+	})
+
 	t.Run("propagates a persistence error", func(t *testing.T) {
 		repository := repositoryWith()
 		repository.createErr = errors.New("boom")

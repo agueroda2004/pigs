@@ -11,12 +11,16 @@ import (
 )
 
 func validParams() farrowingdomain.NewFarrowingParams {
+	litterWeight := 15.5
+	stillbornWeight := 2.5
 	return farrowingdomain.NewFarrowingParams{
-		ID:         uuid.New(),
-		ServiceID:  uuid.New(),
-		SowID:      uuid.New(),
-		FarrowDate: time.Date(2026, time.February, 1, 0, 0, 0, 0, time.UTC),
-		CreatedBy:  uuid.New(),
+		ID:              uuid.New(),
+		ServiceID:       uuid.New(),
+		SowID:           uuid.New(),
+		FarrowDate:      time.Date(2026, time.February, 1, 0, 0, 0, 0, time.UTC),
+		LitterWeight:    &litterWeight,
+		StillbornWeight: &stillbornWeight,
+		CreatedBy:       uuid.New(),
 	}
 }
 
@@ -229,6 +233,102 @@ func TestNewFarrowing(t *testing.T) {
 					t.Fatalf("error = %v, want %v", err, test.want)
 				}
 			})
+		}
+	})
+
+	t.Run("requires both weights", func(t *testing.T) {
+		for _, test := range []struct {
+			name string
+			set  func(*farrowingdomain.NewFarrowingParams)
+			want error
+		}{
+			{"litter weight", func(p *farrowingdomain.NewFarrowingParams) { p.LitterWeight = nil }, farrowingdomain.ErrLitterWeightRequired},
+			{"stillborn weight", func(p *farrowingdomain.NewFarrowingParams) { p.StillbornWeight = nil }, farrowingdomain.ErrStillbornWeightRequired},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				params := validParams()
+				test.set(&params)
+
+				_, err := farrowingdomain.NewFarrowing(params, nil, nil, lastMount, now)
+
+				if !errors.Is(err, test.want) {
+					t.Fatalf("error = %v, want %v", err, test.want)
+				}
+			})
+		}
+	})
+
+	t.Run("accepts weights up to 30", func(t *testing.T) {
+		params := validParams()
+		limit := 30.0
+		params.LitterWeight = &limit
+		params.StillbornWeight = &limit
+
+		farrowing, err := farrowingdomain.NewFarrowing(params, nil, nil, lastMount, now)
+
+		if err != nil {
+			t.Fatalf("NewFarrowing() error = %v", err)
+		}
+		if farrowing.LitterWeight == nil || *farrowing.LitterWeight != 30 {
+			t.Fatalf("unexpected litter weight: %#v", farrowing.LitterWeight)
+		}
+		if farrowing.StillbornWeight == nil || *farrowing.StillbornWeight != 30 {
+			t.Fatalf("unexpected stillborn weight: %#v", farrowing.StillbornWeight)
+		}
+	})
+
+	t.Run("rejects weights greater than 30", func(t *testing.T) {
+		for _, test := range []struct {
+			name string
+			set  func(*farrowingdomain.NewFarrowingParams)
+			want error
+		}{
+			{"litter weight", func(p *farrowingdomain.NewFarrowingParams) {
+				value := 30.5
+				p.LitterWeight = &value
+			}, farrowingdomain.ErrLitterWeightTooHigh},
+			{"stillborn weight", func(p *farrowingdomain.NewFarrowingParams) {
+				value := 30.5
+				p.StillbornWeight = &value
+			}, farrowingdomain.ErrStillbornWeightTooHigh},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				params := validParams()
+				test.set(&params)
+
+				_, err := farrowingdomain.NewFarrowing(params, nil, nil, lastMount, now)
+
+				if !errors.Is(err, test.want) {
+					t.Fatalf("error = %v, want %v", err, test.want)
+				}
+			})
+		}
+	})
+
+	t.Run("accepts a medication dose of 30", func(t *testing.T) {
+		medication := farrowingdomain.NewFarrowingMedicationParams{
+			ID: uuid.New(), MedicationID: uuid.New(), Dose: 30, AppliedBy: uuid.New(),
+		}
+
+		farrowing, err := farrowingdomain.NewFarrowing(validParams(), nil, []farrowingdomain.NewFarrowingMedicationParams{medication}, lastMount, now)
+
+		if err != nil {
+			t.Fatalf("NewFarrowing() error = %v", err)
+		}
+		if len(farrowing.Medications) != 1 || farrowing.Medications[0].Dose != 30 {
+			t.Fatalf("unexpected medications: %#v", farrowing.Medications)
+		}
+	})
+
+	t.Run("rejects a medication dose greater than 30", func(t *testing.T) {
+		medication := farrowingdomain.NewFarrowingMedicationParams{
+			ID: uuid.New(), MedicationID: uuid.New(), Dose: 30.5, AppliedBy: uuid.New(),
+		}
+
+		_, err := farrowingdomain.NewFarrowing(validParams(), nil, []farrowingdomain.NewFarrowingMedicationParams{medication}, lastMount, now)
+
+		if !errors.Is(err, farrowingdomain.ErrMedicationDoseTooHigh) {
+			t.Fatalf("error = %v, want ErrMedicationDoseTooHigh", err)
 		}
 	})
 
