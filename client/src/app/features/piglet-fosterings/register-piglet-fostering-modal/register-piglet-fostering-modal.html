@@ -1,4 +1,9 @@
-<app-modal [open]="open()" size="xl" title="Registrar traslado" (closed)="closed.emit()">
+<app-modal
+  [open]="open()"
+  size="xl"
+  [title]="editing() ? 'Editar traslado' : 'Registrar traslado'"
+  (closed)="closed.emit()"
+>
   <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
     <div class="grid gap-4 sm:grid-cols-2">
       <div class="space-y-1.5">
@@ -26,7 +31,9 @@
       </div>
     </div>
 
-    @if (form.hasError('sameSow') && form.controls.receiver_sow_id.touched) {
+    @if (editing()) {
+      <p class="text-xs text-muted-foreground">Las cerdas no se pueden cambiar en el traslado.</p>
+    } @else if (form.hasError('sameSow') && form.controls.receiver_sow_id.touched) {
       <p class="text-xs text-danger">Las cerdas donante y receptora no pueden ser la misma.</p>
     }
 
@@ -49,10 +56,15 @@
           id="piglet-fostering-quantity"
           type="number"
           min="1"
+          [max]="maxQuantity"
           formControlName="quantity"
           class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
         />
-        @if (form.controls.quantity.touched && form.controls.quantity.invalid) {
+        @if (form.controls.quantity.touched && form.controls.quantity.hasError('max')) {
+          <p class="text-xs text-danger">
+            La cantidad no puede superar {{ maxQuantity }} lechones.
+          </p>
+        } @else if (form.controls.quantity.touched && form.controls.quantity.invalid) {
           <p class="text-xs text-danger">La cantidad debe ser mayor a cero.</p>
         }
       </div>
@@ -84,7 +96,11 @@
         [disabled]="loading()"
         class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {{ loading() ? 'Registrando…' : 'Registrar traslado' }}
+        @if (editing()) {
+          {{ loading() ? 'Guardando…' : 'Guardar cambios' }}
+        } @else {
+          {{ loading() ? 'Registrando…' : 'Registrar traslado' }}
+        }
       </button>
     </div>
   </form>

@@ -21,6 +21,12 @@ export interface CreatePigletFosteringRequest {
   note?: string;
 }
 
+export interface UpdatePigletFosteringRequest {
+  movement_date: string;
+  quantity: number;
+  note?: string;
+}
+
 export interface PigletFosteringFilters {
   donor_sow_id?: string;
   receiver_sow_id?: string;

@@ -4,12 +4,32 @@ import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { NotificationService } from '../../../core/notifications/notification.service';
+import { PigletFostering } from '../../../core/piglet-fosterings/piglet-fostering.models';
 import { PigletFosteringsService } from '../../../core/piglet-fosterings/piglet-fosterings.service';
 import { SowsService } from '../../../core/sows/sows.service';
 import { RegisterPigletFosteringModal } from './register-piglet-fostering-modal';
 
+function buildFostering(overrides: Partial<PigletFostering> = {}): PigletFostering {
+  return {
+    id: '42',
+    donor_farrowing_id: 'farrowing-1',
+    receiver_farrowing_id: 'farrowing-2',
+    donor_sow_id: 'sow-1',
+    receiver_sow_id: 'sow-2',
+    movement_date: '2026-04-25',
+    quantity: 2,
+    note: 'camada numerosa',
+    created_at: '',
+    updated_at: '',
+    created_by: 'admin',
+    updated_by: 'admin',
+    ...overrides,
+  };
+}
+
 class PigletFosteringsStub {
-  createPigletFostering = vi.fn((_request: Record<string, unknown>) => of({}));
+  createPigletFostering = vi.fn((_request: Record<string, unknown>) => of(undefined));
+  updatePigletFostering = vi.fn((_id: string, _request: Record<string, unknown>) => of(undefined));
 }
 
 class SowsStub {
@@ -46,7 +66,20 @@ describe('RegisterPigletFosteringModal', () => {
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const create = () => TestBed.createComponent(RegisterPigletFosteringModal).componentInstance as any;
+  const create = () =>
+    TestBed.createComponent(RegisterPigletFosteringModal).componentInstance as any;
+
+  const createEditing = async (fostering: PigletFostering = buildFostering()): Promise<any> => {
+    const fixture = TestBed.createComponent(RegisterPigletFosteringModal);
+    fixture.componentRef.setInput('fostering', fostering);
+    fixture.componentRef.setInput('donorSowCode', 'C-001');
+    fixture.componentRef.setInput('receiverSowCode', 'C-002');
+    fixture.componentRef.setInput('open', true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return fixture.componentInstance as any;
+  };
 
   const fill = (component: any): void => {
     component.form.patchValue({
@@ -87,7 +120,7 @@ describe('RegisterPigletFosteringModal', () => {
 
   it('creates a piglet fostering and emits both sow codes', async () => {
     const component = create();
-    component.sowOptions.set([
+    component.loadedSowOptions.set([
       { value: 'sow-1', label: 'C-001' },
       { value: 'sow-2', label: 'C-002' },
     ]);
@@ -114,6 +147,17 @@ describe('RegisterPigletFosteringModal', () => {
     await component.submit();
 
     expect(component.form.hasError('sameSow')).toBe(true);
+    expect(stub.createPigletFostering).not.toHaveBeenCalled();
+  });
+
+  it('rejects a quantity above the maximum', async () => {
+    const component = create();
+    fill(component);
+    component.form.patchValue({ quantity: 31 });
+
+    await component.submit();
+
+    expect(component.form.controls.quantity.hasError('max')).toBe(true);
     expect(stub.createPigletFostering).not.toHaveBeenCalled();
   });
 
@@ -145,5 +189,72 @@ describe('RegisterPigletFosteringModal', () => {
     await component.submit();
 
     expect(notifications.error).toHaveBeenCalledWith('La cerda no está lactando');
+  });
+
+  it('prefills the form and locks both sows when editing', async () => {
+    const component = await createEditing();
+
+    expect(component.editing()).toBe(true);
+    expect(component.form.getRawValue()).toEqual({
+      donor_sow_id: 'sow-1',
+      receiver_sow_id: 'sow-2',
+      movement_date: '2026-04-25',
+      quantity: 2,
+      note: 'camada numerosa',
+    });
+    expect(component.form.controls.donor_sow_id.disabled).toBe(true);
+    expect(component.form.controls.receiver_sow_id.disabled).toBe(true);
+    expect(component.sowOptions()).toEqual([
+      { value: 'sow-1', label: 'C-001' },
+      { value: 'sow-2', label: 'C-002' },
+    ]);
+  });
+
+  it('updates the fostering without sending the sows', async () => {
+    const component = await createEditing();
+    const updated = vi.fn();
+    component.updated.subscribe(updated);
+    component.form.patchValue({ movement_date: '2026-04-26', quantity: 3 });
+
+    await component.submit();
+
+    expect(stub.updatePigletFostering).toHaveBeenCalledWith('42', {
+      movement_date: '2026-04-26',
+      quantity: 3,
+      note: 'camada numerosa',
+    });
+    expect(stub.createPigletFostering).not.toHaveBeenCalled();
+    expect(updated).toHaveBeenCalled();
+  });
+
+  it('sends an empty note when the user clears it', async () => {
+    const component = await createEditing();
+
+    component.form.patchValue({ note: '' });
+    await component.submit();
+
+    expect(stub.updatePigletFostering).toHaveBeenCalledWith(
+      '42',
+      expect.objectContaining({ note: '' }),
+    );
+  });
+
+  it('shows the server error message when update fails', async () => {
+    stub.updatePigletFostering = vi.fn(() =>
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            error: { error: 'La fecha del traslado debe ser posterior al último destete parcial' },
+          }),
+      ),
+    );
+    const component = await createEditing();
+
+    await component.submit();
+
+    expect(notifications.error).toHaveBeenCalledWith(
+      'La fecha del traslado debe ser posterior al último destete parcial',
+    );
   });
 });

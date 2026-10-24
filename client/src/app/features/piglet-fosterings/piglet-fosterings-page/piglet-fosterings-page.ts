@@ -47,6 +47,7 @@ export class PigletFosteringsPage implements OnInit {
   protected readonly loading = signal(false);
   protected readonly error = signal(false);
   protected readonly modalOpen = signal(false);
+  protected readonly editingFostering = signal<PigletFostering | null>(null);
   protected readonly today = toISODate(new Date());
   protected readonly rangeError = signal<string | null>(null);
 
@@ -64,11 +65,18 @@ export class PigletFosteringsPage implements OnInit {
   }
 
   protected openModal(): void {
+    this.editingFostering.set(null);
+    this.modalOpen.set(true);
+  }
+
+  protected openEditModal(fostering: PigletFostering): void {
+    this.editingFostering.set(fostering);
     this.modalOpen.set(true);
   }
 
   protected closeModal(): void {
     this.modalOpen.set(false);
+    this.editingFostering.set(null);
   }
 
   protected async onCreated(codes: CreatedFostering): Promise<void> {
@@ -76,6 +84,22 @@ export class PigletFosteringsPage implements OnInit {
       `Traslado de "${codes.donor}" a "${codes.receiver}" registrado correctamente`,
     );
     await this.loadFosterings();
+  }
+
+  protected async onUpdated(): Promise<void> {
+    this.notifications.success('Traslado actualizado correctamente');
+    this.closeModal();
+    await this.loadFosterings();
+  }
+
+  protected editingDonorSowCode(): string | null {
+    const current = this.editingFostering();
+    return current ? this.donorSowCode(current) : null;
+  }
+
+  protected editingReceiverSowCode(): string | null {
+    const current = this.editingFostering();
+    return current ? this.receiverSowCode(current) : null;
   }
 
   protected donorSowCode(fostering: PigletFostering): string | null {

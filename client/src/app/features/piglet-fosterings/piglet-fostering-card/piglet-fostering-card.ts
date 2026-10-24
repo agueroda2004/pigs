@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 
 import { PigletFostering } from '../../../core/piglet-fosterings/piglet-fostering.models';
 
@@ -11,4 +11,6 @@ export class PigletFosteringCard {
   readonly fostering = input.required<PigletFostering>();
   readonly donorSowCode = input<string | null>(null);
   readonly receiverSowCode = input<string | null>(null);
+  readonly canEdit = input(false);
+  readonly editRequested = output<PigletFostering>();
 }

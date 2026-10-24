@@ -29,7 +29,8 @@ function buildFostering(id: string): PigletFostering {
 
 class PigletFosteringsStub {
   listPigletFosterings = vi.fn(() => of([buildFostering('1'), buildFostering('2')]));
-  createPigletFostering = vi.fn(() => of(buildFostering('3')));
+  createPigletFostering = vi.fn(() => of(undefined));
+  updatePigletFostering = vi.fn(() => of(undefined));
 }
 
 class SowsStub {
@@ -124,6 +125,39 @@ describe('PigletFosteringsPage', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Registrar traslado');
+  });
+
+  it('opens the modal in edit mode with the selected fostering', () => {
+    const component = create();
+    const fostering = buildFostering('1');
+
+    component.openEditModal(fostering);
+
+    expect(component.editingFostering()).toBe(fostering);
+    expect(component.modalOpen()).toBe(true);
+  });
+
+  it('resolves the sow codes of the fostering being edited', async () => {
+    const component = create();
+    await component.loadLookups();
+    component.openEditModal(buildFostering('1'));
+
+    expect(component.editingDonorSowCode()).toBe('C-001');
+    expect(component.editingReceiverSowCode()).toBe('C-002');
+  });
+
+  it('reloads the list and closes the modal after updating a fostering', async () => {
+    const component = create();
+    await component.loadFosterings();
+    component.openEditModal(buildFostering('1'));
+    stub.listPigletFosterings = vi.fn(() => of([buildFostering('1')]));
+
+    await component.onUpdated();
+
+    expect(notifications.success).toHaveBeenCalledWith('Traslado actualizado correctamente');
+    expect(component.editingFostering()).toBeNull();
+    expect(component.modalOpen()).toBe(false);
+    expect(stub.listPigletFosterings).toHaveBeenCalled();
   });
 
   it('applies the donor and receiver sow filters when searching', async () => {

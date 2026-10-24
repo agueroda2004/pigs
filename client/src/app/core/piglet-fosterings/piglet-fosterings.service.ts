@@ -7,6 +7,7 @@ import {
   CreatePigletFosteringRequest,
   PigletFostering,
   PigletFosteringFilters,
+  UpdatePigletFosteringRequest,
 } from './piglet-fostering.models';
 
 @Injectable({ providedIn: 'root' })
@@ -32,7 +33,15 @@ export class PigletFosteringsService {
     return this.http.get<PigletFostering[]>(this.baseUrl, { params });
   }
 
-  createPigletFostering(request: CreatePigletFosteringRequest): Observable<PigletFostering> {
-    return this.http.post<PigletFostering>(this.baseUrl, request);
+  // createPigletFostering registers a fostering and resolves once the server
+  // answers with its status code, since the endpoint returns no body.
+  createPigletFostering(request: CreatePigletFosteringRequest): Observable<void> {
+    return this.http.post<void>(this.baseUrl, request);
+  }
+
+  // updatePigletFostering applies the editable fields of a fostering and resolves
+  // once the server answers with its status code, since the endpoint returns no body.
+  updatePigletFostering(id: string, request: UpdatePigletFosteringRequest): Observable<void> {
+    return this.http.patch<void>(`${this.baseUrl}/${id}`, request);
   }
 }

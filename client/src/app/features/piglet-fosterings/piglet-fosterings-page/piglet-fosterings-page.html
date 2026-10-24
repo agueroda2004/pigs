@@ -111,9 +111,7 @@
   } @else if (fosterings().length === 0) {
     <div class="rounded-xl border border-dashed border-border p-10 text-center">
       @if (hasFilters()) {
-        <p class="text-sm text-muted-foreground">
-          No hay traslados que coincidan con los filtros.
-        </p>
+        <p class="text-sm text-muted-foreground">No hay traslados que coincidan con los filtros.</p>
         <button
           type="button"
           (click)="clearFilters()"
@@ -137,6 +135,8 @@
           [fostering]="fostering"
           [donorSowCode]="donorSowCode(fostering)"
           [receiverSowCode]="receiverSowCode(fostering)"
+          [canEdit]="isAdmin()"
+          (editRequested)="openEditModal($event)"
         />
       }
     </div>
@@ -145,6 +145,10 @@
 
 <app-register-piglet-fostering-modal
   [open]="modalOpen()"
+  [fostering]="editingFostering()"
+  [donorSowCode]="editingDonorSowCode()"
+  [receiverSowCode]="editingReceiverSowCode()"
   (closed)="closeModal()"
   (created)="onCreated($event)"
+  (updated)="onUpdated()"
 />

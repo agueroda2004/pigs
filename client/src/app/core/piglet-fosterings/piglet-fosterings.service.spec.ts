@@ -68,7 +68,7 @@ describe('PigletFosteringsService', () => {
     await expect(promise).resolves.toHaveLength(1);
   });
 
-  it('creates a piglet fostering', async () => {
+  it('creates a piglet fostering and returns no body', async () => {
     const payload = {
       donor_sow_id: 'sow-1',
       receiver_sow_id: 'sow-2',
@@ -81,8 +81,25 @@ describe('PigletFosteringsService', () => {
       (request) => request.url.endsWith('/piglet-fosterings') && request.method === 'POST',
     );
     expect(call.request.body).toEqual(payload);
-    call.flush(fosteringPayload);
+    call.flush(null, { status: 201, statusText: 'Created' });
 
-    await expect(promise).resolves.toMatchObject({ donor_sow_id: 'sow-1' });
+    await expect(promise).resolves.toBeNull();
+  });
+
+  it('updates a piglet fostering and returns no body', async () => {
+    const payload = {
+      movement_date: '2026-04-26',
+      quantity: 3,
+      note: 'ajuste',
+    };
+    const promise = firstValueFrom(service.updatePigletFostering('id-1', payload));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/piglet-fosterings/id-1') && request.method === 'PATCH',
+    );
+    expect(call.request.body).toEqual(payload);
+    call.flush(null, { status: 200, statusText: 'OK' });
+
+    await expect(promise).resolves.toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
 
 import { PigletFostering } from '../../../core/piglet-fosterings/piglet-fostering.models';
 import { PigletFosteringCard } from './piglet-fostering-card';
@@ -22,11 +23,17 @@ function buildFostering(overrides: Partial<PigletFostering> = {}): PigletFosteri
 }
 
 describe('PigletFosteringCard', () => {
-  const render = (fostering: PigletFostering, donor: string | null, receiver: string | null) => {
+  const render = (
+    fostering: PigletFostering,
+    donor: string | null,
+    receiver: string | null,
+    canEdit = false,
+  ) => {
     const fixture = TestBed.createComponent(PigletFosteringCard);
     fixture.componentRef.setInput('fostering', fostering);
     fixture.componentRef.setInput('donorSowCode', donor);
     fixture.componentRef.setInput('receiverSowCode', receiver);
+    fixture.componentRef.setInput('canEdit', canEdit);
     fixture.detectChanges();
     return fixture;
   };
@@ -55,5 +62,23 @@ describe('PigletFosteringCard', () => {
 
     const withNote = render(buildFostering({ note: 'Camada numerosa' }), 'C-001', 'C-002');
     expect(withNote.nativeElement.textContent).toContain('Camada numerosa');
+  });
+
+  it('hides the edit button when the user cannot edit', () => {
+    const fixture = render(buildFostering(), 'C-001', 'C-002');
+
+    expect(fixture.nativeElement.textContent).not.toContain('Editar');
+  });
+
+  it('emits the fostering when the edit button is clicked', () => {
+    const fostering = buildFostering();
+    const fixture = render(fostering, 'C-001', 'C-002', true);
+    const requested = vi.fn();
+    fixture.componentInstance.editRequested.subscribe(requested);
+
+    const button = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
+    button.click();
+
+    expect(requested).toHaveBeenCalledWith(fostering);
   });
 });
