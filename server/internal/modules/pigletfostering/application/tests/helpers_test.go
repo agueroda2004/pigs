@@ -7,6 +7,7 @@ import (
 
 	farrowingdomain "server/internal/modules/farrowing/domain"
 	pigletfosteringapplication "server/internal/modules/pigletfostering/application"
+	pigletfosteringdomain "server/internal/modules/pigletfostering/domain"
 	sowdomain "server/internal/modules/sow/domain"
 )
 
@@ -14,6 +15,7 @@ var (
 	donorFarrowDay    = time.Date(2026, time.April, 20, 0, 0, 0, 0, time.UTC)
 	receiverFarrowDay = time.Date(2026, time.April, 22, 0, 0, 0, 0, time.UTC)
 	movementDay       = time.Date(2026, time.April, 25, 0, 0, 0, 0, time.UTC)
+	nurseWeagingDay   = time.Date(2026, time.April, 27, 0, 0, 0, 0, time.UTC)
 	nowReference      = time.Date(2026, time.April, 30, 12, 0, 0, 0, time.UTC)
 )
 
@@ -41,7 +43,37 @@ func repositoryWith(donorSowID, receiverSowID uuid.UUID, donorPiglets, receiverP
 			donorSowID:    testFarrowing(uuid.New(), donorSowID, donorFarrowDay, donorPiglets),
 			receiverSowID: testFarrowing(uuid.New(), receiverSowID, receiverFarrowDay, receiverPiglets),
 		},
+		partialWeagingDates: map[uuid.UUID]time.Time{},
+		fosteringByID:       map[uuid.UUID]*pigletfosteringdomain.PigletFostering{},
 	}
+}
+
+// repositoryWithFostering builds a repository holding a stored fostering whose
+// donor and receiver balances already reflect the given moved quantity.
+func repositoryWithFostering(
+	donorPiglets, receiverPiglets, quantity int,
+) (*fakePigletFosteringRepository, *pigletfosteringdomain.PigletFostering) {
+	donorSowID := uuid.New()
+	receiverSowID := uuid.New()
+	repository := repositoryWith(donorSowID, receiverSowID, donorPiglets, receiverPiglets)
+	donor := repository.farrowings[donorSowID]
+	receiver := repository.farrowings[receiverSowID]
+
+	fostering := &pigletfosteringdomain.PigletFostering{
+		ID:                  uuid.New(),
+		DonorFarrowingID:    donor.ID,
+		ReceiverFarrowingID: receiver.ID,
+		DonorSowID:          donorSowID,
+		ReceiverSowID:       receiverSowID,
+		MovementDate:        movementDay,
+		Quantity:            quantity,
+		CreatedAt:           nowReference,
+		UpdatedAt:           nowReference,
+		CreatedBy:           uuid.New(),
+		UpdatedBy:           uuid.New(),
+	}
+	repository.fosteringByID[fostering.ID] = fostering
+	return repository, fostering
 }
 
 func validCommand(donorSowID, receiverSowID, createdBy uuid.UUID) pigletfosteringapplication.CreatePigletFosteringCommand {

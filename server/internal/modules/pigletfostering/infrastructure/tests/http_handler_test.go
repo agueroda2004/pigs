@@ -51,7 +51,7 @@ func TestPigletFosteringHandlerCreate(t *testing.T) {
 		if create.command.Note == nil || *create.command.Note != "traslado" {
 			t.Fatalf("unexpected note: %#v", create.command.Note)
 		}
-		if !strings.Contains(response.Body.String(), "2026-04-25") {
+		if response.Body.Len() != 0 {
 			t.Fatalf("unexpected body: %s", response.Body.String())
 		}
 	})
@@ -125,14 +125,151 @@ func TestPigletFosteringHandlerCreate(t *testing.T) {
 			{"insufficient piglets", farrowingdomain.ErrInsufficientPiglets, http.StatusConflict},
 			{"same farrowing", pigletfosteringdomain.ErrSameFarrowing, http.StatusBadRequest},
 			{"date before farrowing", pigletfosteringdomain.ErrMovementDateBeforeFarrowing, http.StatusBadRequest},
+			{"date before partial weaging", pigletfosteringdomain.ErrMovementDateBeforePartialWeaging, http.StatusBadRequest},
 			{"date in future", pigletfosteringdomain.ErrMovementDateInFuture, http.StatusBadRequest},
 			{"invalid quantity", pigletfosteringdomain.ErrInvalidQuantity, http.StatusBadRequest},
+			{"quantity above max", pigletfosteringdomain.ErrQuantityExceedsMax, http.StatusBadRequest},
+			{"empty update", pigletfosteringdomain.ErrInvalidUpdate, http.StatusBadRequest},
 			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
 		} {
 			t.Run(test.name, func(t *testing.T) {
 				create := &fakeCreatePigletFosteringUseCase{err: test.err}
 				handler := newTestHandler(create, &fakeListPigletFosteringsUseCase{})
 				request := httptest.NewRequest(http.MethodPost, "/api/v1/piglet-fosterings", strings.NewReader(body))
+				request = authenticatedRequest(request, actorID)
+				response := serve(handler, request)
+				if response.Code != test.status {
+					t.Fatalf("status=%d, want %d", response.Code, test.status)
+				}
+			})
+		}
+	})
+}
+
+func TestPigletFosteringHandlerUpdate(t *testing.T) {
+	actorID := uuid.New()
+	fosteringID := uuid.New()
+	body := `{"movement_date":"2026-04-26","quantity":3,"note":"ajuste"}`
+
+	t.Run("updates a fostering with the actor from context", func(t *testing.T) {
+		update := &fakeUpdatePigletFosteringUseCase{fostering: handlerPigletFostering()}
+		handler := newTestHandlerWithUpdate(&fakeCreatePigletFosteringUseCase{}, update, &fakeListPigletFosteringsUseCase{})
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/piglet-fosterings/"+fosteringID.String(), strings.NewReader(body))
+		request = authenticatedRequest(request, actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusOK || !update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+		if update.id != fosteringID || update.command.UpdatedBy != actorID {
+			t.Fatalf("id=%v command=%#v", update.id, update.command)
+		}
+		if update.command.Params.Quantity == nil || *update.command.Params.Quantity != 3 {
+			t.Fatalf("unexpected quantity: %#v", update.command.Params.Quantity)
+		}
+		if !update.command.Params.MovementDate.Equal(time.Date(2026, time.April, 26, 0, 0, 0, 0, time.UTC)) {
+			t.Fatalf("unexpected date: %v", update.command.Params.MovementDate)
+		}
+		if update.command.Params.Note == nil || *update.command.Params.Note != "ajuste" {
+			t.Fatalf("unexpected note: %#v", update.command.Params.Note)
+		}
+		if response.Body.Len() != 0 {
+			t.Fatalf("unexpected body: %s", response.Body.String())
+		}
+	})
+
+	t.Run("accepts an update with only one field", func(t *testing.T) {
+		update := &fakeUpdatePigletFosteringUseCase{fostering: handlerPigletFostering()}
+		handler := newTestHandlerWithUpdate(&fakeCreatePigletFosteringUseCase{}, update, &fakeListPigletFosteringsUseCase{})
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/piglet-fosterings/"+fosteringID.String(), strings.NewReader(`{"quantity":4}`))
+		request = authenticatedRequest(request, actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusOK || !update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+		if update.command.Params.MovementDate != nil || update.command.Params.Note != nil {
+			t.Fatalf("unexpected params: %#v", update.command.Params)
+		}
+	})
+
+	t.Run("blocks update for non-admins", func(t *testing.T) {
+		handler := newAdminGuardHandler(&fakeCreatePigletFosteringUseCase{})
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/piglet-fosterings/"+fosteringID.String(), strings.NewReader(body))
+		request = authenticatedRequest(request, actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusForbidden {
+			t.Fatalf("status=%d, want %d", response.Code, http.StatusForbidden)
+		}
+	})
+
+	t.Run("returns unauthorized when actor is missing", func(t *testing.T) {
+		update := &fakeUpdatePigletFosteringUseCase{fostering: handlerPigletFostering()}
+		handler := newTestHandlerWithUpdate(&fakeCreatePigletFosteringUseCase{}, update, &fakeListPigletFosteringsUseCase{})
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/piglet-fosterings/"+fosteringID.String(), strings.NewReader(body))
+		response := serve(handler, request)
+
+		if response.Code != http.StatusUnauthorized || update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+	})
+
+	t.Run("rejects an invalid id", func(t *testing.T) {
+		update := &fakeUpdatePigletFosteringUseCase{fostering: handlerPigletFostering()}
+		handler := newTestHandlerWithUpdate(&fakeCreatePigletFosteringUseCase{}, update, &fakeListPigletFosteringsUseCase{})
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/piglet-fosterings/not-a-uuid", strings.NewReader(body))
+		request = authenticatedRequest(request, actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusBadRequest || update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+	})
+
+	t.Run("rejects a change to the sows", func(t *testing.T) {
+		update := &fakeUpdatePigletFosteringUseCase{fostering: handlerPigletFostering()}
+		handler := newTestHandlerWithUpdate(&fakeCreatePigletFosteringUseCase{}, update, &fakeListPigletFosteringsUseCase{})
+		invalid := fmt.Sprintf(`{"movement_date":"2026-04-26","quantity":3,"donor_sow_id":"%s"}`, uuid.New())
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/piglet-fosterings/"+fosteringID.String(), strings.NewReader(invalid))
+		request = authenticatedRequest(request, actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusBadRequest || update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+	})
+
+	t.Run("rejects an invalid date", func(t *testing.T) {
+		update := &fakeUpdatePigletFosteringUseCase{fostering: handlerPigletFostering()}
+		handler := newTestHandlerWithUpdate(&fakeCreatePigletFosteringUseCase{}, update, &fakeListPigletFosteringsUseCase{})
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/piglet-fosterings/"+fosteringID.String(), strings.NewReader(`{"movement_date":"not-a-date"}`))
+		request = authenticatedRequest(request, actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusBadRequest || update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+	})
+
+	t.Run("maps application and domain errors", func(t *testing.T) {
+		for _, test := range []struct {
+			name   string
+			err    error
+			status int
+		}{
+			{"fostering not found", ports.ErrPigletFosteringNotFound, http.StatusNotFound},
+			{"farrowing not found", ports.ErrFarrowingNotFound, http.StatusNotFound},
+			{"insufficient piglets", farrowingdomain.ErrInsufficientPiglets, http.StatusConflict},
+			{"empty update", pigletfosteringdomain.ErrInvalidUpdate, http.StatusBadRequest},
+			{"quantity above max", pigletfosteringdomain.ErrQuantityExceedsMax, http.StatusBadRequest},
+			{"date before partial weaging", pigletfosteringdomain.ErrMovementDateBeforePartialWeaging, http.StatusBadRequest},
+			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				update := &fakeUpdatePigletFosteringUseCase{err: test.err}
+				handler := newTestHandlerWithUpdate(&fakeCreatePigletFosteringUseCase{}, update, &fakeListPigletFosteringsUseCase{})
+				request := httptest.NewRequest(http.MethodPatch, "/api/v1/piglet-fosterings/"+fosteringID.String(), strings.NewReader(body))
 				request = authenticatedRequest(request, actorID)
 				response := serve(handler, request)
 				if response.Code != test.status {

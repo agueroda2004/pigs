@@ -8,23 +8,31 @@ import (
 	"github.com/google/uuid"
 )
 
-const maxNoteLength = 500
+const (
+	maxNoteLength = 500
+
+	// MaxQuantity is the largest number of piglets a single fostering may move.
+	MaxQuantity = 30
+)
 
 var (
-	ErrInvalidID                   = errors.New("El identificador del traslado es obligatorio")
-	ErrInvalidDonor                = errors.New("El parto donante es obligatorio")
-	ErrInvalidReceiver             = errors.New("El parto receptor es obligatorio")
-	ErrInvalidDonorSow             = errors.New("La cerda donante es obligatoria")
-	ErrInvalidReceiverSow          = errors.New("La cerda receptora es obligatoria")
-	ErrInvalidMovementDate         = errors.New("La fecha del traslado es obligatoria")
-	ErrInvalidFarrowDate           = errors.New("La fecha del parto es obligatoria")
-	ErrInvalidQuantity             = errors.New("La cantidad de lechones debe ser mayor a cero")
-	ErrInvalidNote                 = errors.New("La nota debe tener como máximo 500 caracteres")
-	ErrInvalidCreatedBy            = errors.New("El usuario que crea el traslado es obligatorio")
-	ErrInvalidUpdatedBy            = errors.New("El usuario que actualiza el traslado es obligatorio")
-	ErrSameFarrowing               = errors.New("El parto donante y el receptor no pueden ser el mismo")
-	ErrMovementDateBeforeFarrowing = errors.New("La fecha del traslado debe ser posterior a los partos")
-	ErrMovementDateInFuture        = errors.New("La fecha del traslado no puede ser futura")
+	ErrInvalidID                        = errors.New("El identificador del traslado es obligatorio")
+	ErrInvalidDonor                     = errors.New("El parto donante es obligatorio")
+	ErrInvalidReceiver                  = errors.New("El parto receptor es obligatorio")
+	ErrInvalidDonorSow                  = errors.New("La cerda donante es obligatoria")
+	ErrInvalidReceiverSow               = errors.New("La cerda receptora es obligatoria")
+	ErrInvalidMovementDate              = errors.New("La fecha del traslado es obligatoria")
+	ErrInvalidFarrowDate                = errors.New("La fecha del parto es obligatoria")
+	ErrInvalidQuantity                  = errors.New("La cantidad de lechones debe ser mayor a cero")
+	ErrQuantityExceedsMax               = errors.New("La cantidad de lechones no puede superar 30")
+	ErrInvalidNote                      = errors.New("La nota debe tener como máximo 500 caracteres")
+	ErrInvalidCreatedBy                 = errors.New("El usuario que crea el traslado es obligatorio")
+	ErrInvalidUpdatedBy                 = errors.New("El usuario que actualiza el traslado es obligatorio")
+	ErrInvalidUpdate                    = errors.New("Debe indicar al menos un campo para actualizar")
+	ErrSameFarrowing                    = errors.New("El parto donante y el receptor no pueden ser el mismo")
+	ErrMovementDateBeforeFarrowing      = errors.New("La fecha del traslado debe ser posterior a los partos")
+	ErrMovementDateBeforePartialWeaging = errors.New("La fecha del traslado debe ser posterior al último destete parcial")
+	ErrMovementDateInFuture             = errors.New("La fecha del traslado no puede ser futura")
 )
 
 // PigletFostering is the aggregate root that represents a transfer of piglets
@@ -59,13 +67,22 @@ type NewPigletFosteringParams struct {
 	CreatedBy           uuid.UUID
 }
 
+// FosteringDateBounds holds the farrow and partial weaging dates used to validate
+// a movement date. A zero partial weaging date means that side is not a nurse.
+type FosteringDateBounds struct {
+	DonorFarrowDate            time.Time
+	ReceiverFarrowDate         time.Time
+	DonorPartialWeagingDate    time.Time
+	ReceiverPartialWeagingDate time.Time
+}
+
 // NewPigletFostering builds a fostering after validating its fields and dates.
 // It rejects the same farrowing on both sides and requires the movement date to
-// be strictly after both farrow dates and not later than today.
+// be strictly after both farrow dates, after each nurse partial weaging and not
+// later than today.
 func NewPigletFostering(
 	params NewPigletFosteringParams,
-	donorFarrowDate time.Time,
-	receiverFarrowDate time.Time,
+	bounds FosteringDateBounds,
 	now time.Time,
 ) (*PigletFostering, error) {
 	if params.ID == uuid.Nil {
@@ -89,16 +106,23 @@ func NewPigletFostering(
 	if params.MovementDate.IsZero() {
 		return nil, ErrInvalidMovementDate
 	}
-	if donorFarrowDate.IsZero() || receiverFarrowDate.IsZero() {
+	if bounds.DonorFarrowDate.IsZero() || bounds.ReceiverFarrowDate.IsZero() {
 		return nil, ErrInvalidFarrowDate
 	}
 
-	if err := validateMovementDate(params.MovementDate, donorFarrowDate, receiverFarrowDate, now); err != nil {
+	if err := validateMovementDate(
+		params.MovementDate,
+		bounds.DonorFarrowDate,
+		bounds.ReceiverFarrowDate,
+		bounds.DonorPartialWeagingDate,
+		bounds.ReceiverPartialWeagingDate,
+		now,
+	); err != nil {
 		return nil, err
 	}
 
-	if params.Quantity <= 0 {
-		return nil, ErrInvalidQuantity
+	if err := validateQuantity(params.Quantity); err != nil {
+		return nil, err
 	}
 
 	note, err := validateNote(params.Note)
@@ -126,9 +150,95 @@ func NewPigletFostering(
 	}, nil
 }
 
-// validateMovementDate checks the movement date bounds against both farrowings.
-// It rejects dates after today and dates on or before either farrow date.
-func validateMovementDate(movementDate time.Time, donorFarrowDate time.Time, receiverFarrowDate time.Time, now time.Time) error {
+// UpdatePigletFosteringParams holds the editable fields of a fostering update.
+// A nil pointer means the field is omitted and stays unchanged; the donor and
+// receiver farrowings are fixed and can never be edited.
+type UpdatePigletFosteringParams struct {
+	MovementDate *time.Time
+	Quantity     *int
+	Note         *string
+}
+
+// Update applies the provided editable fields to the fostering.
+// It validates the quantity and note always, and revalidates the movement date
+// only when it changes, recording the actor plus the timestamp.
+func (f *PigletFostering) Update(
+	params UpdatePigletFosteringParams,
+	bounds FosteringDateBounds,
+	updatedBy uuid.UUID,
+	now time.Time,
+) error {
+	if f == nil || f.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if params.MovementDate == nil && params.Quantity == nil && params.Note == nil {
+		return ErrInvalidUpdate
+	}
+
+	if params.MovementDate != nil &&
+		!truncateToDay(*params.MovementDate).Equal(truncateToDay(f.MovementDate)) {
+		if bounds.DonorFarrowDate.IsZero() || bounds.ReceiverFarrowDate.IsZero() {
+			return ErrInvalidFarrowDate
+		}
+		if err := validateMovementDate(
+			*params.MovementDate,
+			bounds.DonorFarrowDate,
+			bounds.ReceiverFarrowDate,
+			bounds.DonorPartialWeagingDate,
+			bounds.ReceiverPartialWeagingDate,
+			now,
+		); err != nil {
+			return err
+		}
+		f.MovementDate = *params.MovementDate
+	}
+
+	if params.Quantity != nil {
+		if err := validateQuantity(*params.Quantity); err != nil {
+			return err
+		}
+		f.Quantity = *params.Quantity
+	}
+
+	if params.Note != nil {
+		note, err := validateNote(params.Note)
+		if err != nil {
+			return err
+		}
+		f.Note = note
+	}
+
+	f.UpdatedAt = now
+	f.UpdatedBy = updatedBy
+	return nil
+}
+
+// validateQuantity checks that the moved quantity is positive and at most MaxQuantity.
+// It returns ErrInvalidQuantity or ErrQuantityExceedsMax when the bound is broken.
+func validateQuantity(quantity int) error {
+	if quantity <= 0 {
+		return ErrInvalidQuantity
+	}
+	if quantity > MaxQuantity {
+		return ErrQuantityExceedsMax
+	}
+	return nil
+}
+
+// validateMovementDate checks the movement date bounds against both farrowings and
+// their nurse partial weagings. It rejects dates after today, dates on or before
+// either farrow date and dates on or before a nurse partial weaging.
+func validateMovementDate(
+	movementDate time.Time,
+	donorFarrowDate time.Time,
+	receiverFarrowDate time.Time,
+	donorPartialWeagingDate time.Time,
+	receiverPartialWeagingDate time.Time,
+	now time.Time,
+) error {
 	movement := truncateToDay(movementDate)
 	if movement.After(truncateToDay(now)) {
 		return ErrMovementDateInFuture
@@ -137,6 +247,12 @@ func validateMovementDate(movementDate time.Time, donorFarrowDate time.Time, rec
 	receiver := truncateToDay(receiverFarrowDate)
 	if !movement.After(donor) || !movement.After(receiver) {
 		return ErrMovementDateBeforeFarrowing
+	}
+	if !donorPartialWeagingDate.IsZero() && !movement.After(truncateToDay(donorPartialWeagingDate)) {
+		return ErrMovementDateBeforePartialWeaging
+	}
+	if !receiverPartialWeagingDate.IsZero() && !movement.After(truncateToDay(receiverPartialWeagingDate)) {
+		return ErrMovementDateBeforePartialWeaging
 	}
 	return nil
 }

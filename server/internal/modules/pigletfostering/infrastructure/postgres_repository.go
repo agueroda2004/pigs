@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -106,6 +107,107 @@ func (r *PostgresPigletFosteringRepository) GetLastFarrowing(ctx context.Context
 	return result, nil
 }
 
+// GetFarrowingByID fetches a farrowing by its identifier.
+// It returns ports.ErrFarrowingNotFound when no row matches.
+func (r *PostgresPigletFosteringRepository) GetFarrowingByID(ctx context.Context, id uuid.UUID) (*farrowingdomain.Farrowing, error) {
+	result := &farrowingdomain.Farrowing{}
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, service_id, sow_id, farrow_date, start_time, end_time, location,
+		       live_born, stillborn, mummified, current_piglets, litter_weight, stillborn_weight,
+		       is_manipulated, is_nurse, nurse_start_date, note, created_at, updated_at, created_by, updated_by
+		FROM farrowings
+		WHERE id = $1
+	`, id).Scan(
+		&result.ID,
+		&result.ServiceID,
+		&result.SowID,
+		&result.FarrowDate,
+		&result.StartTime,
+		&result.EndTime,
+		&result.Location,
+		&result.LiveBorn,
+		&result.Stillborn,
+		&result.Mummified,
+		&result.CurrentPiglets,
+		&result.LitterWeight,
+		&result.StillbornWeight,
+		&result.IsManipulated,
+		&result.IsNurse,
+		&result.NurseStartDate,
+		&result.Note,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.CreatedBy,
+		&result.UpdatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrFarrowingNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el parto: %w", err)
+	}
+	return result, nil
+}
+
+// GetLastPartialWeagingDate fetches the most recent partial weaging date of a farrowing.
+// It orders by weaging date and returns the zero time when the farrowing has none.
+func (r *PostgresPigletFosteringRepository) GetLastPartialWeagingDate(ctx context.Context, farrowingID uuid.UUID) (time.Time, error) {
+	var weagingDate time.Time
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT weaging_date
+		FROM partial_weagings
+		WHERE farrowing_id = $1
+		ORDER BY weaging_date DESC, created_at DESC
+		LIMIT 1
+	`, farrowingID).Scan(&weagingDate)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, fmt.Errorf("No se pudo consultar el último destete parcial: %w", err)
+	}
+	return weagingDate, nil
+}
+
+// GetByID fetches a fostering by its identifier, joining both farrowings to
+// expose the donor and receiver sows. It returns ports.ErrPigletFosteringNotFound
+// when no row matches.
+func (r *PostgresPigletFosteringRepository) GetByID(ctx context.Context, id uuid.UUID) (*pigletfosteringdomain.PigletFostering, error) {
+	result := &pigletfosteringdomain.PigletFostering{}
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT pf.id, pf.donor_farrowing_id, pf.receiver_farrowing_id,
+		       df.sow_id, rf.sow_id, pf.movement_date, pf.quantity, pf.note,
+		       pf.created_at, pf.updated_at, pf.created_by, pf.updated_by
+		FROM piglet_fosterings pf
+		JOIN farrowings df ON df.id = pf.donor_farrowing_id
+		JOIN farrowings rf ON rf.id = pf.receiver_farrowing_id
+		WHERE pf.id = $1
+	`, id).Scan(
+		&result.ID,
+		&result.DonorFarrowingID,
+		&result.ReceiverFarrowingID,
+		&result.DonorSowID,
+		&result.ReceiverSowID,
+		&result.MovementDate,
+		&result.Quantity,
+		&result.Note,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.CreatedBy,
+		&result.UpdatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrPigletFosteringNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el traslado de lechones: %w", err)
+	}
+	return result, nil
+}
+
 // Create inserts the fostering and moves the piglets between both farrowings.
 // The donor decrement is guarded so it fails when the balance is insufficient,
 // the receiver increment and the insert run in the same transaction.
@@ -177,6 +279,146 @@ func (r *PostgresPigletFosteringRepository) Create(
 
 	if err := transaction.Commit(ctx); err != nil {
 		return fmt.Errorf("No se pudo guardar el traslado de lechones: %w", err)
+	}
+	return nil
+}
+
+// Update persists the editable fields of a fostering and rebalances the piglets.
+// It locks the stored row, computes the quantity delta, applies it to both
+// farrowings with guarded updates and rewrites date, quantity and note.
+func (r *PostgresPigletFosteringRepository) Update(
+	ctx context.Context,
+	fostering *pigletfosteringdomain.PigletFostering,
+) error {
+	transaction, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("No se pudo actualizar el traslado de lechones: %w", err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	var storedQuantity int
+	err = transaction.QueryRow(ctx, `
+		SELECT quantity
+		FROM piglet_fosterings
+		WHERE id = $1
+		FOR UPDATE
+	`, fostering.ID).Scan(&storedQuantity)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ports.ErrPigletFosteringNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("No se pudo actualizar el traslado de lechones: %w", err)
+	}
+
+	if err := updateFosteringBalances(
+		ctx,
+		transaction,
+		fostering.DonorFarrowingID,
+		fostering.ReceiverFarrowingID,
+		fostering.Quantity-storedQuantity,
+		fostering.UpdatedAt,
+		fostering.UpdatedBy,
+	); err != nil {
+		return err
+	}
+
+	if _, err := transaction.Exec(ctx, `
+		UPDATE piglet_fosterings
+		SET movement_date = $2,
+		    quantity = $3,
+		    note = $4,
+		    updated_at = $5,
+		    updated_by = $6
+		WHERE id = $1
+	`,
+		fostering.ID,
+		fostering.MovementDate,
+		fostering.Quantity,
+		fostering.Note,
+		fostering.UpdatedAt,
+		fostering.UpdatedBy,
+	); err != nil {
+		return fmt.Errorf("No se pudo actualizar el traslado de lechones: %w", err)
+	}
+
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("No se pudo actualizar el traslado de lechones: %w", err)
+	}
+	return nil
+}
+
+// updateFosteringBalances applies the quantity delta to both farrowings.
+// A positive delta subtracts from the donor and adds to the receiver, while a
+// negative delta returns piglets to the donor and takes them back from the receiver.
+func updateFosteringBalances(
+	ctx context.Context,
+	transaction pgx.Tx,
+	donorFarrowingID uuid.UUID,
+	receiverFarrowingID uuid.UUID,
+	delta int,
+	updatedAt time.Time,
+	updatedBy uuid.UUID,
+) error {
+	if delta == 0 {
+		return nil
+	}
+
+	if delta > 0 {
+		if err := reduceFarrowingPiglets(ctx, transaction, donorFarrowingID, delta, updatedAt, updatedBy); err != nil {
+			return err
+		}
+		_, err := transaction.Exec(ctx, `
+			UPDATE farrowings
+			SET current_piglets = current_piglets + $2,
+			    updated_at = $3,
+			    updated_by = $4
+			WHERE id = $1
+		`, receiverFarrowingID, delta, updatedAt, updatedBy)
+		if err != nil {
+			return fmt.Errorf("No se pudo actualizar el traslado de lechones: %w", err)
+		}
+		return nil
+	}
+
+	amount := -delta
+	if err := reduceFarrowingPiglets(ctx, transaction, receiverFarrowingID, amount, updatedAt, updatedBy); err != nil {
+		return err
+	}
+	if _, err := transaction.Exec(ctx, `
+		UPDATE farrowings
+		SET current_piglets = current_piglets + $2,
+		    updated_at = $3,
+		    updated_by = $4
+		WHERE id = $1
+	`, donorFarrowingID, amount, updatedAt, updatedBy); err != nil {
+		return fmt.Errorf("No se pudo actualizar el traslado de lechones: %w", err)
+	}
+	return nil
+}
+
+// reduceFarrowingPiglets subtracts a positive quantity from a farrowing balance.
+// The update is guarded so it returns farrowingdomain.ErrInsufficientPiglets when
+// the balance is not enough.
+func reduceFarrowingPiglets(
+	ctx context.Context,
+	transaction pgx.Tx,
+	farrowingID uuid.UUID,
+	quantity int,
+	updatedAt time.Time,
+	updatedBy uuid.UUID,
+) error {
+	commandTag, err := transaction.Exec(ctx, `
+		UPDATE farrowings
+		SET current_piglets = current_piglets - $2,
+		    updated_at = $3,
+		    updated_by = $4
+		WHERE id = $1 AND current_piglets >= $2
+	`, farrowingID, quantity, updatedAt, updatedBy)
+	if err != nil {
+		return fmt.Errorf("No se pudo actualizar el traslado de lechones: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return farrowingdomain.ErrInsufficientPiglets
 	}
 	return nil
 }

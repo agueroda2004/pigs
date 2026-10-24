@@ -22,12 +22,16 @@ type PigletFosteringFilter struct {
 }
 
 // PigletFosteringRepository defines the persistence operations of the fostering
-// module. It also exposes the sow and farrowing lookups required to register a
-// transfer and the atomic write that inserts it while decreasing the donor and
-// increasing the receiver current piglets balances.
+// module. It also exposes the sow, farrowing and partial weaging lookups required
+// to register or update a transfer, plus the atomic writes that move the piglets
+// between both farrowings while persisting the record.
 type PigletFosteringRepository interface {
 	GetSow(ctx context.Context, id uuid.UUID) (*sowdomain.Sow, error)
 	GetLastFarrowing(ctx context.Context, sowID uuid.UUID) (*farrowingdomain.Farrowing, error)
+	GetFarrowingByID(ctx context.Context, id uuid.UUID) (*farrowingdomain.Farrowing, error)
+	GetLastPartialWeagingDate(ctx context.Context, farrowingID uuid.UUID) (time.Time, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*pigletfosteringdomain.PigletFostering, error)
 	Create(ctx context.Context, fostering *pigletfosteringdomain.PigletFostering, donor *farrowingdomain.Farrowing, receiver *farrowingdomain.Farrowing) error
+	Update(ctx context.Context, fostering *pigletfosteringdomain.PigletFostering) error
 	List(ctx context.Context, filter PigletFosteringFilter) ([]*pigletfosteringdomain.PigletFostering, error)
 }

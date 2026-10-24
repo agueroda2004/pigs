@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -17,10 +18,22 @@ type fakePigletFosteringRepository struct {
 	sowErr     error
 	farrowErr  error
 
+	farrowingByIDErr error
+
+	partialWeagingDates map[uuid.UUID]time.Time
+	partialWeagingErr   error
+	partialWeagingCalls int
+
+	fosteringByID    map[uuid.UUID]*pigletfosteringdomain.PigletFostering
+	fosteringByIDErr error
+
 	createErr       error
 	created         *pigletfosteringdomain.PigletFostering
 	createdDonor    *farrowingdomain.Farrowing
 	createdReceiver *farrowingdomain.Farrowing
+
+	updateErr error
+	updated   *pigletfosteringdomain.PigletFostering
 
 	listFosterings []*pigletfosteringdomain.PigletFostering
 	listErr        error
@@ -41,6 +54,37 @@ func (f *fakePigletFosteringRepository) GetLastFarrowing(_ context.Context, sowI
 	return f.farrowings[sowID], nil
 }
 
+func (f *fakePigletFosteringRepository) GetFarrowingByID(_ context.Context, id uuid.UUID) (*farrowingdomain.Farrowing, error) {
+	if f.farrowingByIDErr != nil {
+		return nil, f.farrowingByIDErr
+	}
+	for _, farrowing := range f.farrowings {
+		if farrowing.ID == id {
+			return farrowing, nil
+		}
+	}
+	return nil, ports.ErrFarrowingNotFound
+}
+
+func (f *fakePigletFosteringRepository) GetLastPartialWeagingDate(_ context.Context, farrowingID uuid.UUID) (time.Time, error) {
+	f.partialWeagingCalls++
+	if f.partialWeagingErr != nil {
+		return time.Time{}, f.partialWeagingErr
+	}
+	return f.partialWeagingDates[farrowingID], nil
+}
+
+func (f *fakePigletFosteringRepository) GetByID(_ context.Context, id uuid.UUID) (*pigletfosteringdomain.PigletFostering, error) {
+	if f.fosteringByIDErr != nil {
+		return nil, f.fosteringByIDErr
+	}
+	fostering, ok := f.fosteringByID[id]
+	if !ok {
+		return nil, ports.ErrPigletFosteringNotFound
+	}
+	return fostering, nil
+}
+
 func (f *fakePigletFosteringRepository) Create(
 	_ context.Context,
 	fostering *pigletfosteringdomain.PigletFostering,
@@ -51,6 +95,11 @@ func (f *fakePigletFosteringRepository) Create(
 	f.createdDonor = donor
 	f.createdReceiver = receiver
 	return f.createErr
+}
+
+func (f *fakePigletFosteringRepository) Update(_ context.Context, fostering *pigletfosteringdomain.PigletFostering) error {
+	f.updated = fostering
+	return f.updateErr
 }
 
 func (f *fakePigletFosteringRepository) List(_ context.Context, filter ports.PigletFosteringFilter) ([]*pigletfosteringdomain.PigletFostering, error) {

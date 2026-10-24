@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	farrowingdomain "server/internal/modules/farrowing/domain"
 	pigletfosteringdomain "server/internal/modules/pigletfostering/domain"
 	"server/internal/modules/pigletfostering/ports"
 	sowdomain "server/internal/modules/sow/domain"
@@ -37,8 +38,9 @@ func NewCreatePigletFosteringService(repository ports.PigletFosteringRepository,
 }
 
 // Execute registers a fostering and moves the piglets between both balances.
-// It validates that both sows are lactating, resolves each latest farrowing,
-// then decreases the donor and increases the receiver in one transaction.
+// It validates that both sows are lactating, resolves each latest farrowing and,
+// when a side is a nurse, its latest partial weaging date, then decreases the
+// donor and increases the receiver in one transaction.
 func (s *CreatePigletFosteringService) Execute(ctx context.Context, command CreatePigletFosteringCommand) (*pigletfosteringdomain.PigletFostering, error) {
 	donorSow, err := s.repository.GetSow(ctx, command.DonorSowID)
 	if err != nil {
@@ -66,6 +68,16 @@ func (s *CreatePigletFosteringService) Execute(ctx context.Context, command Crea
 		return nil, err
 	}
 
+	donorPartialWeagingDate, err := s.lastPartialWeagingDate(ctx, donor)
+	if err != nil {
+		return nil, err
+	}
+
+	receiverPartialWeagingDate, err := s.lastPartialWeagingDate(ctx, receiver)
+	if err != nil {
+		return nil, err
+	}
+
 	now := s.clock()
 	newFostering, err := pigletfosteringdomain.NewPigletFostering(pigletfosteringdomain.NewPigletFosteringParams{
 		ID:                  uuid.New(),
@@ -77,7 +89,12 @@ func (s *CreatePigletFosteringService) Execute(ctx context.Context, command Crea
 		Quantity:            command.Quantity,
 		Note:                command.Note,
 		CreatedBy:           command.CreatedBy,
-	}, donor.FarrowDate, receiver.FarrowDate, now)
+	}, pigletfosteringdomain.FosteringDateBounds{
+		DonorFarrowDate:            donor.FarrowDate,
+		ReceiverFarrowDate:         receiver.FarrowDate,
+		DonorPartialWeagingDate:    donorPartialWeagingDate,
+		ReceiverPartialWeagingDate: receiverPartialWeagingDate,
+	}, now)
 	if err != nil {
 		return nil, err
 	}
@@ -93,4 +110,13 @@ func (s *CreatePigletFosteringService) Execute(ctx context.Context, command Crea
 		return nil, err
 	}
 	return newFostering, nil
+}
+
+// lastPartialWeagingDate resolves the latest partial weaging of a farrowing when
+// it is a nurse, and returns the zero time for non-nurse farrowings.
+func (s *CreatePigletFosteringService) lastPartialWeagingDate(ctx context.Context, farrowing *farrowingdomain.Farrowing) (time.Time, error) {
+	if !farrowing.IsNurse {
+		return time.Time{}, nil
+	}
+	return s.repository.GetLastPartialWeagingDate(ctx, farrowing.ID)
 }

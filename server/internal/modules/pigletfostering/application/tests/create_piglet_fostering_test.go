@@ -115,6 +115,76 @@ func TestCreatePigletFosteringExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects a movement date on a nurse partial weaging", func(t *testing.T) {
+		for _, test := range []struct {
+			name    string
+			sowSide func(uuid.UUID, uuid.UUID) uuid.UUID
+		}{
+			{name: "donor", sowSide: func(donor, _ uuid.UUID) uuid.UUID { return donor }},
+			{name: "receiver", sowSide: func(_, receiver uuid.UUID) uuid.UUID { return receiver }},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				repository := repositoryWith(donorSowID, receiverSowID, 10, 6)
+				sowID := test.sowSide(donorSowID, receiverSowID)
+				repository.farrowings[sowID].IsNurse = true
+				repository.partialWeagingDates[repository.farrowings[sowID].ID] = nurseWeagingDay
+				useCase := pigletfosteringapplication.NewCreatePigletFosteringService(repository, func() time.Time { return nowReference })
+				command := validCommand(donorSowID, receiverSowID, actorID)
+				command.MovementDate = nurseWeagingDay
+
+				_, err := useCase.Execute(context.Background(), command)
+
+				if !errors.Is(err, pigletfosteringdomain.ErrMovementDateBeforePartialWeaging) {
+					t.Fatalf("error = %v, want ErrMovementDateBeforePartialWeaging", err)
+				}
+				if repository.partialWeagingCalls == 0 {
+					t.Fatalf("partial weaging date was not queried")
+				}
+			})
+		}
+	})
+
+	t.Run("accepts a movement date after a nurse partial weaging", func(t *testing.T) {
+		repository := repositoryWith(donorSowID, receiverSowID, 10, 6)
+		repository.farrowings[donorSowID].IsNurse = true
+		repository.partialWeagingDates[repository.farrowings[donorSowID].ID] = movementDay.AddDate(0, 0, -1)
+		useCase := pigletfosteringapplication.NewCreatePigletFosteringService(repository, func() time.Time { return nowReference })
+
+		_, err := useCase.Execute(context.Background(), validCommand(donorSowID, receiverSowID, actorID))
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+	})
+
+	t.Run("does not query partial weagings for non-nurse sows", func(t *testing.T) {
+		repository := repositoryWith(donorSowID, receiverSowID, 10, 6)
+		useCase := pigletfosteringapplication.NewCreatePigletFosteringService(repository, func() time.Time { return nowReference })
+
+		if _, err := useCase.Execute(context.Background(), validCommand(donorSowID, receiverSowID, actorID)); err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if repository.partialWeagingCalls != 0 {
+			t.Fatalf("partial weaging calls = %d, want 0", repository.partialWeagingCalls)
+		}
+	})
+
+	t.Run("rejects a quantity above the maximum", func(t *testing.T) {
+		repository := repositoryWith(donorSowID, receiverSowID, 40, 6)
+		useCase := pigletfosteringapplication.NewCreatePigletFosteringService(repository, func() time.Time { return nowReference })
+		command := validCommand(donorSowID, receiverSowID, actorID)
+		command.Quantity = pigletfosteringdomain.MaxQuantity + 1
+
+		_, err := useCase.Execute(context.Background(), command)
+
+		if !errors.Is(err, pigletfosteringdomain.ErrQuantityExceedsMax) {
+			t.Fatalf("error = %v, want ErrQuantityExceedsMax", err)
+		}
+		if repository.created != nil {
+			t.Fatalf("fostering should not be persisted")
+		}
+	})
+
 	t.Run("propagates a missing sow", func(t *testing.T) {
 		repository := repositoryWith(donorSowID, receiverSowID, 10, 6)
 		repository.sowErr = ports.ErrSowNotFound

@@ -29,6 +29,21 @@ func (f *fakeCreatePigletFosteringUseCase) Execute(_ context.Context, command pi
 	return f.fostering, f.err
 }
 
+type fakeUpdatePigletFosteringUseCase struct {
+	fostering *pigletfosteringdomain.PigletFostering
+	err       error
+	id        uuid.UUID
+	command   pigletfosteringapplication.UpdatePigletFosteringCommand
+	called    bool
+}
+
+func (f *fakeUpdatePigletFosteringUseCase) Execute(_ context.Context, id uuid.UUID, command pigletfosteringapplication.UpdatePigletFosteringCommand) (*pigletfosteringdomain.PigletFostering, error) {
+	f.called = true
+	f.id = id
+	f.command = command
+	return f.fostering, f.err
+}
+
 type fakeListPigletFosteringsUseCase struct {
 	fosterings []*pigletfosteringdomain.PigletFostering
 	err        error
@@ -43,8 +58,16 @@ func (f *fakeListPigletFosteringsUseCase) Execute(_ context.Context, filter port
 }
 
 func newTestHandler(create pigletfosteringinfra.CreatePigletFosteringUseCase, list pigletfosteringinfra.ListPigletFosteringsUseCase) *pigletfosteringinfra.PigletFosteringHandler {
+	return newTestHandlerWithUpdate(create, &fakeUpdatePigletFosteringUseCase{}, list)
+}
+
+func newTestHandlerWithUpdate(
+	create pigletfosteringinfra.CreatePigletFosteringUseCase,
+	update pigletfosteringinfra.UpdatePigletFosteringUseCase,
+	list pigletfosteringinfra.ListPigletFosteringsUseCase,
+) *pigletfosteringinfra.PigletFosteringHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return pigletfosteringinfra.NewPigletFosteringHandler(create, list, passThrough, passThrough)
+	return pigletfosteringinfra.NewPigletFosteringHandler(create, update, list, passThrough, passThrough)
 }
 
 func newAdminGuardHandler(create pigletfosteringinfra.CreatePigletFosteringUseCase) *pigletfosteringinfra.PigletFosteringHandler {
@@ -54,7 +77,13 @@ func newAdminGuardHandler(create pigletfosteringinfra.CreatePigletFosteringUseCa
 			w.WriteHeader(http.StatusForbidden)
 		})
 	}
-	return pigletfosteringinfra.NewPigletFosteringHandler(create, &fakeListPigletFosteringsUseCase{}, passThrough, adminGuard)
+	return pigletfosteringinfra.NewPigletFosteringHandler(
+		create,
+		&fakeUpdatePigletFosteringUseCase{},
+		&fakeListPigletFosteringsUseCase{},
+		passThrough,
+		adminGuard,
+	)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {

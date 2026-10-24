@@ -23,12 +23,17 @@ type CreatePigletFosteringUseCase interface {
 	Execute(context.Context, pigletfosteringapplication.CreatePigletFosteringCommand) (*pigletfosteringdomain.PigletFostering, error)
 }
 
+type UpdatePigletFosteringUseCase interface {
+	Execute(context.Context, uuid.UUID, pigletfosteringapplication.UpdatePigletFosteringCommand) (*pigletfosteringdomain.PigletFostering, error)
+}
+
 type ListPigletFosteringsUseCase interface {
 	Execute(context.Context, ports.PigletFosteringFilter) ([]*pigletfosteringdomain.PigletFostering, error)
 }
 
 type PigletFosteringHandler struct {
 	createPigletFostering CreatePigletFosteringUseCase
+	updatePigletFostering UpdatePigletFosteringUseCase
 	listPigletFosterings  ListPigletFosteringsUseCase
 	authMiddleware        func(http.Handler) http.Handler
 	adminMiddleware       func(http.Handler) http.Handler
@@ -38,22 +43,25 @@ type PigletFosteringHandler struct {
 // It returns a handler ready to register its routes.
 func NewPigletFosteringHandler(
 	createPigletFostering CreatePigletFosteringUseCase,
+	updatePigletFostering UpdatePigletFosteringUseCase,
 	listPigletFosterings ListPigletFosteringsUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *PigletFosteringHandler {
 	return &PigletFosteringHandler{
 		createPigletFostering: createPigletFostering,
+		updatePigletFostering: updatePigletFostering,
 		listPigletFosterings:  listPigletFosterings,
 		authMiddleware:        authMiddleware,
 		adminMiddleware:       adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the fostering create and list endpoints on the mux.
-// Creation is admin-only while the list route only requires authentication.
+// RegisterRoutes registers the fostering create, update and list endpoints on the mux.
+// Creation and update are admin-only while the list route only requires authentication.
 func (h *PigletFosteringHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/piglet-fosterings", h.adminMiddleware(http.HandlerFunc(h.create)))
+	mux.Handle("PATCH /api/v1/piglet-fosterings/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
 	mux.Handle("GET /api/v1/piglet-fosterings", h.authMiddleware(http.HandlerFunc(h.list)))
 }
 
@@ -63,6 +71,12 @@ type createPigletFosteringRequest struct {
 	MovementDate  string  `json:"movement_date"`
 	Quantity      int     `json:"quantity"`
 	Note          *string `json:"note"`
+}
+
+type updatePigletFosteringRequest struct {
+	MovementDate *string `json:"movement_date"`
+	Quantity     *int    `json:"quantity"`
+	Note         *string `json:"note"`
 }
 
 type pigletFosteringResponse struct {
@@ -114,7 +128,7 @@ func (h *PigletFosteringHandler) create(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	createdFostering, err := h.createPigletFostering.Execute(r.Context(), pigletfosteringapplication.CreatePigletFosteringCommand{
+	_, err = h.createPigletFostering.Execute(r.Context(), pigletfosteringapplication.CreatePigletFosteringCommand{
 		DonorSowID:    donorSowID,
 		ReceiverSowID: receiverSowID,
 		MovementDate:  movementDate,
@@ -127,7 +141,65 @@ func (h *PigletFosteringHandler) create(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusCreated, toPigletFosteringResponse(createdFostering))
+	platformhttp.WriteStatus(w, http.StatusCreated)
+}
+
+// update handles PATCH /api/v1/piglet-fosterings/{id} and applies the editable fields.
+// It parses the id and the optional date, quantity and note, reads the actor and
+// answers with a status code only. Sow and farrowing changes are rejected.
+func (h *PigletFosteringHandler) update(w http.ResponseWriter, r *http.Request) {
+	fosteringID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El traslado de lechones no es válido"))
+		return
+	}
+
+	var request updatePigletFosteringRequest
+	if err := platformhttp.DecodeJSON(w, r, &request); err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	params, err := parseUpdatePigletFosteringParams(request)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	actor, ok := authdomain.AuthenticatedUserFromContext(r.Context())
+	if !ok {
+		platformhttp.WriteError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
+		return
+	}
+
+	if _, err := h.updatePigletFostering.Execute(r.Context(), fosteringID, pigletfosteringapplication.UpdatePigletFosteringCommand{
+		Params:    params,
+		UpdatedBy: actor.UserID,
+	}); err != nil {
+		writePigletFosteringError(w, err)
+		return
+	}
+
+	platformhttp.WriteStatus(w, http.StatusOK)
+}
+
+// parseUpdatePigletFosteringParams converts the raw update request into domain params.
+// It parses the optional movement date and rejects a malformed value.
+func parseUpdatePigletFosteringParams(request updatePigletFosteringRequest) (pigletfosteringdomain.UpdatePigletFosteringParams, error) {
+	params := pigletfosteringdomain.UpdatePigletFosteringParams{
+		Quantity: request.Quantity,
+		Note:     request.Note,
+	}
+
+	if request.MovementDate != nil {
+		movementDate, err := time.Parse(dateLayout, *request.MovementDate)
+		if err != nil {
+			return params, errors.New("La fecha del traslado no es válida")
+		}
+		params.MovementDate = &movementDate
+	}
+
+	return params, nil
 }
 
 // list handles GET /api/v1/piglet-fosterings and returns the fosterings matching the filter.
@@ -243,11 +315,14 @@ func writePigletFosteringError(w http.ResponseWriter, err error) {
 		errors.Is(err, pigletfosteringdomain.ErrInvalidMovementDate),
 		errors.Is(err, pigletfosteringdomain.ErrInvalidFarrowDate),
 		errors.Is(err, pigletfosteringdomain.ErrInvalidQuantity),
+		errors.Is(err, pigletfosteringdomain.ErrQuantityExceedsMax),
 		errors.Is(err, pigletfosteringdomain.ErrInvalidNote),
 		errors.Is(err, pigletfosteringdomain.ErrInvalidCreatedBy),
 		errors.Is(err, pigletfosteringdomain.ErrInvalidUpdatedBy),
+		errors.Is(err, pigletfosteringdomain.ErrInvalidUpdate),
 		errors.Is(err, pigletfosteringdomain.ErrSameFarrowing),
 		errors.Is(err, pigletfosteringdomain.ErrMovementDateBeforeFarrowing),
+		errors.Is(err, pigletfosteringdomain.ErrMovementDateBeforePartialWeaging),
 		errors.Is(err, pigletfosteringdomain.ErrMovementDateInFuture),
 		errors.Is(err, farrowingdomain.ErrInvalidPigletQuantity):
 		status = http.StatusBadRequest
