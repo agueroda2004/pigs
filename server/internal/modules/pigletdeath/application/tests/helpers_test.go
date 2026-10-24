@@ -45,6 +45,19 @@ func testOperator(id uuid.UUID) *operatordomain.Operator {
 	return &operatordomain.Operator{ID: id, Name: "Operador", Active: true}
 }
 
+func testPigletDeath(id, farrowingID uuid.UUID, quantity int) *pigletdeathdomain.PigletDeath {
+	return &pigletdeathdomain.PigletDeath{
+		ID:          id,
+		FarrowingID: farrowingID,
+		SowID:       uuid.New(),
+		OperatorID:  uuid.New(),
+		DeathDate:   deathDay,
+		Quantity:    quantity,
+		Cause:       pigletdeathdomain.CauseCrushed,
+		Turn:        pigletdeathdomain.TurnMorning,
+	}
+}
+
 func validCommand(sowID, operatorID, createdBy uuid.UUID) pigletdeathapplication.CreatePigletDeathCommand {
 	note := "Muerte durante la noche"
 	weight := 2.5

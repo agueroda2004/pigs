@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -107,6 +108,27 @@ func (r *PostgresPigletDeathRepository) GetLastFarrowing(ctx context.Context, so
 	return result, nil
 }
 
+// GetLastPartialWeagingDate fetches the most recent partial weaging date of a farrowing.
+// It orders by weaging date and returns the zero time when the farrowing has none.
+func (r *PostgresPigletDeathRepository) GetLastPartialWeagingDate(ctx context.Context, farrowingID uuid.UUID) (time.Time, error) {
+	var weagingDate time.Time
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT weaging_date
+		FROM partial_weagings
+		WHERE farrowing_id = $1
+		ORDER BY weaging_date DESC, created_at DESC
+		LIMIT 1
+	`, farrowingID).Scan(&weagingDate)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, fmt.Errorf("No se pudo consultar el último destete parcial: %w", err)
+	}
+	return weagingDate, nil
+}
+
 // GetOperator fetches an operator by its identifier.
 // It returns ports.ErrOperatorNotFound when no row matches.
 func (r *PostgresPigletDeathRepository) GetOperator(ctx context.Context, id uuid.UUID) (*operatordomain.Operator, error) {
@@ -196,23 +218,247 @@ func (r *PostgresPigletDeathRepository) Create(
 	return nil
 }
 
-// List fetches the piglet deaths matching the filter, newest first.
-// It joins the farrowing to expose the sow and returns an empty slice when no row matches.
-func (r *PostgresPigletDeathRepository) List(ctx context.Context, filter ports.PigletDeathFilter) ([]*pigletdeathdomain.PigletDeath, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT pd.id, pd.farrowing_id, f.sow_id, pd.operator_id, o.name, pd.death_date,
+// GetFarrowingByID fetches a farrowing by its identifier.
+// It returns ports.ErrFarrowingNotFound when no row matches.
+func (r *PostgresPigletDeathRepository) GetFarrowingByID(ctx context.Context, id uuid.UUID) (*farrowingdomain.Farrowing, error) {
+	result := &farrowingdomain.Farrowing{}
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, service_id, sow_id, farrow_date, start_time, end_time, location,
+		       live_born, stillborn, mummified, current_piglets, litter_weight, stillborn_weight,
+		       is_manipulated, is_nurse, nurse_start_date, note, created_at, updated_at, created_by, updated_by
+		FROM farrowings
+		WHERE id = $1
+	`, id).Scan(
+		&result.ID,
+		&result.ServiceID,
+		&result.SowID,
+		&result.FarrowDate,
+		&result.StartTime,
+		&result.EndTime,
+		&result.Location,
+		&result.LiveBorn,
+		&result.Stillborn,
+		&result.Mummified,
+		&result.CurrentPiglets,
+		&result.LitterWeight,
+		&result.StillbornWeight,
+		&result.IsManipulated,
+		&result.IsNurse,
+		&result.NurseStartDate,
+		&result.Note,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.CreatedBy,
+		&result.UpdatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrFarrowingNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el parto: %w", err)
+	}
+	return result, nil
+}
+
+// GetByID fetches a piglet death by its identifier.
+// It joins the farrowing, sow and operator to fill the sow and operator read fields.
+func (r *PostgresPigletDeathRepository) GetByID(ctx context.Context, id uuid.UUID) (*pigletdeathdomain.PigletDeath, error) {
+	result := &pigletdeathdomain.PigletDeath{}
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT pd.id, pd.farrowing_id, f.sow_id, s.code, pd.operator_id, o.name, pd.death_date,
 		       pd.quantity, pd.weight, pd.cause, pd.turn, pd.note,
 		       pd.created_at, pd.updated_at, pd.created_by, pd.updated_by
 		FROM piglet_deaths pd
 		JOIN farrowings f ON f.id = pd.farrowing_id
+		JOIN sows s ON s.id = f.sow_id
 		JOIN operators o ON o.id = pd.operator_id
-		WHERE ($1::uuid IS NULL OR f.sow_id = $1)
+		WHERE pd.id = $1
+	`, id).Scan(
+		&result.ID,
+		&result.FarrowingID,
+		&result.SowID,
+		&result.SowCode,
+		&result.OperatorID,
+		&result.OperatorName,
+		&result.DeathDate,
+		&result.Quantity,
+		&result.Weight,
+		&result.Cause,
+		&result.Turn,
+		&result.Note,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.CreatedBy,
+		&result.UpdatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrPigletDeathNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar la muerte de lechones: %w", err)
+	}
+	return result, nil
+}
+
+// HasWeagingAfter reports whether a full weaging exists strictly after the date.
+// It compares at day granularity and returns false when there is no later weaging.
+func (r *PostgresPigletDeathRepository) HasWeagingAfter(ctx context.Context, farrowingID uuid.UUID, date time.Time) (bool, error) {
+	var exists bool
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM weagings
+			WHERE farrowing_id = $1 AND weaging_date > $2::date
+		)
+	`, farrowingID, date).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("No se pudo consultar el destete: %w", err)
+	}
+	return exists, nil
+}
+
+// HasPartialWeagingAfter reports whether a partial weaging exists strictly after the date.
+// It compares at day granularity and returns false when there is no later partial weaging.
+func (r *PostgresPigletDeathRepository) HasPartialWeagingAfter(ctx context.Context, farrowingID uuid.UUID, date time.Time) (bool, error) {
+	var exists bool
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM partial_weagings
+			WHERE farrowing_id = $1 AND weaging_date > $2::date
+		)
+	`, farrowingID, date).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("No se pudo consultar el destete parcial: %w", err)
+	}
+	return exists, nil
+}
+
+// Update persists the editable fields of a piglet death.
+// It returns ports.ErrPigletDeathNotFound when no row matches the identifier.
+func (r *PostgresPigletDeathRepository) Update(ctx context.Context, death *pigletdeathdomain.PigletDeath) error {
+	commandTag, err := r.pool.Exec(ctx, `
+		UPDATE piglet_deaths
+		SET operator_id = $2,
+		    weight = $3,
+		    cause = $4,
+		    turn = $5,
+		    note = $6,
+		    updated_at = $7,
+		    updated_by = $8
+		WHERE id = $1
+	`,
+		death.ID,
+		death.OperatorID,
+		death.Weight,
+		death.Cause,
+		death.Turn,
+		death.Note,
+		death.UpdatedAt,
+		death.UpdatedBy,
+	)
+	if err != nil {
+		return fmt.Errorf("No se pudo actualizar la muerte de lechones: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrPigletDeathNotFound
+	}
+	return nil
+}
+
+// Delete removes the piglet death and gives its quantity back to the farrowing.
+// Both writes run in a single transaction so the rows always change together.
+func (r *PostgresPigletDeathRepository) Delete(
+	ctx context.Context,
+	death *pigletdeathdomain.PigletDeath,
+	farrowing *farrowingdomain.Farrowing,
+) error {
+	transaction, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar la muerte de lechones: %w", err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	commandTag, err := transaction.Exec(ctx, `
+		DELETE FROM piglet_deaths
+		WHERE id = $1
+	`, death.ID)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar la muerte de lechones: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrPigletDeathNotFound
+	}
+
+	commandTag, err = transaction.Exec(ctx, `
+		UPDATE farrowings
+		SET current_piglets = current_piglets + $2,
+		    updated_at = $3,
+		    updated_by = $4
+		WHERE id = $1
+	`,
+		farrowing.ID,
+		death.Quantity,
+		farrowing.UpdatedAt,
+		farrowing.UpdatedBy,
+	)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar la muerte de lechones: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrFarrowingNotFound
+	}
+
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("No se pudo eliminar la muerte de lechones: %w", err)
+	}
+	return nil
+}
+
+// List fetches one page of piglet deaths matching the filter, newest first, with
+// the total count of matches. It joins the farrowing and sow to expose the sow code
+// and returns an empty slice when no row matches.
+func (r *PostgresPigletDeathRepository) List(
+	ctx context.Context,
+	filter ports.PigletDeathFilter,
+	limit int,
+	offset int,
+) ([]*pigletdeathdomain.PigletDeath, int, error) {
+	var total int
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM piglet_deaths pd
+		JOIN farrowings f ON f.id = pd.farrowing_id
+		JOIN sows s ON s.id = f.sow_id
+		WHERE ($1::text IS NULL OR LOWER(s.code) = LOWER($1))
+		  AND ($2::date IS NULL OR pd.death_date >= $2)
+		  AND ($3::date IS NULL OR pd.death_date <= $3)
+	`, filter.SowCode, filter.FromDate, filter.ToDate).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("No se pudieron consultar las muertes de lechones: %w", err)
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT pd.id, pd.farrowing_id, f.sow_id, s.code, pd.operator_id, o.name, pd.death_date,
+		       pd.quantity, pd.weight, pd.cause, pd.turn, pd.note,
+		       pd.created_at, pd.updated_at, pd.created_by, pd.updated_by
+		FROM piglet_deaths pd
+		JOIN farrowings f ON f.id = pd.farrowing_id
+		JOIN sows s ON s.id = f.sow_id
+		JOIN operators o ON o.id = pd.operator_id
+		WHERE ($1::text IS NULL OR LOWER(s.code) = LOWER($1))
 		  AND ($2::date IS NULL OR pd.death_date >= $2)
 		  AND ($3::date IS NULL OR pd.death_date <= $3)
 		ORDER BY pd.death_date DESC, pd.created_at DESC
-	`, filter.SowID, filter.FromDate, filter.ToDate)
+		LIMIT $4 OFFSET $5
+	`, filter.SowCode, filter.FromDate, filter.ToDate, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar las muertes de lechones: %w", err)
+		return nil, 0, fmt.Errorf("No se pudieron consultar las muertes de lechones: %w", err)
 	}
 	defer rows.Close()
 
@@ -223,6 +469,7 @@ func (r *PostgresPigletDeathRepository) List(ctx context.Context, filter ports.P
 			&result.ID,
 			&result.FarrowingID,
 			&result.SowID,
+			&result.SowCode,
 			&result.OperatorID,
 			&result.OperatorName,
 			&result.DeathDate,
@@ -236,14 +483,14 @@ func (r *PostgresPigletDeathRepository) List(ctx context.Context, filter ports.P
 			&result.CreatedBy,
 			&result.UpdatedBy,
 		); err != nil {
-			return nil, fmt.Errorf("No se pudieron consultar las muertes de lechones: %w", err)
+			return nil, 0, fmt.Errorf("No se pudieron consultar las muertes de lechones: %w", err)
 		}
 		deaths = append(deaths, result)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar las muertes de lechones: %w", err)
+		return nil, 0, fmt.Errorf("No se pudieron consultar las muertes de lechones: %w", err)
 	}
-	return deaths, nil
+	return deaths, total, nil
 }
 
 // mapPostgresError wraps a PostgreSQL write failure with context.

@@ -31,20 +31,65 @@ func (f *fakeCreatePigletDeathUseCase) Execute(_ context.Context, command piglet
 
 type fakeListPigletDeathsUseCase struct {
 	deaths []*pigletdeathdomain.PigletDeath
+	total  int
 	err    error
 	filter ports.PigletDeathFilter
+	page   int
 	called bool
 }
 
-func (f *fakeListPigletDeathsUseCase) Execute(_ context.Context, filter ports.PigletDeathFilter) ([]*pigletdeathdomain.PigletDeath, error) {
+func (f *fakeListPigletDeathsUseCase) Execute(_ context.Context, filter ports.PigletDeathFilter, page int) (pigletdeathapplication.PigletDeathPage, error) {
 	f.called = true
 	f.filter = filter
-	return f.deaths, f.err
+	f.page = page
+	if f.err != nil {
+		return pigletdeathapplication.PigletDeathPage{}, f.err
+	}
+	totalPages := 0
+	if f.total > 0 {
+		totalPages = (f.total + pigletdeathapplication.DefaultPigletDeathPageSize - 1) / pigletdeathapplication.DefaultPigletDeathPageSize
+	}
+	return pigletdeathapplication.PigletDeathPage{
+		Items:      f.deaths,
+		Total:      f.total,
+		Page:       page,
+		PageSize:   pigletdeathapplication.DefaultPigletDeathPageSize,
+		TotalPages: totalPages,
+	}, nil
+}
+
+type fakeDeletePigletDeathUseCase struct {
+	err     error
+	command pigletdeathapplication.DeletePigletDeathCommand
+	called  bool
+}
+
+func (f *fakeDeletePigletDeathUseCase) Execute(_ context.Context, command pigletdeathapplication.DeletePigletDeathCommand) error {
+	f.called = true
+	f.command = command
+	return f.err
+}
+
+type fakeUpdatePigletDeathUseCase struct {
+	death   *pigletdeathdomain.PigletDeath
+	err     error
+	id      uuid.UUID
+	command pigletdeathapplication.UpdatePigletDeathCommand
+	called  bool
+}
+
+func (f *fakeUpdatePigletDeathUseCase) Execute(_ context.Context, id uuid.UUID, command pigletdeathapplication.UpdatePigletDeathCommand) (*pigletdeathdomain.PigletDeath, error) {
+	f.called = true
+	f.id = id
+	f.command = command
+	return f.death, f.err
 }
 
 func newTestHandler(create pigletdeathinfra.CreatePigletDeathUseCase, list pigletdeathinfra.ListPigletDeathsUseCase) *pigletdeathinfra.PigletDeathHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return pigletdeathinfra.NewPigletDeathHandler(create, list, passThrough, passThrough)
+	return pigletdeathinfra.NewPigletDeathHandler(
+		create, list, &fakeDeletePigletDeathUseCase{}, &fakeUpdatePigletDeathUseCase{}, passThrough, passThrough,
+	)
 }
 
 func newAdminGuardHandler(create pigletdeathinfra.CreatePigletDeathUseCase) *pigletdeathinfra.PigletDeathHandler {
@@ -54,7 +99,52 @@ func newAdminGuardHandler(create pigletdeathinfra.CreatePigletDeathUseCase) *pig
 			w.WriteHeader(http.StatusForbidden)
 		})
 	}
-	return pigletdeathinfra.NewPigletDeathHandler(create, &fakeListPigletDeathsUseCase{}, passThrough, adminGuard)
+	return pigletdeathinfra.NewPigletDeathHandler(
+		create, &fakeListPigletDeathsUseCase{}, &fakeDeletePigletDeathUseCase{},
+		&fakeUpdatePigletDeathUseCase{}, passThrough, adminGuard,
+	)
+}
+
+func newDeleteHandler(remove pigletdeathinfra.DeletePigletDeathUseCase) *pigletdeathinfra.PigletDeathHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	return pigletdeathinfra.NewPigletDeathHandler(
+		&fakeCreatePigletDeathUseCase{}, &fakeListPigletDeathsUseCase{}, remove,
+		&fakeUpdatePigletDeathUseCase{}, passThrough, passThrough,
+	)
+}
+
+func newAdminGuardDeleteHandler(remove pigletdeathinfra.DeletePigletDeathUseCase) *pigletdeathinfra.PigletDeathHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	adminGuard := func(_ http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		})
+	}
+	return pigletdeathinfra.NewPigletDeathHandler(
+		&fakeCreatePigletDeathUseCase{}, &fakeListPigletDeathsUseCase{}, remove,
+		&fakeUpdatePigletDeathUseCase{}, passThrough, adminGuard,
+	)
+}
+
+func newUpdateHandler(update pigletdeathinfra.UpdatePigletDeathUseCase) *pigletdeathinfra.PigletDeathHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	return pigletdeathinfra.NewPigletDeathHandler(
+		&fakeCreatePigletDeathUseCase{}, &fakeListPigletDeathsUseCase{}, &fakeDeletePigletDeathUseCase{},
+		update, passThrough, passThrough,
+	)
+}
+
+func newAdminGuardUpdateHandler(update pigletdeathinfra.UpdatePigletDeathUseCase) *pigletdeathinfra.PigletDeathHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	adminGuard := func(_ http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		})
+	}
+	return pigletdeathinfra.NewPigletDeathHandler(
+		&fakeCreatePigletDeathUseCase{}, &fakeListPigletDeathsUseCase{}, &fakeDeletePigletDeathUseCase{},
+		update, passThrough, adminGuard,
+	)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {
@@ -81,6 +171,7 @@ func handlerPigletDeath() *pigletdeathdomain.PigletDeath {
 		ID:           uuid.New(),
 		FarrowingID:  uuid.New(),
 		SowID:        uuid.New(),
+		SowCode:      "C-001",
 		OperatorID:   uuid.New(),
 		OperatorName: "Operador",
 		DeathDate:    time.Date(2026, time.April, 25, 0, 0, 0, 0, time.UTC),

@@ -56,6 +56,54 @@ func TestCreatePigletDeathExecute(t *testing.T) {
 		if repository.createdFarrowing.CurrentPiglets != 8 {
 			t.Fatalf("current piglets = %d, want 8", repository.createdFarrowing.CurrentPiglets)
 		}
+		if repository.lastPartialWeagingCalls != 0 {
+			t.Fatalf("partial weaging lookups = %d, want 0", repository.lastPartialWeagingCalls)
+		}
+	})
+
+	t.Run("rejects a death date before the last partial weaging of a nurse sow", func(t *testing.T) {
+		repository := repositoryWith()
+		repository.farrowing.IsNurse = true
+		repository.lastPartialWeagingDate = deathDay.AddDate(0, 0, 1)
+		useCase := pigletdeathapplication.NewCreatePigletDeathService(repository, func() time.Time { return nowReference })
+
+		_, err := useCase.Execute(context.Background(), validCommand(sowID, operatorID, actorID))
+
+		if !errors.Is(err, pigletdeathdomain.ErrDeathDateBeforeWeaging) {
+			t.Fatalf("error = %v, want ErrDeathDateBeforeWeaging", err)
+		}
+		if repository.lastPartialWeagingCalls != 1 {
+			t.Fatalf("partial weaging lookups = %d, want 1", repository.lastPartialWeagingCalls)
+		}
+	})
+
+	t.Run("registers a death after the last partial weaging of a nurse sow", func(t *testing.T) {
+		repository := repositoryWith()
+		repository.farrowing.IsNurse = true
+		repository.lastPartialWeagingDate = farrowDay.AddDate(0, 0, 1)
+		useCase := pigletdeathapplication.NewCreatePigletDeathService(repository, func() time.Time { return nowReference })
+
+		death, err := useCase.Execute(context.Background(), validCommand(sowID, operatorID, actorID))
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if death.Quantity != 2 || repository.created != death {
+			t.Fatalf("death was not persisted: %#v", death)
+		}
+	})
+
+	t.Run("propagates a partial weaging lookup error", func(t *testing.T) {
+		repository := repositoryWith()
+		repository.farrowing.IsNurse = true
+		repository.lastPartialWeagingDateErr = errors.New("boom")
+		useCase := pigletdeathapplication.NewCreatePigletDeathService(repository, func() time.Time { return nowReference })
+
+		_, err := useCase.Execute(context.Background(), validCommand(sowID, operatorID, actorID))
+
+		if !errors.Is(err, repository.lastPartialWeagingDateErr) {
+			t.Fatalf("error = %v, want the partial weaging error", err)
+		}
 	})
 
 	t.Run("rejects a sow that is not lactating", func(t *testing.T) {
@@ -86,7 +134,7 @@ func TestCreatePigletDeathExecute(t *testing.T) {
 		repository := repositoryWith()
 		useCase := pigletdeathapplication.NewCreatePigletDeathService(repository, func() time.Time { return nowReference })
 		command := validCommand(sowID, operatorID, actorID)
-		command.DeathDate = farrowDay
+		command.DeathDate = farrowDay.AddDate(0, 0, -1)
 
 		_, err := useCase.Execute(context.Background(), command)
 

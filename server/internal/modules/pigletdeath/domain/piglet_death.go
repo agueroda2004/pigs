@@ -8,7 +8,11 @@ import (
 	"github.com/google/uuid"
 )
 
-const maxNoteLength = 500
+const (
+	maxNoteLength = 500
+	maxQuantity   = 10
+	maxWeight     = 20.0
+)
 
 // PigletDeathCause represents the reason of a piglet death.
 // Its values match the piglet_death_cause database enum.
@@ -45,14 +49,22 @@ var (
 	ErrInvalidDeathDate         = errors.New("La fecha de la muerte es obligatoria")
 	ErrInvalidFarrowDate        = errors.New("La fecha del parto es obligatoria")
 	ErrInvalidQuantity          = errors.New("La cantidad de lechones muertos debe ser mayor a cero")
+	ErrQuantityTooHigh          = errors.New("La cantidad de lechones muertos no puede ser mayor a 10")
+	ErrWeightRequired           = errors.New("El peso es obligatorio")
 	ErrInvalidWeight            = errors.New("El peso debe ser mayor a cero")
+	ErrWeightTooHigh            = errors.New("El peso no puede ser mayor a 20 kg")
 	ErrInvalidCause             = errors.New("La causa de la muerte no es válida")
 	ErrInvalidTurn              = errors.New("El turno no es válido")
 	ErrInvalidNote              = errors.New("La nota debe tener como máximo 500 caracteres")
 	ErrInvalidCreatedBy         = errors.New("El usuario que crea la muerte es obligatorio")
 	ErrInvalidUpdatedBy         = errors.New("El usuario que actualiza la muerte es obligatorio")
-	ErrDeathDateBeforeFarrowing = errors.New("La fecha de la muerte debe ser posterior al parto")
+	ErrDeathDateBeforeFarrowing = errors.New("La fecha de la muerte no puede ser anterior al parto")
 	ErrDeathDateInFuture        = errors.New("La fecha de la muerte no puede ser futura")
+	ErrDeathDateBeforeWeaging   = errors.New("La fecha de la muerte no puede ser anterior al último destete parcial")
+	ErrHasLaterWeaging          = errors.New("No se puede eliminar la muerte porque existe un destete posterior")
+	ErrHasLaterPartialWeaging   = errors.New("No se puede eliminar la muerte porque existe un destete parcial posterior")
+	ErrInvalidUpdate            = errors.New("Debe actualizar al menos un campo de la muerte")
+	ErrImmutableDeathField      = errors.New("La fecha, la cantidad y la cerda de la muerte no se pueden editar")
 )
 
 // PigletDeath is the aggregate root that represents the death of piglets in a
@@ -61,6 +73,7 @@ type PigletDeath struct {
 	ID           uuid.UUID
 	FarrowingID  uuid.UUID
 	SowID        uuid.UUID
+	SowCode      string
 	OperatorID   uuid.UUID
 	OperatorName string
 	DeathDate    time.Time
@@ -93,10 +106,11 @@ type NewPigletDeathParams struct {
 }
 
 // NewPigletDeath builds a piglet death after validating its fields and dates.
-// It requires the death date to be strictly after farrowDate and not later than
-// today, then sets the audit fields to the creator and now. The weight is
-// optional but must be greater than zero when provided.
-func NewPigletDeath(params NewPigletDeathParams, farrowDate time.Time, now time.Time) (*PigletDeath, error) {
+// It requires the death date to be on or after farrowDate and not later than
+// today, and rejects a quantity over 10, a missing or non-positive weight and a
+// weight over 20 kg. The last partial weaging date may be zero when the farrowing
+// is not a nurse; otherwise the death date cannot be earlier than that date.
+func NewPigletDeath(params NewPigletDeathParams, farrowDate time.Time, lastPartialWeagingDate time.Time, now time.Time) (*PigletDeath, error) {
 	if params.ID == uuid.Nil {
 		return nil, ErrInvalidID
 	}
@@ -116,15 +130,24 @@ func NewPigletDeath(params NewPigletDeathParams, farrowDate time.Time, now time.
 		return nil, ErrInvalidFarrowDate
 	}
 
-	if err := validateDeathDate(params.DeathDate, farrowDate, now); err != nil {
+	if err := validateDeathDate(params.DeathDate, farrowDate, lastPartialWeagingDate, now); err != nil {
 		return nil, err
 	}
 
 	if params.Quantity <= 0 {
 		return nil, ErrInvalidQuantity
 	}
-	if params.Weight != nil && *params.Weight <= 0 {
+	if params.Quantity > maxQuantity {
+		return nil, ErrQuantityTooHigh
+	}
+	if params.Weight == nil {
+		return nil, ErrWeightRequired
+	}
+	if *params.Weight <= 0 {
 		return nil, ErrInvalidWeight
+	}
+	if *params.Weight > maxWeight {
+		return nil, ErrWeightTooHigh
 	}
 	if !isValidCause(params.Cause) {
 		return nil, ErrInvalidCause
@@ -161,15 +184,19 @@ func NewPigletDeath(params NewPigletDeathParams, farrowDate time.Time, now time.
 	}, nil
 }
 
-// validateDeathDate checks the death date bounds against the farrow date.
-// It rejects dates after today and dates on or before the farrow date.
-func validateDeathDate(deathDate time.Time, farrowDate time.Time, now time.Time) error {
+// validateDeathDate checks the death date bounds against the farrow date and the
+// last partial weaging date. It rejects dates after today, dates before the
+// farrow date and dates before the last partial weaging when one is provided.
+func validateDeathDate(deathDate time.Time, farrowDate time.Time, lastPartialWeagingDate time.Time, now time.Time) error {
 	death := truncateToDay(deathDate)
 	if death.After(truncateToDay(now)) {
 		return ErrDeathDateInFuture
 	}
-	if !death.After(truncateToDay(farrowDate)) {
+	if death.Before(truncateToDay(farrowDate)) {
 		return ErrDeathDateBeforeFarrowing
+	}
+	if !lastPartialWeagingDate.IsZero() && death.Before(truncateToDay(lastPartialWeagingDate)) {
+		return ErrDeathDateBeforeWeaging
 	}
 	return nil
 }
@@ -196,6 +223,94 @@ func validateNote(note *string) (*string, error) {
 		return nil, ErrInvalidNote
 	}
 	return &trimmed, nil
+}
+
+// UpdatePigletDeathParams holds the editable fields of a piglet death update.
+// A nil pointer means the field is omitted and stays unchanged, except for the
+// locked fields, which are only accepted when they match the stored values. The
+// operator name is resolved by the use case from the operator identifier.
+type UpdatePigletDeathParams struct {
+	DeathDate    *time.Time
+	Quantity     *int
+	SowID        *uuid.UUID
+	OperatorID   *uuid.UUID
+	OperatorName *string
+	Weight       *float64
+	Cause        *PigletDeathCause
+	Turn         *Turn
+	Note         *string
+}
+
+// Update applies the provided editable fields to the piglet death.
+// It rejects a change to the death date, quantity or sow, requires a positive
+// weight of at most 20 kg, validates the cause, turn and note, and records the
+// actor plus the timestamp. It returns ErrInvalidUpdate when no field is provided.
+func (d *PigletDeath) Update(params UpdatePigletDeathParams, updatedBy uuid.UUID, now time.Time) error {
+	if d == nil || d.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if params.DeathDate == nil && params.Quantity == nil && params.SowID == nil &&
+		params.OperatorID == nil && params.Weight == nil && params.Cause == nil &&
+		params.Turn == nil && params.Note == nil {
+		return ErrInvalidUpdate
+	}
+
+	if params.DeathDate != nil &&
+		!truncateToDay(*params.DeathDate).Equal(truncateToDay(d.DeathDate)) {
+		return ErrImmutableDeathField
+	}
+	if params.Quantity != nil && *params.Quantity != d.Quantity {
+		return ErrImmutableDeathField
+	}
+	if params.SowID != nil && *params.SowID != d.SowID {
+		return ErrImmutableDeathField
+	}
+
+	if params.Weight == nil {
+		return ErrWeightRequired
+	}
+	if *params.Weight <= 0 {
+		return ErrInvalidWeight
+	}
+	if *params.Weight > maxWeight {
+		return ErrWeightTooHigh
+	}
+
+	if params.Cause != nil && !isValidCause(*params.Cause) {
+		return ErrInvalidCause
+	}
+	if params.Turn != nil && !isValidTurn(*params.Turn) {
+		return ErrInvalidTurn
+	}
+
+	note, err := validateNote(params.Note)
+	if err != nil {
+		return err
+	}
+
+	if params.OperatorID != nil {
+		d.OperatorID = *params.OperatorID
+		if params.OperatorName != nil {
+			d.OperatorName = *params.OperatorName
+		}
+	}
+	d.Weight = params.Weight
+	if params.Cause != nil {
+		d.Cause = *params.Cause
+	}
+	if params.Turn != nil {
+		d.Turn = *params.Turn
+	}
+	if params.Note != nil {
+		d.Note = note
+	}
+
+	d.UpdatedAt = now
+	d.UpdatedBy = updatedBy
+	return nil
 }
 
 // isValidCause checks whether the cause belongs to the piglet death domain.

@@ -11,6 +11,8 @@ import (
 type Module struct {
 	CreatePigletDeath *pigletdeathapplication.CreatePigletDeathService
 	ListPigletDeaths  *pigletdeathapplication.ListPigletDeathsService
+	DeletePigletDeath *pigletdeathapplication.DeletePigletDeathService
+	UpdatePigletDeath *pigletdeathapplication.UpdatePigletDeathService
 	Handler           *PigletDeathHandler
 }
 
@@ -24,10 +26,17 @@ func NewModule(
 ) *Module {
 	createPigletDeath := pigletdeathapplication.NewCreatePigletDeathService(repository, clock)
 	listPigletDeaths := pigletdeathapplication.NewListPigletDeathsService(repository)
+	deletePigletDeath := pigletdeathapplication.NewDeletePigletDeathService(repository, clock)
+	updatePigletDeath := pigletdeathapplication.NewUpdatePigletDeathService(repository, clock)
 
 	return &Module{
 		CreatePigletDeath: createPigletDeath,
 		ListPigletDeaths:  listPigletDeaths,
-		Handler:           NewPigletDeathHandler(createPigletDeath, listPigletDeaths, authMiddleware, adminMiddleware),
+		DeletePigletDeath: deletePigletDeath,
+		UpdatePigletDeath: updatePigletDeath,
+		Handler: NewPigletDeathHandler(
+			createPigletDeath, listPigletDeaths, deletePigletDeath, updatePigletDeath,
+			authMiddleware, adminMiddleware,
+		),
 	}
 }

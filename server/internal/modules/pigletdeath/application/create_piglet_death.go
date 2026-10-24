@@ -42,6 +42,8 @@ func NewCreatePigletDeathService(repository ports.PigletDeathRepository, clock f
 // Execute registers a piglet death and reduces the farrowing's current piglets.
 // It validates that the sow is lactating, resolves its latest farrowing and the
 // operator, then persists the death and the reduced balance in one transaction.
+// When the farrowing is a nurse, it also resolves the latest partial weaging date
+// so the domain can reject deaths registered after it.
 func (s *CreatePigletDeathService) Execute(ctx context.Context, command CreatePigletDeathCommand) (*pigletdeathdomain.PigletDeath, error) {
 	sow, err := s.repository.GetSow(ctx, command.SowID)
 	if err != nil {
@@ -54,6 +56,14 @@ func (s *CreatePigletDeathService) Execute(ctx context.Context, command CreatePi
 	farrowing, err := s.repository.GetLastFarrowing(ctx, command.SowID)
 	if err != nil {
 		return nil, err
+	}
+
+	var lastPartialWeagingDate time.Time
+	if farrowing.IsNurse {
+		lastPartialWeagingDate, err = s.repository.GetLastPartialWeagingDate(ctx, farrowing.ID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	operator, err := s.repository.GetOperator(ctx, command.OperatorID)
@@ -75,7 +85,7 @@ func (s *CreatePigletDeathService) Execute(ctx context.Context, command CreatePi
 		Turn:         command.Turn,
 		Note:         command.Note,
 		CreatedBy:    command.CreatedBy,
-	}, farrowing.FarrowDate, now)
+	}, farrowing.FarrowDate, lastPartialWeagingDate, now)
 	if err != nil {
 		return nil, err
 	}
