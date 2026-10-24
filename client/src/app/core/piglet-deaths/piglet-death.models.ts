@@ -15,6 +15,7 @@ export interface PigletDeath {
   id: string;
   farrowing_id: string;
   sow_id: string;
+  sow_code: string;
   operator_id: string;
   operator_name: string;
   death_date: string;
@@ -23,10 +24,14 @@ export interface PigletDeath {
   cause: PigletDeathCause;
   turn: Turn;
   note: string | null;
-  created_at: string;
-  updated_at: string;
-  created_by: string;
-  updated_by: string;
+}
+
+export interface PigletDeathPage {
+  items: PigletDeath[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 export interface CreatePigletDeathRequest {
@@ -34,14 +39,22 @@ export interface CreatePigletDeathRequest {
   operator_id: string;
   death_date: string;
   quantity: number;
-  weight?: number;
+  weight: number;
+  cause: PigletDeathCause;
+  turn: Turn;
+  note?: string;
+}
+
+export interface UpdatePigletDeathRequest {
+  operator_id: string;
+  weight: number;
   cause: PigletDeathCause;
   turn: Turn;
   note?: string;
 }
 
 export interface PigletDeathFilters {
-  sow_id?: string;
+  sow_code?: string;
   from?: string;
   to?: string;
 }

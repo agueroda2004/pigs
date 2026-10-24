@@ -2,7 +2,9 @@
   <div class="flex items-center justify-between gap-4">
     <div>
       <h1 class="text-2xl font-semibold tracking-tight">Muertes de lechones</h1>
-      <p class="mt-1 text-sm text-muted-foreground">Muertes de lechones registradas en la granja.</p>
+      <p class="mt-1 text-sm text-muted-foreground">
+        Muertes de lechones registradas en la granja.
+      </p>
     </div>
 
     @if (isAdmin()) {
@@ -34,8 +36,18 @@
     (ngSubmit)="search()"
   >
     <div class="space-y-1.5">
-      <span class="block text-xs font-medium text-muted-foreground">Cerda</span>
-      <app-search-dropdown formControlName="sow_id" [options]="sowOptions()" placeholder="Todas" />
+      <label for="piglet-death-sow-code" class="block text-xs font-medium text-muted-foreground"
+        >Cerda</label
+      >
+      <input
+        id="piglet-death-sow-code"
+        type="text"
+        formControlName="sow_code"
+        maxlength="50"
+        autocomplete="off"
+        placeholder="Código de la cerda"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      />
     </div>
 
     <div class="space-y-1.5">
@@ -98,9 +110,7 @@
   } @else if (deaths().length === 0) {
     <div class="rounded-xl border border-dashed border-border p-10 text-center">
       @if (hasFilters()) {
-        <p class="text-sm text-muted-foreground">
-          No hay muertes que coincidan con los filtros.
-        </p>
+        <p class="text-sm text-muted-foreground">No hay muertes que coincidan con los filtros.</p>
         <button
           type="button"
           (click)="clearFilters()"
@@ -120,9 +130,40 @@
   } @else {
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       @for (death of deaths(); track death.id) {
-        <app-piglet-death-card [death]="death" [sowCode]="sowCode(death)" />
+        <app-piglet-death-card
+          [death]="death"
+          [sowCode]="death.sow_code"
+          [canEdit]="isAdmin()"
+          [canDelete]="isAdmin()"
+          (editRequested)="openEdit($event)"
+          (deleteRequested)="openDelete($event)"
+        />
       }
     </div>
+
+    @if (totalPages() > 1) {
+      <div class="flex items-center justify-center gap-4">
+        <button
+          type="button"
+          (click)="previousPage()"
+          [disabled]="page() === 1"
+          class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Anterior
+        </button>
+        <span class="text-sm text-muted-foreground">
+          Página {{ page() }} de {{ totalPages() }} ({{ total() }} muertes)
+        </span>
+        <button
+          type="button"
+          (click)="nextPage()"
+          [disabled]="page() === totalPages()"
+          class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Siguiente
+        </button>
+      </div>
+    }
   }
 </div>
 
@@ -130,4 +171,20 @@
   [open]="modalOpen()"
   (closed)="closeModal()"
   (created)="onCreated($event)"
+/>
+
+<app-edit-piglet-death-modal
+  [open]="editOpen()"
+  [death]="editingDeath()"
+  [sowCode]="editingSowCode()"
+  (closed)="closeEdit()"
+  (updated)="onUpdated()"
+/>
+
+<app-delete-piglet-death-modal
+  [open]="deleteOpen()"
+  [death]="deletingDeath()"
+  [sowCode]="deletingSowCode()"
+  (closed)="closeDelete()"
+  (deleted)="onDeleted($event)"
 />

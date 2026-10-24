@@ -52,8 +52,11 @@ export class RegisterPigletDeathModal {
     sow_id: ['', [Validators.required]],
     operator_id: ['', [Validators.required]],
     death_date: [this.today, [Validators.required]],
-    quantity: [1, [Validators.required, Validators.min(1)]],
-    weight: [null as number | null, [Validators.min(0.01)]],
+    quantity: [1, [Validators.required, Validators.min(1), Validators.max(10)]],
+    weight: [
+      null as number | null,
+      [Validators.required, Validators.min(0.01), Validators.max(20)],
+    ],
     cause: ['', [Validators.required]],
     turn: ['', [Validators.required]],
     note: ['', [Validators.maxLength(500)]],
@@ -73,21 +76,24 @@ export class RegisterPigletDeathModal {
       return;
     }
 
-    this.loading.set(true);
-
     const { sow_id, operator_id, death_date, quantity, weight, cause, turn, note } =
       this.form.getRawValue();
+    if (weight === null) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
+    this.loading.set(true);
+
     const request: CreatePigletDeathRequest = {
       sow_id,
       operator_id,
       death_date,
       quantity,
+      weight,
       cause: cause as PigletDeathCause,
       turn: turn as Turn,
     };
-    if (weight !== null) {
-      request.weight = weight;
-    }
     if (note) {
       request.note = note;
     }

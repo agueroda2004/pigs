@@ -10,7 +10,7 @@ import { SowsService } from '../../../core/sows/sows.service';
 import { RegisterPigletDeathModal } from './register-piglet-death-modal';
 
 class PigletDeathsStub {
-  createPigletDeath = vi.fn((_request: Record<string, unknown>) => of({}));
+  createPigletDeath = vi.fn((_request: Record<string, unknown>) => of(void 0));
 }
 
 class SowsStub {
@@ -81,6 +81,7 @@ describe('RegisterPigletDeathModal', () => {
       operator_id: '',
       death_date: '',
       quantity: 0,
+      weight: null,
       cause: '',
       turn: '',
       note: '',
@@ -112,17 +113,34 @@ describe('RegisterPigletDeathModal', () => {
     expect(created).toHaveBeenCalledWith('C-001');
   });
 
-  it('omits the weight when it is empty', async () => {
+  it('does not submit when the weight is empty', async () => {
     const component = create();
-    component.sowOptions.set([{ value: 'sow-1', label: 'C-001' }]);
     fill(component);
     component.form.patchValue({ weight: null });
 
     await component.submit();
 
-    expect(stub.createPigletDeath).toHaveBeenCalledWith(
-      expect.not.objectContaining({ weight: expect.anything() }),
-    );
+    expect(stub.createPigletDeath).not.toHaveBeenCalled();
+  });
+
+  it('does not submit when the quantity is greater than ten', async () => {
+    const component = create();
+    fill(component);
+    component.form.patchValue({ quantity: 11 });
+
+    await component.submit();
+
+    expect(stub.createPigletDeath).not.toHaveBeenCalled();
+  });
+
+  it('does not submit when the weight is greater than twenty kilograms', async () => {
+    const component = create();
+    fill(component);
+    component.form.patchValue({ weight: 20.01 });
+
+    await component.submit();
+
+    expect(stub.createPigletDeath).not.toHaveBeenCalled();
   });
 
   it('includes the optional note when provided', async () => {

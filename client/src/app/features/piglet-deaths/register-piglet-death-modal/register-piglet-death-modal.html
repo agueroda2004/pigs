@@ -43,10 +43,15 @@
           id="piglet-death-quantity"
           type="number"
           min="1"
+          max="10"
           formControlName="quantity"
           class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
         />
-        @if (form.controls.quantity.touched && form.controls.quantity.invalid) {
+        @if (form.controls.quantity.touched && form.controls.quantity.hasError('required')) {
+          <p class="text-xs text-danger">La cantidad es obligatoria.</p>
+        } @else if (form.controls.quantity.touched && form.controls.quantity.hasError('max')) {
+          <p class="text-xs text-danger">La cantidad no puede ser mayor a 10.</p>
+        } @else if (form.controls.quantity.touched && form.controls.quantity.invalid) {
           <p class="text-xs text-danger">La cantidad debe ser mayor a cero.</p>
         }
       </div>
@@ -57,11 +62,16 @@
           id="piglet-death-weight"
           type="number"
           min="0.01"
+          max="20"
           step="0.01"
           formControlName="weight"
           class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
         />
-        @if (form.controls.weight.touched && form.controls.weight.invalid) {
+        @if (form.controls.weight.touched && form.controls.weight.hasError('required')) {
+          <p class="text-xs text-danger">El peso es obligatorio.</p>
+        } @else if (form.controls.weight.touched && form.controls.weight.hasError('max')) {
+          <p class="text-xs text-danger">El peso no puede ser mayor a 20 kg.</p>
+        } @else if (form.controls.weight.touched && form.controls.weight.invalid) {
           <p class="text-xs text-danger">El peso debe ser mayor a cero.</p>
         }
       </div>

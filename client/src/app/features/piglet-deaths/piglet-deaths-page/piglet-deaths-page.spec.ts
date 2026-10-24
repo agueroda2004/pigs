@@ -6,9 +6,8 @@ import { vi } from 'vitest';
 import { AuthService } from '../../../core/auth/auth.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { OperatorsService } from '../../../core/operators/operators.service';
-import { PigletDeath } from '../../../core/piglet-deaths/piglet-death.models';
+import { PigletDeath, PigletDeathPage } from '../../../core/piglet-deaths/piglet-death.models';
 import { PigletDeathsService } from '../../../core/piglet-deaths/piglet-deaths.service';
-import { SowsService } from '../../../core/sows/sows.service';
 import { PigletDeathsPage } from './piglet-deaths-page';
 
 function buildDeath(id: string): PigletDeath {
@@ -16,6 +15,7 @@ function buildDeath(id: string): PigletDeath {
     id,
     farrowing_id: 'farrowing-1',
     sow_id: 'sow-1',
+    sow_code: 'C-001',
     operator_id: 'operator-1',
     operator_name: 'Operador',
     death_date: '2026-04-25',
@@ -24,20 +24,24 @@ function buildDeath(id: string): PigletDeath {
     cause: 'Aplastado',
     turn: 'Mañana',
     note: null,
-    created_at: '2026-04-25T12:00:00',
-    updated_at: '2026-04-25T12:00:00',
-    created_by: 'admin',
-    updated_by: 'admin',
+  };
+}
+
+function pageOf(items: PigletDeath[], total = items.length, page = 1): PigletDeathPage {
+  return {
+    items,
+    total,
+    page,
+    page_size: 10,
+    total_pages: Math.ceil(total / 10),
   };
 }
 
 class PigletDeathsStub {
-  listPigletDeaths = vi.fn(() => of([buildDeath('1'), buildDeath('2')]));
-  createPigletDeath = vi.fn(() => of(buildDeath('3')));
-}
-
-class SowsStub {
-  listSowDropdown = vi.fn(() => of([{ id: 'sow-1', code: 'C-001' }]));
+  listPigletDeaths = vi.fn((_filters = {}, _page = 1) =>
+    of(pageOf([buildDeath('1'), buildDeath('2')])),
+  );
+  createPigletDeath = vi.fn(() => of(void 0));
 }
 
 class OperatorsStub {
@@ -62,7 +66,6 @@ describe('PigletDeathsPage', () => {
       imports: [PigletDeathsPage],
       providers: [
         { provide: PigletDeathsService, useValue: stub },
-        { provide: SowsService, useValue: new SowsStub() },
         { provide: OperatorsService, useValue: new OperatorsStub() },
         { provide: NotificationService, useValue: notifications },
         { provide: AuthService, useValue: { isAdmin } },
@@ -80,15 +83,8 @@ describe('PigletDeathsPage', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(stub.listPigletDeaths).toHaveBeenCalled();
+    expect(stub.listPigletDeaths).toHaveBeenCalledWith({}, 1);
     expect(fixture.nativeElement.querySelectorAll('app-piglet-death-card')).toHaveLength(2);
-  });
-
-  it('resolves the sow code from the lookup', async () => {
-    const component = create();
-    await component.loadLookups();
-
-    expect(component.sowCode(buildDeath('1'))).toBe('C-001');
   });
 
   it('shows the error state and retries', async () => {
@@ -98,61 +94,96 @@ describe('PigletDeathsPage', () => {
     await component.loadDeaths();
     expect(component.error()).toBe(true);
 
-    stub.listPigletDeaths = vi.fn(() => of([buildDeath('1')]));
+    stub.listPigletDeaths = vi.fn(() => of(pageOf([buildDeath('1')])));
     await component.loadDeaths();
 
     expect(component.error()).toBe(false);
     expect(component.deaths()).toHaveLength(1);
   });
 
-  it('reloads the list after registering a death', async () => {
+  it('reloads the first page after registering a death', async () => {
     const component = create();
     await component.loadDeaths();
     component.openModal();
 
     stub.listPigletDeaths = vi.fn(() =>
-      of([buildDeath('1'), buildDeath('2'), buildDeath('3')]),
+      of(pageOf([buildDeath('1'), buildDeath('2'), buildDeath('3')])),
     );
     await component.onCreated('C-001');
 
     expect(notifications.success).toHaveBeenCalledWith(
       'Muerte de la cerda "C-001" registrada correctamente',
     );
+    expect(component.page()).toBe(1);
     expect(component.deaths()).toHaveLength(3);
   });
 
-  it('hides the register button for non-admins', () => {
+  it('reloads the list after deleting a death', async () => {
+    const component = create();
+    await component.loadDeaths();
+    component.openDelete(buildDeath('1'));
+
+    expect(component.deleteOpen()).toBe(true);
+
+    stub.listPigletDeaths = vi.fn(() => of(pageOf([buildDeath('2')])));
+    await component.onDeleted(buildDeath('1'));
+
+    expect(component.deleteOpen()).toBe(false);
+    expect(notifications.success).toHaveBeenCalledWith(
+      'Muerte de la cerda "C-001" eliminada correctamente',
+    );
+    expect(component.deaths()).toHaveLength(1);
+  });
+
+  it('reloads the list after updating a death', async () => {
+    const component = create();
+    await component.loadDeaths();
+    component.openEdit(buildDeath('1'));
+
+    expect(component.editOpen()).toBe(true);
+
+    stub.listPigletDeaths = vi.fn(() => of(pageOf([buildDeath('1')])));
+    await component.onUpdated();
+
+    expect(component.editOpen()).toBe(false);
+    expect(notifications.success).toHaveBeenCalledWith('Muerte actualizada correctamente');
+    expect(stub.listPigletDeaths).toHaveBeenCalled();
+  });
+
+  it('hides the card actions for non-admins', () => {
     isAdmin.set(false);
     const fixture = TestBed.createComponent(PigletDeathsPage);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).not.toContain('Registrar muerte');
+    expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
+    expect(fixture.nativeElement.textContent).not.toContain('Editar');
   });
 
-  it('applies the sow filter when searching', async () => {
+  it('applies the sow code filter when searching and returns to the first page', async () => {
     const component = create();
-    component.filterForm.setValue({ sow_id: 'sow-1', from: '', to: '' });
+    await component.nextPage();
+    component.filterForm.setValue({ sow_code: '  C-001  ', from: '', to: '' });
 
     await component.search();
 
-    expect(stub.listPigletDeaths).toHaveBeenLastCalledWith({ sow_id: 'sow-1' });
+    expect(stub.listPigletDeaths).toHaveBeenLastCalledWith({ sow_code: 'C-001' }, 1);
   });
 
   it('applies the date range filter when searching', async () => {
     const component = create();
-    component.filterForm.setValue({ sow_id: '', from: '2026-04-01', to: '2026-04-30' });
+    component.filterForm.setValue({ sow_code: '', from: '2026-04-01', to: '2026-04-30' });
 
     await component.search();
 
-    expect(stub.listPigletDeaths).toHaveBeenLastCalledWith({
-      from: '2026-04-01',
-      to: '2026-04-30',
-    });
+    expect(stub.listPigletDeaths).toHaveBeenLastCalledWith(
+      { from: '2026-04-01', to: '2026-04-30' },
+      1,
+    );
   });
 
   it('rejects a range whose start is after its end', async () => {
     const component = create();
-    component.filterForm.setValue({ sow_id: '', from: '2026-04-30', to: '2026-04-01' });
+    component.filterForm.setValue({ sow_code: '', from: '2026-04-30', to: '2026-04-01' });
 
     await component.search();
 
@@ -162,13 +193,30 @@ describe('PigletDeathsPage', () => {
 
   it('clears the filters and reloads without them', async () => {
     const component = create();
-    component.filterForm.setValue({ sow_id: 'sow-1', from: '', to: '' });
+    component.filterForm.setValue({ sow_code: 'C-001', from: '', to: '' });
     await component.search();
 
-    stub.listPigletDeaths = vi.fn(() => of([buildDeath('1')]));
+    stub.listPigletDeaths = vi.fn(() => of(pageOf([buildDeath('1')])));
     await component.clearFilters();
 
-    expect(stub.listPigletDeaths).toHaveBeenCalledWith({});
-    expect(component.filterForm.getRawValue()).toEqual({ sow_id: '', from: '', to: '' });
+    expect(stub.listPigletDeaths).toHaveBeenCalledWith({}, 1);
+    expect(component.filterForm.getRawValue()).toEqual({ sow_code: '', from: '', to: '' });
+  });
+
+  it('moves between pages', async () => {
+    stub.listPigletDeaths = vi.fn((_filters = {}, page = 1) =>
+      of(pageOf([buildDeath('1')], 15, page)),
+    );
+    const component = create();
+    await component.loadDeaths();
+
+    expect(component.totalPages()).toBe(2);
+    expect(component.total()).toBe(15);
+
+    await component.nextPage();
+    expect(stub.listPigletDeaths).toHaveBeenLastCalledWith({}, 2);
+
+    await component.previousPage();
+    expect(stub.listPigletDeaths).toHaveBeenLastCalledWith({}, 1);
   });
 });

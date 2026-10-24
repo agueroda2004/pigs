@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
 
 import { PigletDeath } from '../../../core/piglet-deaths/piglet-death.models';
 import { PigletDeathCard } from './piglet-death-card';
@@ -8,6 +9,7 @@ function buildDeath(overrides: Partial<PigletDeath> = {}): PigletDeath {
     id: '1',
     farrowing_id: 'farrowing-1',
     sow_id: 'sow-1',
+    sow_code: 'C-001',
     operator_id: 'operator-1',
     operator_name: 'Juan Pérez',
     death_date: '2026-04-25',
@@ -16,19 +18,22 @@ function buildDeath(overrides: Partial<PigletDeath> = {}): PigletDeath {
     cause: 'Pata_abierta',
     turn: 'Madrugada_no_asistida',
     note: null,
-    created_at: '',
-    updated_at: '',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }
 
 describe('PigletDeathCard', () => {
-  const render = (death: PigletDeath, sowCode: string | null) => {
+  const render = (
+    death: PigletDeath,
+    sowCode: string | null,
+    canDelete = false,
+    canEdit = false,
+  ) => {
     const fixture = TestBed.createComponent(PigletDeathCard);
     fixture.componentRef.setInput('death', death);
     fixture.componentRef.setInput('sowCode', sowCode);
+    fixture.componentRef.setInput('canDelete', canDelete);
+    fixture.componentRef.setInput('canEdit', canEdit);
     fixture.detectChanges();
     return fixture;
   };
@@ -66,5 +71,39 @@ describe('PigletDeathCard', () => {
 
     const withNote = render(buildDeath({ note: 'Sin complicaciones' }), 'C-001');
     expect(withNote.nativeElement.textContent).toContain('Sin complicaciones');
+  });
+
+  it('hides the delete action when the user cannot delete', () => {
+    const fixture = render(buildDeath(), 'C-001');
+
+    expect(fixture.nativeElement.querySelectorAll('button')).toHaveLength(0);
+  });
+
+  it('emits the death when the delete action is used', () => {
+    const death = buildDeath();
+    const fixture = render(death, 'C-001', true);
+    const emitted = vi.fn();
+    fixture.componentInstance.deleteRequested.subscribe(emitted);
+
+    const button = Array.from<HTMLButtonElement>(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find((element) => element.textContent?.includes('Eliminar'));
+    button?.click();
+
+    expect(emitted).toHaveBeenCalledWith(death);
+  });
+
+  it('emits the death when the edit action is used', () => {
+    const death = buildDeath();
+    const fixture = render(death, 'C-001', false, true);
+    const emitted = vi.fn();
+    fixture.componentInstance.editRequested.subscribe(emitted);
+
+    const button = Array.from<HTMLButtonElement>(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find((element) => element.textContent?.includes('Editar'));
+    button?.click();
+
+    expect(emitted).toHaveBeenCalledWith(death);
   });
 });
