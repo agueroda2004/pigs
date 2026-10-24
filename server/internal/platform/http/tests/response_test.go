@@ -29,6 +29,19 @@ func TestWriteJSON(t *testing.T) {
 	}
 }
 
+func TestWriteStatus(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	platformhttp.WriteStatus(recorder, http.StatusCreated)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusCreated)
+	}
+	if recorder.Body.Len() != 0 {
+		t.Fatalf("unexpected body: %q", recorder.Body.String())
+	}
+}
+
 func TestWriteError(t *testing.T) {
 	recorder := httptest.NewRecorder()
 

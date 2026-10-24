@@ -28,6 +28,12 @@ func WriteJSON(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
+// WriteStatus writes the given status code without a response body.
+// It is used by endpoints that report their result only through the status code.
+func WriteStatus(w http.ResponseWriter, status int) {
+	w.WriteHeader(status)
+}
+
 // WriteError writes an error message as a JSON error response.
 // It uses WriteJSON with the given status code.
 func WriteError(w http.ResponseWriter, status int, err error) {
