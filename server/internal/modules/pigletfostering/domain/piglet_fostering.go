@@ -28,11 +28,14 @@ var (
 	ErrInvalidNote                      = errors.New("La nota debe tener como máximo 500 caracteres")
 	ErrInvalidCreatedBy                 = errors.New("El usuario que crea el traslado es obligatorio")
 	ErrInvalidUpdatedBy                 = errors.New("El usuario que actualiza el traslado es obligatorio")
+	ErrInvalidDeletedBy                 = errors.New("El usuario que elimina el traslado es obligatorio")
 	ErrInvalidUpdate                    = errors.New("Debe indicar al menos un campo para actualizar")
 	ErrSameFarrowing                    = errors.New("El parto donante y el receptor no pueden ser el mismo")
 	ErrMovementDateBeforeFarrowing      = errors.New("La fecha del traslado debe ser posterior a los partos")
 	ErrMovementDateBeforePartialWeaging = errors.New("La fecha del traslado debe ser posterior al último destete parcial")
 	ErrMovementDateInFuture             = errors.New("La fecha del traslado no puede ser futura")
+	ErrHasLaterWeaging                  = errors.New("No se puede eliminar el traslado porque existe un destete posterior")
+	ErrHasLaterPartialWeaging           = errors.New("No se puede eliminar el traslado porque existe un destete parcial posterior")
 )
 
 // PigletFostering is the aggregate root that represents a transfer of piglets
@@ -74,6 +77,15 @@ type FosteringDateBounds struct {
 	ReceiverFarrowDate         time.Time
 	DonorPartialWeagingDate    time.Time
 	ReceiverPartialWeagingDate time.Time
+}
+
+// FosteringDeleteBounds holds the latest partial weaging and weaging dates of both
+// farrowings. A zero date means that the farrowing has no record of that kind.
+type FosteringDeleteBounds struct {
+	DonorPartialWeagingDate    time.Time
+	DonorWeagingDate           time.Time
+	ReceiverPartialWeagingDate time.Time
+	ReceiverWeagingDate        time.Time
 }
 
 // NewPigletFostering builds a fostering after validating its fields and dates.
@@ -214,6 +226,37 @@ func (f *PigletFostering) Update(
 	f.UpdatedAt = now
 	f.UpdatedBy = updatedBy
 	return nil
+}
+
+// ValidateDelete checks that a fostering can be removed by the given actor.
+// It rejects a missing actor and blocks the deletion when either farrowing has a
+// full or partial weaging registered strictly after the movement date.
+func (f *PigletFostering) ValidateDelete(bounds FosteringDeleteBounds, deletedBy uuid.UUID) error {
+	if f == nil || f.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if deletedBy == uuid.Nil {
+		return ErrInvalidDeletedBy
+	}
+
+	if isDayAfter(bounds.DonorWeagingDate, f.MovementDate) ||
+		isDayAfter(bounds.ReceiverWeagingDate, f.MovementDate) {
+		return ErrHasLaterWeaging
+	}
+	if isDayAfter(bounds.DonorPartialWeagingDate, f.MovementDate) ||
+		isDayAfter(bounds.ReceiverPartialWeagingDate, f.MovementDate) {
+		return ErrHasLaterPartialWeaging
+	}
+	return nil
+}
+
+// isDayAfter reports whether value is set and falls after the reference date.
+// It compares at day granularity and treats a zero value as no date at all.
+func isDayAfter(value time.Time, reference time.Time) bool {
+	if value.IsZero() {
+		return false
+	}
+	return truncateToDay(value).After(truncateToDay(reference))
 }
 
 // validateQuantity checks that the moved quantity is positive and at most MaxQuantity.

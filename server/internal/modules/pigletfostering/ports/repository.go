@@ -30,8 +30,10 @@ type PigletFosteringRepository interface {
 	GetLastFarrowing(ctx context.Context, sowID uuid.UUID) (*farrowingdomain.Farrowing, error)
 	GetFarrowingByID(ctx context.Context, id uuid.UUID) (*farrowingdomain.Farrowing, error)
 	GetLastPartialWeagingDate(ctx context.Context, farrowingID uuid.UUID) (time.Time, error)
+	GetLastWeagingDate(ctx context.Context, farrowingID uuid.UUID) (time.Time, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*pigletfosteringdomain.PigletFostering, error)
 	Create(ctx context.Context, fostering *pigletfosteringdomain.PigletFostering, donor *farrowingdomain.Farrowing, receiver *farrowingdomain.Farrowing) error
 	Update(ctx context.Context, fostering *pigletfosteringdomain.PigletFostering) error
+	Delete(ctx context.Context, fostering *pigletfosteringdomain.PigletFostering, donor *farrowingdomain.Farrowing, receiver *farrowingdomain.Farrowing) error
 	List(ctx context.Context, filter PigletFosteringFilter) ([]*pigletfosteringdomain.PigletFostering, error)
 }

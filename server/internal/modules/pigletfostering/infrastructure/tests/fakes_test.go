@@ -44,6 +44,20 @@ func (f *fakeUpdatePigletFosteringUseCase) Execute(_ context.Context, id uuid.UU
 	return f.fostering, f.err
 }
 
+type fakeDeletePigletFosteringUseCase struct {
+	err     error
+	id      uuid.UUID
+	command pigletfosteringapplication.DeletePigletFosteringCommand
+	called  bool
+}
+
+func (f *fakeDeletePigletFosteringUseCase) Execute(_ context.Context, id uuid.UUID, command pigletfosteringapplication.DeletePigletFosteringCommand) error {
+	f.called = true
+	f.id = id
+	f.command = command
+	return f.err
+}
+
 type fakeListPigletFosteringsUseCase struct {
 	fosterings []*pigletfosteringdomain.PigletFostering
 	err        error
@@ -66,8 +80,17 @@ func newTestHandlerWithUpdate(
 	update pigletfosteringinfra.UpdatePigletFosteringUseCase,
 	list pigletfosteringinfra.ListPigletFosteringsUseCase,
 ) *pigletfosteringinfra.PigletFosteringHandler {
+	return newTestHandlerWithDelete(create, update, &fakeDeletePigletFosteringUseCase{}, list)
+}
+
+func newTestHandlerWithDelete(
+	create pigletfosteringinfra.CreatePigletFosteringUseCase,
+	update pigletfosteringinfra.UpdatePigletFosteringUseCase,
+	remove pigletfosteringinfra.DeletePigletFosteringUseCase,
+	list pigletfosteringinfra.ListPigletFosteringsUseCase,
+) *pigletfosteringinfra.PigletFosteringHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return pigletfosteringinfra.NewPigletFosteringHandler(create, update, list, passThrough, passThrough)
+	return pigletfosteringinfra.NewPigletFosteringHandler(create, update, remove, list, passThrough, passThrough)
 }
 
 func newAdminGuardHandler(create pigletfosteringinfra.CreatePigletFosteringUseCase) *pigletfosteringinfra.PigletFosteringHandler {
@@ -80,6 +103,24 @@ func newAdminGuardHandler(create pigletfosteringinfra.CreatePigletFosteringUseCa
 	return pigletfosteringinfra.NewPigletFosteringHandler(
 		create,
 		&fakeUpdatePigletFosteringUseCase{},
+		&fakeDeletePigletFosteringUseCase{},
+		&fakeListPigletFosteringsUseCase{},
+		passThrough,
+		adminGuard,
+	)
+}
+
+func newAdminGuardDeleteHandler(remove pigletfosteringinfra.DeletePigletFosteringUseCase) *pigletfosteringinfra.PigletFosteringHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	adminGuard := func(_ http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		})
+	}
+	return pigletfosteringinfra.NewPigletFosteringHandler(
+		&fakeCreatePigletFosteringUseCase{},
+		&fakeUpdatePigletFosteringUseCase{},
+		remove,
 		&fakeListPigletFosteringsUseCase{},
 		passThrough,
 		adminGuard,

@@ -14,6 +14,7 @@ import (
 	farrowingdomain "server/internal/modules/farrowing/domain"
 	pigletfosteringapplication "server/internal/modules/pigletfostering/application"
 	pigletfosteringdomain "server/internal/modules/pigletfostering/domain"
+	pigletfosteringinfra "server/internal/modules/pigletfostering/infrastructure"
 	"server/internal/modules/pigletfostering/ports"
 )
 
@@ -370,6 +371,99 @@ func TestPigletFosteringHandlerList(t *testing.T) {
 
 		if response.Code != http.StatusInternalServerError {
 			t.Fatalf("status=%d, want %d", response.Code, http.StatusInternalServerError)
+		}
+	})
+}
+
+func TestPigletFosteringHandlerDelete(t *testing.T) {
+	fosteringID := uuid.New()
+	actorID := uuid.New()
+	target := "/api/v1/piglet-fosterings/" + fosteringID.String()
+
+	deleteHandler := func(remove pigletfosteringinfra.DeletePigletFosteringUseCase) *pigletfosteringinfra.PigletFosteringHandler {
+		return newTestHandlerWithDelete(
+			&fakeCreatePigletFosteringUseCase{},
+			&fakeUpdatePigletFosteringUseCase{},
+			remove,
+			&fakeListPigletFosteringsUseCase{},
+		)
+	}
+
+	t.Run("deletes a fostering with the actor from context", func(t *testing.T) {
+		remove := &fakeDeletePigletFosteringUseCase{}
+		handler := deleteHandler(remove)
+		request := authenticatedRequest(httptest.NewRequest(http.MethodDelete, target, nil), actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusNoContent || !remove.called {
+			t.Fatalf("status=%d called=%v", response.Code, remove.called)
+		}
+		if remove.id != fosteringID || remove.command.DeletedBy != actorID {
+			t.Fatalf("unexpected command: %#v", remove.command)
+		}
+		if response.Body.Len() != 0 {
+			t.Fatalf("unexpected body: %s", response.Body.String())
+		}
+	})
+
+	t.Run("rejects an invalid id", func(t *testing.T) {
+		remove := &fakeDeletePigletFosteringUseCase{}
+		handler := deleteHandler(remove)
+		request := authenticatedRequest(
+			httptest.NewRequest(http.MethodDelete, "/api/v1/piglet-fosterings/not-a-uuid", nil), actorID,
+		)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusBadRequest || remove.called {
+			t.Fatalf("status=%d called=%v", response.Code, remove.called)
+		}
+	})
+
+	t.Run("returns unauthorized when actor is missing", func(t *testing.T) {
+		remove := &fakeDeletePigletFosteringUseCase{}
+		handler := deleteHandler(remove)
+		response := serve(handler, httptest.NewRequest(http.MethodDelete, target, nil))
+
+		if response.Code != http.StatusUnauthorized || remove.called {
+			t.Fatalf("status=%d called=%v", response.Code, remove.called)
+		}
+	})
+
+	t.Run("blocks the deletion for non-admins", func(t *testing.T) {
+		remove := &fakeDeletePigletFosteringUseCase{}
+		handler := newAdminGuardDeleteHandler(remove)
+		request := authenticatedRequest(httptest.NewRequest(http.MethodDelete, target, nil), actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusForbidden || remove.called {
+			t.Fatalf("status=%d called=%v", response.Code, remove.called)
+		}
+	})
+
+	t.Run("maps the delete errors", func(t *testing.T) {
+		for _, test := range []struct {
+			name   string
+			err    error
+			status int
+		}{
+			{"fostering not found", ports.ErrPigletFosteringNotFound, http.StatusNotFound},
+			{"farrowing not found", ports.ErrFarrowingNotFound, http.StatusNotFound},
+			{"later weaging", pigletfosteringdomain.ErrHasLaterWeaging, http.StatusConflict},
+			{"later partial weaging", pigletfosteringdomain.ErrHasLaterPartialWeaging, http.StatusConflict},
+			{"insufficient piglets", farrowingdomain.ErrInsufficientPiglets, http.StatusConflict},
+			{"missing actor", pigletfosteringdomain.ErrInvalidDeletedBy, http.StatusBadRequest},
+			{"internal", errors.New("unexpected"), http.StatusInternalServerError},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				remove := &fakeDeletePigletFosteringUseCase{err: test.err}
+				handler := deleteHandler(remove)
+				request := authenticatedRequest(httptest.NewRequest(http.MethodDelete, target, nil), actorID)
+				response := serve(handler, request)
+
+				if response.Code != test.status {
+					t.Fatalf("status=%d, want %d", response.Code, test.status)
+				}
+			})
 		}
 	})
 }

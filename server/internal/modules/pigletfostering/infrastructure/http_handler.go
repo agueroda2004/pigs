@@ -27,6 +27,10 @@ type UpdatePigletFosteringUseCase interface {
 	Execute(context.Context, uuid.UUID, pigletfosteringapplication.UpdatePigletFosteringCommand) (*pigletfosteringdomain.PigletFostering, error)
 }
 
+type DeletePigletFosteringUseCase interface {
+	Execute(context.Context, uuid.UUID, pigletfosteringapplication.DeletePigletFosteringCommand) error
+}
+
 type ListPigletFosteringsUseCase interface {
 	Execute(context.Context, ports.PigletFosteringFilter) ([]*pigletfosteringdomain.PigletFostering, error)
 }
@@ -34,6 +38,7 @@ type ListPigletFosteringsUseCase interface {
 type PigletFosteringHandler struct {
 	createPigletFostering CreatePigletFosteringUseCase
 	updatePigletFostering UpdatePigletFosteringUseCase
+	deletePigletFostering DeletePigletFosteringUseCase
 	listPigletFosterings  ListPigletFosteringsUseCase
 	authMiddleware        func(http.Handler) http.Handler
 	adminMiddleware       func(http.Handler) http.Handler
@@ -44,6 +49,7 @@ type PigletFosteringHandler struct {
 func NewPigletFosteringHandler(
 	createPigletFostering CreatePigletFosteringUseCase,
 	updatePigletFostering UpdatePigletFosteringUseCase,
+	deletePigletFostering DeletePigletFosteringUseCase,
 	listPigletFosterings ListPigletFosteringsUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
@@ -51,17 +57,20 @@ func NewPigletFosteringHandler(
 	return &PigletFosteringHandler{
 		createPigletFostering: createPigletFostering,
 		updatePigletFostering: updatePigletFostering,
+		deletePigletFostering: deletePigletFostering,
 		listPigletFosterings:  listPigletFosterings,
 		authMiddleware:        authMiddleware,
 		adminMiddleware:       adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the fostering create, update and list endpoints on the mux.
-// Creation and update are admin-only while the list route only requires authentication.
+// RegisterRoutes registers the fostering create, update, delete and list endpoints.
+// Creation, update and delete are admin-only while the list route only requires
+// authentication.
 func (h *PigletFosteringHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/piglet-fosterings", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("PATCH /api/v1/piglet-fosterings/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
+	mux.Handle("DELETE /api/v1/piglet-fosterings/{id}", h.adminMiddleware(http.HandlerFunc(h.delete)))
 	mux.Handle("GET /api/v1/piglet-fosterings", h.authMiddleware(http.HandlerFunc(h.list)))
 }
 
@@ -181,6 +190,31 @@ func (h *PigletFosteringHandler) update(w http.ResponseWriter, r *http.Request) 
 	}
 
 	platformhttp.WriteStatus(w, http.StatusOK)
+}
+
+// delete handles DELETE /api/v1/piglet-fosterings/{id} and removes a fostering.
+// It parses the id and the actor from the context and responds with 204 and no body.
+func (h *PigletFosteringHandler) delete(w http.ResponseWriter, r *http.Request) {
+	fosteringID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El traslado de lechones no es válido"))
+		return
+	}
+
+	actor, ok := authdomain.AuthenticatedUserFromContext(r.Context())
+	if !ok {
+		platformhttp.WriteError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
+		return
+	}
+
+	if err := h.deletePigletFostering.Execute(r.Context(), fosteringID, pigletfosteringapplication.DeletePigletFosteringCommand{
+		DeletedBy: actor.UserID,
+	}); err != nil {
+		writePigletFosteringError(w, err)
+		return
+	}
+
+	platformhttp.WriteStatus(w, http.StatusNoContent)
 }
 
 // parseUpdatePigletFosteringParams converts the raw update request into domain params.
@@ -305,7 +339,9 @@ func writePigletFosteringError(w http.ResponseWriter, err error) {
 		errors.Is(err, ports.ErrFarrowingNotFound):
 		status = http.StatusNotFound
 	case errors.Is(err, pigletfosteringapplication.ErrSowNotLactating),
-		errors.Is(err, farrowingdomain.ErrInsufficientPiglets):
+		errors.Is(err, farrowingdomain.ErrInsufficientPiglets),
+		errors.Is(err, pigletfosteringdomain.ErrHasLaterWeaging),
+		errors.Is(err, pigletfosteringdomain.ErrHasLaterPartialWeaging):
 		status = http.StatusConflict
 	case errors.Is(err, pigletfosteringdomain.ErrInvalidID),
 		errors.Is(err, pigletfosteringdomain.ErrInvalidDonor),
@@ -319,6 +355,7 @@ func writePigletFosteringError(w http.ResponseWriter, err error) {
 		errors.Is(err, pigletfosteringdomain.ErrInvalidNote),
 		errors.Is(err, pigletfosteringdomain.ErrInvalidCreatedBy),
 		errors.Is(err, pigletfosteringdomain.ErrInvalidUpdatedBy),
+		errors.Is(err, pigletfosteringdomain.ErrInvalidDeletedBy),
 		errors.Is(err, pigletfosteringdomain.ErrInvalidUpdate),
 		errors.Is(err, pigletfosteringdomain.ErrSameFarrowing),
 		errors.Is(err, pigletfosteringdomain.ErrMovementDateBeforeFarrowing),

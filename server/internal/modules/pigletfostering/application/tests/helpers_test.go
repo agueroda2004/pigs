@@ -44,6 +44,7 @@ func repositoryWith(donorSowID, receiverSowID uuid.UUID, donorPiglets, receiverP
 			receiverSowID: testFarrowing(uuid.New(), receiverSowID, receiverFarrowDay, receiverPiglets),
 		},
 		partialWeagingDates: map[uuid.UUID]time.Time{},
+		weagingDates:        map[uuid.UUID]time.Time{},
 		fosteringByID:       map[uuid.UUID]*pigletfosteringdomain.PigletFostering{},
 	}
 }

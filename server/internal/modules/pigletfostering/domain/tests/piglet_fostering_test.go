@@ -428,3 +428,102 @@ func TestPigletFosteringUpdate(t *testing.T) {
 		}
 	})
 }
+
+func TestPigletFosteringValidateDelete(t *testing.T) {
+	movementDate := time.Date(2026, time.April, 25, 0, 0, 0, 0, time.UTC)
+	laterDate := movementDate.AddDate(0, 0, 1)
+	deletedBy := uuid.New()
+
+	t.Run("accepts a fostering without weagings", func(t *testing.T) {
+		fostering := buildFostering(t)
+
+		err := fostering.ValidateDelete(pigletfosteringdomain.FosteringDeleteBounds{}, deletedBy)
+
+		if err != nil {
+			t.Fatalf("ValidateDelete() error = %v", err)
+		}
+	})
+
+	t.Run("accepts weagings on or before the movement date", func(t *testing.T) {
+		fostering := buildFostering(t)
+
+		err := fostering.ValidateDelete(pigletfosteringdomain.FosteringDeleteBounds{
+			DonorWeagingDate:           movementDate.AddDate(0, 0, -1),
+			DonorPartialWeagingDate:    movementDate,
+			ReceiverWeagingDate:        movementDate,
+			ReceiverPartialWeagingDate: movementDate.AddDate(0, 0, -2),
+		}, deletedBy)
+
+		if err != nil {
+			t.Fatalf("ValidateDelete() error = %v", err)
+		}
+	})
+
+	t.Run("blocks a later full weaging on the donor", func(t *testing.T) {
+		fostering := buildFostering(t)
+
+		err := fostering.ValidateDelete(pigletfosteringdomain.FosteringDeleteBounds{
+			DonorWeagingDate: laterDate,
+		}, deletedBy)
+
+		if !errors.Is(err, pigletfosteringdomain.ErrHasLaterWeaging) {
+			t.Fatalf("error = %v, want ErrHasLaterWeaging", err)
+		}
+	})
+
+	t.Run("blocks a later full weaging on the receiver", func(t *testing.T) {
+		fostering := buildFostering(t)
+
+		err := fostering.ValidateDelete(pigletfosteringdomain.FosteringDeleteBounds{
+			ReceiverWeagingDate: laterDate,
+		}, deletedBy)
+
+		if !errors.Is(err, pigletfosteringdomain.ErrHasLaterWeaging) {
+			t.Fatalf("error = %v, want ErrHasLaterWeaging", err)
+		}
+	})
+
+	t.Run("blocks a later partial weaging on the donor", func(t *testing.T) {
+		fostering := buildFostering(t)
+
+		err := fostering.ValidateDelete(pigletfosteringdomain.FosteringDeleteBounds{
+			DonorPartialWeagingDate: laterDate,
+		}, deletedBy)
+
+		if !errors.Is(err, pigletfosteringdomain.ErrHasLaterPartialWeaging) {
+			t.Fatalf("error = %v, want ErrHasLaterPartialWeaging", err)
+		}
+	})
+
+	t.Run("blocks a later partial weaging on the receiver", func(t *testing.T) {
+		fostering := buildFostering(t)
+
+		err := fostering.ValidateDelete(pigletfosteringdomain.FosteringDeleteBounds{
+			ReceiverPartialWeagingDate: laterDate,
+		}, deletedBy)
+
+		if !errors.Is(err, pigletfosteringdomain.ErrHasLaterPartialWeaging) {
+			t.Fatalf("error = %v, want ErrHasLaterPartialWeaging", err)
+		}
+	})
+
+	t.Run("rejects a missing actor", func(t *testing.T) {
+		fostering := buildFostering(t)
+
+		err := fostering.ValidateDelete(pigletfosteringdomain.FosteringDeleteBounds{}, uuid.Nil)
+
+		if !errors.Is(err, pigletfosteringdomain.ErrInvalidDeletedBy) {
+			t.Fatalf("error = %v, want ErrInvalidDeletedBy", err)
+		}
+	})
+
+	t.Run("rejects a nil fostering", func(t *testing.T) {
+		var fostering *pigletfosteringdomain.PigletFostering
+
+		err := fostering.ValidateDelete(pigletfosteringdomain.FosteringDeleteBounds{}, deletedBy)
+
+		if !errors.Is(err, pigletfosteringdomain.ErrInvalidID) {
+			t.Fatalf("error = %v, want ErrInvalidID", err)
+		}
+	})
+}

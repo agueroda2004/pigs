@@ -24,6 +24,9 @@ type fakePigletFosteringRepository struct {
 	partialWeagingErr   error
 	partialWeagingCalls int
 
+	weagingDates map[uuid.UUID]time.Time
+	weagingErr   error
+
 	fosteringByID    map[uuid.UUID]*pigletfosteringdomain.PigletFostering
 	fosteringByIDErr error
 
@@ -34,6 +37,11 @@ type fakePigletFosteringRepository struct {
 
 	updateErr error
 	updated   *pigletfosteringdomain.PigletFostering
+
+	deleteErr       error
+	deleted         *pigletfosteringdomain.PigletFostering
+	deletedDonor    *farrowingdomain.Farrowing
+	deletedReceiver *farrowingdomain.Farrowing
 
 	listFosterings []*pigletfosteringdomain.PigletFostering
 	listErr        error
@@ -74,6 +82,13 @@ func (f *fakePigletFosteringRepository) GetLastPartialWeagingDate(_ context.Cont
 	return f.partialWeagingDates[farrowingID], nil
 }
 
+func (f *fakePigletFosteringRepository) GetLastWeagingDate(_ context.Context, farrowingID uuid.UUID) (time.Time, error) {
+	if f.weagingErr != nil {
+		return time.Time{}, f.weagingErr
+	}
+	return f.weagingDates[farrowingID], nil
+}
+
 func (f *fakePigletFosteringRepository) GetByID(_ context.Context, id uuid.UUID) (*pigletfosteringdomain.PigletFostering, error) {
 	if f.fosteringByIDErr != nil {
 		return nil, f.fosteringByIDErr
@@ -100,6 +115,18 @@ func (f *fakePigletFosteringRepository) Create(
 func (f *fakePigletFosteringRepository) Update(_ context.Context, fostering *pigletfosteringdomain.PigletFostering) error {
 	f.updated = fostering
 	return f.updateErr
+}
+
+func (f *fakePigletFosteringRepository) Delete(
+	_ context.Context,
+	fostering *pigletfosteringdomain.PigletFostering,
+	donor *farrowingdomain.Farrowing,
+	receiver *farrowingdomain.Farrowing,
+) error {
+	f.deleted = fostering
+	f.deletedDonor = donor
+	f.deletedReceiver = receiver
+	return f.deleteErr
 }
 
 func (f *fakePigletFosteringRepository) List(_ context.Context, filter ports.PigletFosteringFilter) ([]*pigletfosteringdomain.PigletFostering, error) {

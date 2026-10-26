@@ -171,6 +171,27 @@ func (r *PostgresPigletFosteringRepository) GetLastPartialWeagingDate(ctx contex
 	return weagingDate, nil
 }
 
+// GetLastWeagingDate fetches the most recent full weaging date of a farrowing.
+// It returns the zero time when the farrowing has not been weaned yet.
+func (r *PostgresPigletFosteringRepository) GetLastWeagingDate(ctx context.Context, farrowingID uuid.UUID) (time.Time, error) {
+	var weagingDate time.Time
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT weaging_date
+		FROM weagings
+		WHERE farrowing_id = $1
+		ORDER BY weaging_date DESC, created_at DESC
+		LIMIT 1
+	`, farrowingID).Scan(&weagingDate)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, fmt.Errorf("No se pudo consultar el último destete: %w", err)
+	}
+	return weagingDate, nil
+}
+
 // GetByID fetches a fostering by its identifier, joining both farrowings to
 // expose the donor and receiver sows. It returns ports.ErrPigletFosteringNotFound
 // when no row matches.
@@ -343,6 +364,77 @@ func (r *PostgresPigletFosteringRepository) Update(
 
 	if err := transaction.Commit(ctx); err != nil {
 		return fmt.Errorf("No se pudo actualizar el traslado de lechones: %w", err)
+	}
+	return nil
+}
+
+// Delete removes a fostering and undoes its balance movement in one transaction.
+// It locks the stored row, takes the moved quantity back from the receiver with a
+// guarded update, returns it to the donor and deletes the record.
+func (r *PostgresPigletFosteringRepository) Delete(
+	ctx context.Context,
+	fostering *pigletfosteringdomain.PigletFostering,
+	donor *farrowingdomain.Farrowing,
+	receiver *farrowingdomain.Farrowing,
+) error {
+	transaction, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar el traslado de lechones: %w", err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	var storedQuantity int
+	err = transaction.QueryRow(ctx, `
+		SELECT quantity
+		FROM piglet_fosterings
+		WHERE id = $1
+		FOR UPDATE
+	`, fostering.ID).Scan(&storedQuantity)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ports.ErrPigletFosteringNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar el traslado de lechones: %w", err)
+	}
+
+	if err := reduceFarrowingPiglets(
+		ctx,
+		transaction,
+		receiver.ID,
+		storedQuantity,
+		receiver.UpdatedAt,
+		receiver.UpdatedBy,
+	); err != nil {
+		return err
+	}
+
+	commandTag, err := transaction.Exec(ctx, `
+		UPDATE farrowings
+		SET current_piglets = current_piglets + $2,
+		    updated_at = $3,
+		    updated_by = $4
+		WHERE id = $1
+	`, donor.ID, storedQuantity, donor.UpdatedAt, donor.UpdatedBy)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar el traslado de lechones: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrFarrowingNotFound
+	}
+
+	commandTag, err = transaction.Exec(ctx, `
+		DELETE FROM piglet_fosterings
+		WHERE id = $1
+	`, fostering.ID)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar el traslado de lechones: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrPigletFosteringNotFound
+	}
+
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("No se pudo eliminar el traslado de lechones: %w", err)
 	}
 	return nil
 }

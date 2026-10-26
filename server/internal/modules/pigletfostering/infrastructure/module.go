@@ -11,6 +11,7 @@ import (
 type Module struct {
 	CreatePigletFostering *pigletfosteringapplication.CreatePigletFosteringService
 	UpdatePigletFostering *pigletfosteringapplication.UpdatePigletFosteringService
+	DeletePigletFostering *pigletfosteringapplication.DeletePigletFosteringService
 	ListPigletFosterings  *pigletfosteringapplication.ListPigletFosteringsService
 	Handler               *PigletFosteringHandler
 }
@@ -25,15 +26,18 @@ func NewModule(
 ) *Module {
 	createPigletFostering := pigletfosteringapplication.NewCreatePigletFosteringService(repository, clock)
 	updatePigletFostering := pigletfosteringapplication.NewUpdatePigletFosteringService(repository, clock)
+	deletePigletFostering := pigletfosteringapplication.NewDeletePigletFosteringService(repository, clock)
 	listPigletFosterings := pigletfosteringapplication.NewListPigletFosteringsService(repository)
 
 	return &Module{
 		CreatePigletFostering: createPigletFostering,
 		UpdatePigletFostering: updatePigletFostering,
+		DeletePigletFostering: deletePigletFostering,
 		ListPigletFosterings:  listPigletFosterings,
 		Handler: NewPigletFosteringHandler(
 			createPigletFostering,
 			updatePigletFostering,
+			deletePigletFostering,
 			listPigletFosterings,
 			authMiddleware,
 			adminMiddleware,
