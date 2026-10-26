@@ -44,4 +44,10 @@ export class PigletFosteringsService {
   updatePigletFostering(id: string, request: UpdatePigletFosteringRequest): Observable<void> {
     return this.http.patch<void>(`${this.baseUrl}/${id}`, request);
   }
+
+  // deletePigletFostering removes a fostering and resolves once the server answers
+  // with its status code, since the endpoint returns no body.
+  deletePigletFostering(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  }
 }

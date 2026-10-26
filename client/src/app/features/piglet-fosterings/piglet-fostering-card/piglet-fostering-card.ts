@@ -12,5 +12,7 @@ export class PigletFosteringCard {
   readonly donorSowCode = input<string | null>(null);
   readonly receiverSowCode = input<string | null>(null);
   readonly canEdit = input(false);
+  readonly canDelete = input(false);
+  readonly deleteRequested = output<PigletFostering>();
   readonly editRequested = output<PigletFostering>();
 }

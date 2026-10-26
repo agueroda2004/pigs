@@ -14,6 +14,7 @@ import { DatePicker } from '../../../shared/ui/date-picker/date-picker';
 import { DropdownOption } from '../../../shared/ui/dropdown/dropdown';
 import { SearchDropdown } from '../../../shared/ui/search-dropdown/search-dropdown';
 import { toISODate } from '../../../shared/utils/date';
+import { DeletePigletFosteringModal } from '../delete-piglet-fostering-modal/delete-piglet-fostering-modal';
 import { PigletFosteringCard } from '../piglet-fostering-card/piglet-fostering-card';
 import {
   CreatedFostering,
@@ -26,6 +27,7 @@ import {
     ReactiveFormsModule,
     PigletFosteringCard,
     RegisterPigletFosteringModal,
+    DeletePigletFosteringModal,
     SearchDropdown,
     DatePicker,
   ],
@@ -48,6 +50,8 @@ export class PigletFosteringsPage implements OnInit {
   protected readonly error = signal(false);
   protected readonly modalOpen = signal(false);
   protected readonly editingFostering = signal<PigletFostering | null>(null);
+  protected readonly deleteOpen = signal(false);
+  protected readonly deletingFostering = signal<PigletFostering | null>(null);
   protected readonly today = toISODate(new Date());
   protected readonly rangeError = signal<string | null>(null);
 
@@ -90,6 +94,34 @@ export class PigletFosteringsPage implements OnInit {
     this.notifications.success('Traslado actualizado correctamente');
     this.closeModal();
     await this.loadFosterings();
+  }
+
+  protected openDelete(fostering: PigletFostering): void {
+    this.deletingFostering.set(fostering);
+    this.deleteOpen.set(true);
+  }
+
+  protected closeDelete(): void {
+    this.deleteOpen.set(false);
+  }
+
+  protected async onDeleted(fostering: PigletFostering): Promise<void> {
+    this.deleteOpen.set(false);
+    this.deletingFostering.set(null);
+    const donor = this.donorSowCode(fostering) ?? 'sin identificar';
+    const receiver = this.receiverSowCode(fostering) ?? 'sin identificar';
+    this.notifications.success(`Traslado de "${donor}" a "${receiver}" eliminado correctamente`);
+    await this.loadFosterings();
+  }
+
+  protected deletingDonorSowCode(): string | null {
+    const current = this.deletingFostering();
+    return current ? this.donorSowCode(current) : null;
+  }
+
+  protected deletingReceiverSowCode(): string | null {
+    const current = this.deletingFostering();
+    return current ? this.receiverSowCode(current) : null;
   }
 
   protected editingDonorSowCode(): string | null {

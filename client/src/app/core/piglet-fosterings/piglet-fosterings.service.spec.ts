@@ -102,4 +102,16 @@ describe('PigletFosteringsService', () => {
 
     await expect(promise).resolves.toBeNull();
   });
+
+  it('deletes a piglet fostering and returns no body', async () => {
+    const promise = firstValueFrom(service.deletePigletFostering('id-1'));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/piglet-fosterings/id-1') && request.method === 'DELETE',
+    );
+    expect(call.request.body).toBeNull();
+    call.flush(null, { status: 204, statusText: 'No Content' });
+
+    await expect(promise).resolves.toBeNull();
+  });
 });

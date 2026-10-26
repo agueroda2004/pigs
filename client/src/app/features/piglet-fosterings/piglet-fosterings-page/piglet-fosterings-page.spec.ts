@@ -31,6 +31,7 @@ class PigletFosteringsStub {
   listPigletFosterings = vi.fn(() => of([buildFostering('1'), buildFostering('2')]));
   createPigletFostering = vi.fn(() => of(undefined));
   updatePigletFostering = vi.fn(() => of(undefined));
+  deletePigletFostering = vi.fn(() => of(undefined));
 }
 
 class SowsStub {
@@ -158,6 +159,46 @@ describe('PigletFosteringsPage', () => {
     expect(component.editingFostering()).toBeNull();
     expect(component.modalOpen()).toBe(false);
     expect(stub.listPigletFosterings).toHaveBeenCalled();
+  });
+
+  it('opens and closes the delete confirmation', () => {
+    const component = create();
+    const fostering = buildFostering('1');
+
+    component.openDelete(fostering);
+
+    expect(component.deletingFostering()).toBe(fostering);
+    expect(component.deleteOpen()).toBe(true);
+
+    component.closeDelete();
+
+    expect(component.deleteOpen()).toBe(false);
+  });
+
+  it('resolves the sow codes of the fostering being deleted', async () => {
+    const component = create();
+    await component.loadLookups();
+    component.openDelete(buildFostering('1'));
+
+    expect(component.deletingDonorSowCode()).toBe('C-001');
+    expect(component.deletingReceiverSowCode()).toBe('C-002');
+  });
+
+  it('reloads the list and closes the modal after deleting a fostering', async () => {
+    const component = create();
+    await component.loadFosterings();
+    await component.loadLookups();
+    component.openDelete(buildFostering('1'));
+    stub.listPigletFosterings = vi.fn(() => of([buildFostering('2')]));
+
+    await component.onDeleted(buildFostering('1'));
+
+    expect(notifications.success).toHaveBeenCalledWith(
+      'Traslado de "C-001" a "C-002" eliminado correctamente',
+    );
+    expect(component.deleteOpen()).toBe(false);
+    expect(component.deletingFostering()).toBeNull();
+    expect(component.fosterings()).toHaveLength(1);
   });
 
   it('applies the donor and receiver sow filters when searching', async () => {

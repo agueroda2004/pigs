@@ -136,7 +136,9 @@
           [donorSowCode]="donorSowCode(fostering)"
           [receiverSowCode]="receiverSowCode(fostering)"
           [canEdit]="isAdmin()"
+          [canDelete]="isAdmin()"
           (editRequested)="openEditModal($event)"
+          (deleteRequested)="openDelete($event)"
         />
       }
     </div>
@@ -151,4 +153,13 @@
   (closed)="closeModal()"
   (created)="onCreated($event)"
   (updated)="onUpdated()"
+/>
+
+<app-delete-piglet-fostering-modal
+  [open]="deleteOpen()"
+  [fostering]="deletingFostering()"
+  [donorSowCode]="deletingDonorSowCode()"
+  [receiverSowCode]="deletingReceiverSowCode()"
+  (closed)="closeDelete()"
+  (deleted)="onDeleted($event)"
 />

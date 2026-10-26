@@ -28,12 +28,14 @@ describe('PigletFosteringCard', () => {
     donor: string | null,
     receiver: string | null,
     canEdit = false,
+    canDelete = false,
   ) => {
     const fixture = TestBed.createComponent(PigletFosteringCard);
     fixture.componentRef.setInput('fostering', fostering);
     fixture.componentRef.setInput('donorSowCode', donor);
     fixture.componentRef.setInput('receiverSowCode', receiver);
     fixture.componentRef.setInput('canEdit', canEdit);
+    fixture.componentRef.setInput('canDelete', canDelete);
     fixture.detectChanges();
     return fixture;
   };
@@ -70,6 +72,12 @@ describe('PigletFosteringCard', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Editar');
   });
 
+  it('hides the delete button when the user cannot delete', () => {
+    const fixture = render(buildFostering(), 'C-001', 'C-002', true);
+
+    expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
+  });
+
   it('emits the fostering when the edit button is clicked', () => {
     const fostering = buildFostering();
     const fixture = render(fostering, 'C-001', 'C-002', true);
@@ -80,5 +88,26 @@ describe('PigletFosteringCard', () => {
     button.click();
 
     expect(requested).toHaveBeenCalledWith(fostering);
+  });
+
+  it('emits the fostering when the delete button is clicked', () => {
+    const fostering = buildFostering();
+    const fixture = render(fostering, 'C-001', 'C-002', false, true);
+    const requested = vi.fn();
+    fixture.componentInstance.deleteRequested.subscribe(requested);
+
+    const button = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
+    button.click();
+
+    expect(requested).toHaveBeenCalledWith(fostering);
+  });
+
+  it('shows both actions for an admin', () => {
+    const fixture = render(buildFostering(), 'C-001', 'C-002', true, true);
+    const buttons = fixture.nativeElement.querySelectorAll('button');
+
+    expect(buttons).toHaveLength(2);
+    expect(fixture.nativeElement.textContent).toContain('Editar');
+    expect(fixture.nativeElement.textContent).toContain('Eliminar');
   });
 });
