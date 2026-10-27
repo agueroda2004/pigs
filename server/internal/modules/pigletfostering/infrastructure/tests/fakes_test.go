@@ -60,15 +60,31 @@ func (f *fakeDeletePigletFosteringUseCase) Execute(_ context.Context, id uuid.UU
 
 type fakeListPigletFosteringsUseCase struct {
 	fosterings []*pigletfosteringdomain.PigletFostering
+	total      int
 	err        error
 	filter     ports.PigletFosteringFilter
+	page       int
 	called     bool
 }
 
-func (f *fakeListPigletFosteringsUseCase) Execute(_ context.Context, filter ports.PigletFosteringFilter) ([]*pigletfosteringdomain.PigletFostering, error) {
+func (f *fakeListPigletFosteringsUseCase) Execute(_ context.Context, filter ports.PigletFosteringFilter, page int) (pigletfosteringapplication.PigletFosteringPage, error) {
 	f.called = true
 	f.filter = filter
-	return f.fosterings, f.err
+	f.page = page
+	if f.err != nil {
+		return pigletfosteringapplication.PigletFosteringPage{}, f.err
+	}
+	totalPages := 0
+	if f.total > 0 {
+		totalPages = (f.total + pigletfosteringapplication.DefaultPigletFosteringPageSize - 1) / pigletfosteringapplication.DefaultPigletFosteringPageSize
+	}
+	return pigletfosteringapplication.PigletFosteringPage{
+		Items:      f.fosterings,
+		Total:      f.total,
+		Page:       page,
+		PageSize:   pigletfosteringapplication.DefaultPigletFosteringPageSize,
+		TotalPages: totalPages,
+	}, nil
 }
 
 func newTestHandler(create pigletfosteringinfra.CreatePigletFosteringUseCase, list pigletfosteringinfra.ListPigletFosteringsUseCase) *pigletfosteringinfra.PigletFosteringHandler {
@@ -151,7 +167,9 @@ func handlerPigletFostering() *pigletfosteringdomain.PigletFostering {
 		DonorFarrowingID:    uuid.New(),
 		ReceiverFarrowingID: uuid.New(),
 		DonorSowID:          uuid.New(),
+		DonorSowCode:        "C-001",
 		ReceiverSowID:       uuid.New(),
+		ReceiverSowCode:     "C-002",
 		MovementDate:        time.Date(2026, time.April, 25, 0, 0, 0, 0, time.UTC),
 		Quantity:            2,
 		Note:                &note,

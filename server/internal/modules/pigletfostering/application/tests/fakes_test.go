@@ -44,8 +44,11 @@ type fakePigletFosteringRepository struct {
 	deletedReceiver *farrowingdomain.Farrowing
 
 	listFosterings []*pigletfosteringdomain.PigletFostering
+	listTotal      int
 	listErr        error
 	listFilter     ports.PigletFosteringFilter
+	listLimit      int
+	listOffset     int
 }
 
 func (f *fakePigletFosteringRepository) GetSow(_ context.Context, id uuid.UUID) (*sowdomain.Sow, error) {
@@ -129,7 +132,14 @@ func (f *fakePigletFosteringRepository) Delete(
 	return f.deleteErr
 }
 
-func (f *fakePigletFosteringRepository) List(_ context.Context, filter ports.PigletFosteringFilter) ([]*pigletfosteringdomain.PigletFostering, error) {
+func (f *fakePigletFosteringRepository) List(
+	_ context.Context,
+	filter ports.PigletFosteringFilter,
+	limit int,
+	offset int,
+) ([]*pigletfosteringdomain.PigletFostering, int, error) {
 	f.listFilter = filter
-	return f.listFosterings, f.listErr
+	f.listLimit = limit
+	f.listOffset = offset
+	return f.listFosterings, f.listTotal, f.listErr
 }

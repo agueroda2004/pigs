@@ -515,24 +515,49 @@ func reduceFarrowingPiglets(
 	return nil
 }
 
-// List fetches the fosterings matching the filter, newest first.
-// It joins both farrowings to expose the donor and receiver sows.
-func (r *PostgresPigletFosteringRepository) List(ctx context.Context, filter ports.PigletFosteringFilter) ([]*pigletfosteringdomain.PigletFostering, error) {
+// List fetches one page of fosterings matching the filter, newest first, with the
+// total count of matches. It joins both farrowings and their sows to expose the
+// donor and receiver codes, and matches the sow code on either side.
+func (r *PostgresPigletFosteringRepository) List(
+	ctx context.Context,
+	filter ports.PigletFosteringFilter,
+	limit int,
+	offset int,
+) ([]*pigletfosteringdomain.PigletFostering, int, error) {
+	var total int
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM piglet_fosterings pf
+		JOIN farrowings df ON df.id = pf.donor_farrowing_id
+		JOIN farrowings rf ON rf.id = pf.receiver_farrowing_id
+		JOIN sows ds ON ds.id = df.sow_id
+		JOIN sows rs ON rs.id = rf.sow_id
+		WHERE ($1::text IS NULL OR LOWER(ds.code) = LOWER($1) OR LOWER(rs.code) = LOWER($1))
+		  AND ($2::date IS NULL OR pf.movement_date >= $2)
+		  AND ($3::date IS NULL OR pf.movement_date <= $3)
+	`, filter.SowCode, filter.FromDate, filter.ToDate).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("No se pudieron consultar los traslados de lechones: %w", err)
+	}
+
 	rows, err := r.pool.Query(ctx, `
 		SELECT pf.id, pf.donor_farrowing_id, pf.receiver_farrowing_id,
-		       df.sow_id, rf.sow_id, pf.movement_date, pf.quantity, pf.note,
+		       df.sow_id, ds.code, rf.sow_id, rs.code, pf.movement_date, pf.quantity, pf.note,
 		       pf.created_at, pf.updated_at, pf.created_by, pf.updated_by
 		FROM piglet_fosterings pf
 		JOIN farrowings df ON df.id = pf.donor_farrowing_id
 		JOIN farrowings rf ON rf.id = pf.receiver_farrowing_id
-		WHERE ($1::uuid IS NULL OR df.sow_id = $1)
-		  AND ($2::uuid IS NULL OR rf.sow_id = $2)
-		  AND ($3::date IS NULL OR pf.movement_date >= $3)
-		  AND ($4::date IS NULL OR pf.movement_date <= $4)
+		JOIN sows ds ON ds.id = df.sow_id
+		JOIN sows rs ON rs.id = rf.sow_id
+		WHERE ($1::text IS NULL OR LOWER(ds.code) = LOWER($1) OR LOWER(rs.code) = LOWER($1))
+		  AND ($2::date IS NULL OR pf.movement_date >= $2)
+		  AND ($3::date IS NULL OR pf.movement_date <= $3)
 		ORDER BY pf.movement_date DESC, pf.created_at DESC
-	`, filter.DonorSowID, filter.ReceiverSowID, filter.FromDate, filter.ToDate)
+		LIMIT $4 OFFSET $5
+	`, filter.SowCode, filter.FromDate, filter.ToDate, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar los traslados de lechones: %w", err)
+		return nil, 0, fmt.Errorf("No se pudieron consultar los traslados de lechones: %w", err)
 	}
 	defer rows.Close()
 
@@ -544,7 +569,9 @@ func (r *PostgresPigletFosteringRepository) List(ctx context.Context, filter por
 			&result.DonorFarrowingID,
 			&result.ReceiverFarrowingID,
 			&result.DonorSowID,
+			&result.DonorSowCode,
 			&result.ReceiverSowID,
+			&result.ReceiverSowCode,
 			&result.MovementDate,
 			&result.Quantity,
 			&result.Note,
@@ -553,12 +580,12 @@ func (r *PostgresPigletFosteringRepository) List(ctx context.Context, filter por
 			&result.CreatedBy,
 			&result.UpdatedBy,
 		); err != nil {
-			return nil, fmt.Errorf("No se pudieron consultar los traslados de lechones: %w", err)
+			return nil, 0, fmt.Errorf("No se pudieron consultar los traslados de lechones: %w", err)
 		}
 		fosterings = append(fosterings, result)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar los traslados de lechones: %w", err)
+		return nil, 0, fmt.Errorf("No se pudieron consultar los traslados de lechones: %w", err)
 	}
-	return fosterings, nil
+	return fosterings, total, nil
 }

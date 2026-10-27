@@ -13,12 +13,12 @@ import (
 
 // PigletFosteringFilter narrows the fosterings returned by the list operation.
 // A nil field is ignored so an empty filter returns every fostering; the date
-// range is inclusive on both ends and each sow matches its side of the movement.
+// range is inclusive on both ends and the sow code matches either side of the
+// movement, so a donor or a receiver sow finds the same fostering.
 type PigletFosteringFilter struct {
-	DonorSowID    *uuid.UUID
-	ReceiverSowID *uuid.UUID
-	FromDate      *time.Time
-	ToDate        *time.Time
+	SowCode  *string
+	FromDate *time.Time
+	ToDate   *time.Time
 }
 
 // PigletFosteringRepository defines the persistence operations of the fostering
@@ -35,5 +35,7 @@ type PigletFosteringRepository interface {
 	Create(ctx context.Context, fostering *pigletfosteringdomain.PigletFostering, donor *farrowingdomain.Farrowing, receiver *farrowingdomain.Farrowing) error
 	Update(ctx context.Context, fostering *pigletfosteringdomain.PigletFostering) error
 	Delete(ctx context.Context, fostering *pigletfosteringdomain.PigletFostering, donor *farrowingdomain.Farrowing, receiver *farrowingdomain.Farrowing) error
-	List(ctx context.Context, filter PigletFosteringFilter) ([]*pigletfosteringdomain.PigletFostering, error)
+	// List returns one page of fosterings matching the filter together with the
+	// total count of matches, so callers can paginate the result.
+	List(ctx context.Context, filter PigletFosteringFilter, limit int, offset int) ([]*pigletfosteringdomain.PigletFostering, int, error)
 }

@@ -282,8 +282,11 @@ func TestPigletFosteringHandlerUpdate(t *testing.T) {
 }
 
 func TestPigletFosteringHandlerList(t *testing.T) {
-	t.Run("returns every fostering", func(t *testing.T) {
-		list := &fakeListPigletFosteringsUseCase{fosterings: []*pigletfosteringdomain.PigletFostering{handlerPigletFostering()}}
+	t.Run("returns one page with its metadata and no audit fields", func(t *testing.T) {
+		list := &fakeListPigletFosteringsUseCase{
+			fosterings: []*pigletfosteringdomain.PigletFostering{handlerPigletFostering()},
+			total:      15,
+		}
 		handler := newTestHandler(&fakeCreatePigletFosteringUseCase{}, list)
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/piglet-fosterings", nil))
 
@@ -291,42 +294,50 @@ func TestPigletFosteringHandlerList(t *testing.T) {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)
 		}
 		body := response.Body.String()
-		for _, want := range []string{"2026-04-25", "donor_farrowing_id", "receiver_farrowing_id", "donor_sow_id", "receiver_sow_id", "quantity"} {
+		for _, want := range []string{
+			`"items"`, "2026-04-25", "donor_farrowing_id", "receiver_farrowing_id",
+			"donor_sow_id", "donor_sow_code", "C-001", "receiver_sow_id",
+			"receiver_sow_code", "C-002", "quantity", `"total":15`, `"page":1`,
+			`"page_size":10`, `"total_pages":2`,
+		} {
 			if !strings.Contains(body, want) {
 				t.Fatalf("body missing %q: %s", want, body)
 			}
 		}
+		for _, unwanted := range []string{"created_at", "updated_at", "created_by", "updated_by"} {
+			if strings.Contains(body, unwanted) {
+				t.Fatalf("body should not contain %q: %s", unwanted, body)
+			}
+		}
 	})
 
-	t.Run("returns an empty array when there are no fosterings", func(t *testing.T) {
+	t.Run("returns an empty items array when there are no fosterings", func(t *testing.T) {
 		list := &fakeListPigletFosteringsUseCase{fosterings: []*pigletfosteringdomain.PigletFostering{}}
 		handler := newTestHandler(&fakeCreatePigletFosteringUseCase{}, list)
 		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/piglet-fosterings", nil))
 
-		if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "[]" {
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"items":[]`) {
 			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 		}
 	})
 
-	t.Run("parses the sow and date range filters", func(t *testing.T) {
-		donorSowID := uuid.New()
-		receiverSowID := uuid.New()
+	t.Run("parses the page and the sow code and date range filters", func(t *testing.T) {
 		list := &fakeListPigletFosteringsUseCase{}
 		handler := newTestHandler(&fakeCreatePigletFosteringUseCase{}, list)
 		response := serve(handler, httptest.NewRequest(
 			http.MethodGet,
-			"/api/v1/piglet-fosterings?donor_sow_id="+donorSowID.String()+"&receiver_sow_id="+receiverSowID.String()+"&from=2026-04-01&to=2026-04-30",
+			"/api/v1/piglet-fosterings?sow_code=C-001&from=2026-04-01&to=2026-04-30&page=2",
 			nil,
 		))
 
 		if response.Code != http.StatusOK || !list.called {
 			t.Fatalf("status=%d called=%v", response.Code, list.called)
 		}
-		if list.filter.DonorSowID == nil || *list.filter.DonorSowID != donorSowID {
-			t.Fatalf("unexpected donor sow id: %#v", list.filter.DonorSowID)
+		if list.page != 2 {
+			t.Fatalf("page = %d, want 2", list.page)
 		}
-		if list.filter.ReceiverSowID == nil || *list.filter.ReceiverSowID != receiverSowID {
-			t.Fatalf("unexpected receiver sow id: %#v", list.filter.ReceiverSowID)
+		if list.filter.SowCode == nil || *list.filter.SowCode != "C-001" {
+			t.Fatalf("unexpected sow code: %#v", list.filter.SowCode)
 		}
 		if list.filter.FromDate == nil || !list.filter.FromDate.Equal(time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)) {
 			t.Fatalf("unexpected from date: %#v", list.filter.FromDate)
@@ -336,26 +347,30 @@ func TestPigletFosteringHandlerList(t *testing.T) {
 		}
 	})
 
-	t.Run("returns an empty filter when no params are given", func(t *testing.T) {
+	t.Run("returns an empty filter and page one when no params are given", func(t *testing.T) {
 		list := &fakeListPigletFosteringsUseCase{}
 		handler := newTestHandler(&fakeCreatePigletFosteringUseCase{}, list)
 		serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/piglet-fosterings", nil))
 
-		if list.filter.DonorSowID != nil || list.filter.ReceiverSowID != nil || list.filter.FromDate != nil || list.filter.ToDate != nil {
+		if list.filter.SowCode != nil || list.filter.FromDate != nil || list.filter.ToDate != nil {
 			t.Fatalf("unexpected filter: %#v", list.filter)
+		}
+		if list.page != 1 {
+			t.Fatalf("page = %d, want 1", list.page)
 		}
 	})
 
-	t.Run("rejects invalid filter values", func(t *testing.T) {
+	t.Run("rejects invalid filter and page values", func(t *testing.T) {
 		list := &fakeListPigletFosteringsUseCase{}
 		handler := newTestHandler(&fakeCreatePigletFosteringUseCase{}, list)
 
 		for _, query := range []string{
-			"donor_sow_id=not-a-uuid",
-			"receiver_sow_id=not-a-uuid",
+			"sow_code=" + strings.Repeat("a", 51),
 			"from=not-a-date",
 			"to=not-a-date",
 			"from=2026-04-30&to=2026-04-01",
+			"page=0",
+			"page=not-a-number",
 		} {
 			response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/piglet-fosterings?"+query, nil))
 			if response.Code != http.StatusBadRequest || list.called {

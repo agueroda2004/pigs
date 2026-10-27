@@ -40,13 +40,15 @@ var (
 
 // PigletFostering is the aggregate root that represents a transfer of piglets
 // between two farrowings. It records the donor and receiver farrowings, the
-// moved quantity and the movement date.
+// moved quantity and the movement date, plus the codes of both sows.
 type PigletFostering struct {
 	ID                  uuid.UUID
 	DonorFarrowingID    uuid.UUID
 	ReceiverFarrowingID uuid.UUID
 	DonorSowID          uuid.UUID
+	DonorSowCode        string
 	ReceiverSowID       uuid.UUID
+	ReceiverSowCode     string
 	MovementDate        time.Time
 	Quantity            int
 	Note                *string

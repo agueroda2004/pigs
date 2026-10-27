@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,7 +18,11 @@ import (
 	platformhttp "server/internal/platform/http"
 )
 
-const dateLayout = "2006-01-02"
+const (
+	dateLayout = "2006-01-02"
+	// maxSowCodeLength mirrors the length of the sows.code column.
+	maxSowCodeLength = 50
+)
 
 type CreatePigletFosteringUseCase interface {
 	Execute(context.Context, pigletfosteringapplication.CreatePigletFosteringCommand) (*pigletfosteringdomain.PigletFostering, error)
@@ -32,7 +37,7 @@ type DeletePigletFosteringUseCase interface {
 }
 
 type ListPigletFosteringsUseCase interface {
-	Execute(context.Context, ports.PigletFosteringFilter) ([]*pigletfosteringdomain.PigletFostering, error)
+	Execute(context.Context, ports.PigletFosteringFilter, int) (pigletfosteringapplication.PigletFosteringPage, error)
 }
 
 type PigletFosteringHandler struct {
@@ -93,14 +98,21 @@ type pigletFosteringResponse struct {
 	DonorFarrowingID    uuid.UUID `json:"donor_farrowing_id"`
 	ReceiverFarrowingID uuid.UUID `json:"receiver_farrowing_id"`
 	DonorSowID          uuid.UUID `json:"donor_sow_id"`
+	DonorSowCode        string    `json:"donor_sow_code"`
 	ReceiverSowID       uuid.UUID `json:"receiver_sow_id"`
+	ReceiverSowCode     string    `json:"receiver_sow_code"`
 	MovementDate        string    `json:"movement_date"`
 	Quantity            int       `json:"quantity"`
 	Note                *string   `json:"note"`
-	CreatedAt           string    `json:"created_at"`
-	UpdatedAt           string    `json:"updated_at"`
-	CreatedBy           uuid.UUID `json:"created_by"`
-	UpdatedBy           uuid.UUID `json:"updated_by"`
+}
+
+// pigletFosteringPageResponse is one page of fosterings with its pagination metadata.
+type pigletFosteringPageResponse struct {
+	Items      []pigletFosteringResponse `json:"items"`
+	Total      int                       `json:"total"`
+	Page       int                       `json:"page"`
+	PageSize   int                       `json:"page_size"`
+	TotalPages int                       `json:"total_pages"`
 }
 
 // create handles POST /api/v1/piglet-fosterings and registers a fostering.
@@ -236,8 +248,9 @@ func parseUpdatePigletFosteringParams(request updatePigletFosteringRequest) (pig
 	return params, nil
 }
 
-// list handles GET /api/v1/piglet-fosterings and returns the fosterings matching the filter.
-// It parses the optional donor_sow_id, receiver_sow_id, from and to query parameters.
+// list handles GET /api/v1/piglet-fosterings and returns one page of fosterings
+// matching the filter. It parses the optional sow_code, from and to query
+// parameters plus the page parameter.
 func (h *PigletFosteringHandler) list(w http.ResponseWriter, r *http.Request) {
 	filter, err := parsePigletFosteringFilter(r)
 	if err != nil {
@@ -245,36 +258,33 @@ func (h *PigletFosteringHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fosterings, err := h.listPigletFosterings.Execute(r.Context(), filter)
+	page, err := parsePigletFosteringPage(r)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	fosterings, err := h.listPigletFosterings.Execute(r.Context(), filter, page)
 	if err != nil {
 		writePigletFosteringError(w, err)
 		return
 	}
 
-	platformhttp.WriteJSON(w, http.StatusOK, toPigletFosteringResponses(fosterings))
+	platformhttp.WriteJSON(w, http.StatusOK, toPigletFosteringPageResponse(fosterings))
 }
 
 // parsePigletFosteringFilter reads the optional list filters from the query string.
-// It returns an error for a malformed sow or date value and rejects a date range
-// whose start is later than its end.
+// It returns an error for a sow code over 50 characters or a malformed date, and
+// rejects a date range whose start is later than its end.
 func parsePigletFosteringFilter(r *http.Request) (ports.PigletFosteringFilter, error) {
 	query := r.URL.Query()
 	var filter ports.PigletFosteringFilter
 
-	if donor := strings.TrimSpace(query.Get("donor_sow_id")); donor != "" {
-		donorSowID, err := uuid.Parse(donor)
-		if err != nil {
-			return ports.PigletFosteringFilter{}, errors.New("El identificador de la cerda donante no es válido")
+	if sowCode := strings.TrimSpace(query.Get("sow_code")); sowCode != "" {
+		if len([]rune(sowCode)) > maxSowCodeLength {
+			return ports.PigletFosteringFilter{}, errors.New("El código de la cerda no puede superar los 50 caracteres")
 		}
-		filter.DonorSowID = &donorSowID
-	}
-
-	if receiver := strings.TrimSpace(query.Get("receiver_sow_id")); receiver != "" {
-		receiverSowID, err := uuid.Parse(receiver)
-		if err != nil {
-			return ports.PigletFosteringFilter{}, errors.New("El identificador de la cerda receptora no es válido")
-		}
-		filter.ReceiverSowID = &receiverSowID
+		filter.SowCode = &sowCode
 	}
 
 	if from := strings.TrimSpace(query.Get("from")); from != "" {
@@ -300,22 +310,36 @@ func parsePigletFosteringFilter(r *http.Request) (ports.PigletFosteringFilter, e
 	return filter, nil
 }
 
+// parsePigletFosteringPage reads the optional page query parameter.
+// It defaults to page one and rejects non-positive or malformed values.
+func parsePigletFosteringPage(r *http.Request) (int, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get("page"))
+	if raw == "" {
+		return 1, nil
+	}
+
+	page, err := strconv.Atoi(raw)
+	if err != nil || page < 1 {
+		return 0, errors.New("La página no es válida")
+	}
+	return page, nil
+}
+
 // toPigletFosteringResponse maps a domain fostering to the HTTP response shape.
-// It formats the movement date as YYYY-MM-DD and the timestamps in UTC.
+// It formats the movement date as YYYY-MM-DD, exposes both sow codes and omits
+// the audit fields.
 func toPigletFosteringResponse(fostering *pigletfosteringdomain.PigletFostering) pigletFosteringResponse {
 	return pigletFosteringResponse{
 		ID:                  fostering.ID,
 		DonorFarrowingID:    fostering.DonorFarrowingID,
 		ReceiverFarrowingID: fostering.ReceiverFarrowingID,
 		DonorSowID:          fostering.DonorSowID,
+		DonorSowCode:        fostering.DonorSowCode,
 		ReceiverSowID:       fostering.ReceiverSowID,
+		ReceiverSowCode:     fostering.ReceiverSowCode,
 		MovementDate:        fostering.MovementDate.UTC().Format(dateLayout),
 		Quantity:            fostering.Quantity,
 		Note:                fostering.Note,
-		CreatedAt:           fostering.CreatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt:           fostering.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
-		CreatedBy:           fostering.CreatedBy,
-		UpdatedBy:           fostering.UpdatedBy,
 	}
 }
 
@@ -327,6 +351,18 @@ func toPigletFosteringResponses(fosterings []*pigletfosteringdomain.PigletFoster
 		responses = append(responses, toPigletFosteringResponse(fostering))
 	}
 	return responses
+}
+
+// toPigletFosteringPageResponse maps one page of domain fosterings to the paginated shape.
+// It returns an empty items slice instead of null when the page has no fosterings.
+func toPigletFosteringPageResponse(page pigletfosteringapplication.PigletFosteringPage) pigletFosteringPageResponse {
+	return pigletFosteringPageResponse{
+		Items:      toPigletFosteringResponses(page.Items),
+		Total:      page.Total,
+		Page:       page.Page,
+		PageSize:   page.PageSize,
+		TotalPages: page.TotalPages,
+	}
 }
 
 // writePigletFosteringError maps fostering domain, application and port errors to status codes.
