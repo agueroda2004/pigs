@@ -14,14 +14,12 @@ function buildFostering(): PigletFostering {
     donor_farrowing_id: 'farrowing-1',
     receiver_farrowing_id: 'farrowing-2',
     donor_sow_id: 'sow-1',
+    donor_sow_code: 'C-001',
     receiver_sow_id: 'sow-2',
+    receiver_sow_code: 'C-002',
     movement_date: '2026-04-25',
     quantity: 2,
     note: null,
-    created_at: '',
-    updated_at: '',
-    created_by: 'admin',
-    updated_by: 'admin',
   };
 }
 
@@ -53,8 +51,6 @@ describe('DeletePigletFosteringModal', () => {
   const create = () => {
     const fixture = TestBed.createComponent(DeletePigletFosteringModal);
     fixture.componentRef.setInput('fostering', buildFostering());
-    fixture.componentRef.setInput('donorSowCode', 'C-001');
-    fixture.componentRef.setInput('receiverSowCode', 'C-002');
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

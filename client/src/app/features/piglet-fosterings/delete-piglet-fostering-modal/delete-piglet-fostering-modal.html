@@ -4,9 +4,13 @@
       ¿Seguro que quieres eliminar el traslado de
       <span class="font-medium text-foreground">{{ fostering()?.quantity }}</span> lechones de la
       cerda
-      <span class="font-medium text-foreground">{{ donorSowCode() ?? 'sin identificar' }}</span>
+      <span class="font-medium text-foreground">{{
+        fostering()?.donor_sow_code || 'sin identificar'
+      }}</span>
       a la cerda
-      <span class="font-medium text-foreground">{{ receiverSowCode() ?? 'sin identificar' }}</span>
+      <span class="font-medium text-foreground">{{
+        fostering()?.receiver_sow_code || 'sin identificar'
+      }}</span>
       del
       <span class="font-medium text-foreground">{{ fostering()?.movement_date }}</span
       >?

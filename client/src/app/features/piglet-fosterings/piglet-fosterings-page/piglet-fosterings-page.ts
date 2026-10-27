@@ -9,10 +9,7 @@ import {
   PigletFosteringFilters,
 } from '../../../core/piglet-fosterings/piglet-fostering.models';
 import { PigletFosteringsService } from '../../../core/piglet-fosterings/piglet-fosterings.service';
-import { SowsService } from '../../../core/sows/sows.service';
 import { DatePicker } from '../../../shared/ui/date-picker/date-picker';
-import { DropdownOption } from '../../../shared/ui/dropdown/dropdown';
-import { SearchDropdown } from '../../../shared/ui/search-dropdown/search-dropdown';
 import { toISODate } from '../../../shared/utils/date';
 import { DeletePigletFosteringModal } from '../delete-piglet-fostering-modal/delete-piglet-fostering-modal';
 import { PigletFosteringCard } from '../piglet-fostering-card/piglet-fostering-card';
@@ -28,7 +25,6 @@ import {
     PigletFosteringCard,
     RegisterPigletFosteringModal,
     DeletePigletFosteringModal,
-    SearchDropdown,
     DatePicker,
   ],
   styleUrl: './piglet-fosterings-page.css',
@@ -36,15 +32,12 @@ import {
 })
 export class PigletFosteringsPage implements OnInit {
   private readonly pigletFosteringsService = inject(PigletFosteringsService);
-  private readonly sowsService = inject(SowsService);
   private readonly notifications = inject(NotificationService);
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly isAdmin = this.auth.isAdmin;
   protected readonly fosterings = signal<PigletFostering[]>([]);
-  protected readonly sowCodes = signal<Map<string, string>>(new Map());
-  protected readonly sowOptions = signal<DropdownOption[]>([]);
   protected readonly appliedFilters = signal<PigletFosteringFilters>({});
   protected readonly loading = signal(false);
   protected readonly error = signal(false);
@@ -54,18 +47,20 @@ export class PigletFosteringsPage implements OnInit {
   protected readonly deletingFostering = signal<PigletFostering | null>(null);
   protected readonly today = toISODate(new Date());
   protected readonly rangeError = signal<string | null>(null);
+  protected readonly page = signal(1);
+  protected readonly totalPages = signal(0);
+  protected readonly total = signal(0);
 
   protected readonly hasFilters = computed(() => Object.keys(this.appliedFilters()).length > 0);
 
   protected readonly filterForm = this.formBuilder.nonNullable.group({
-    donor_sow_id: [''],
-    receiver_sow_id: [''],
+    sow_code: [''],
     from: [''],
     to: [''],
   });
 
   async ngOnInit(): Promise<void> {
-    await Promise.all([this.loadFosterings(), this.loadLookups()]);
+    await this.loadFosterings();
   }
 
   protected openModal(): void {
@@ -87,6 +82,7 @@ export class PigletFosteringsPage implements OnInit {
     this.notifications.success(
       `Traslado de "${codes.donor}" a "${codes.receiver}" registrado correctamente`,
     );
+    this.page.set(1);
     await this.loadFosterings();
   }
 
@@ -108,42 +104,14 @@ export class PigletFosteringsPage implements OnInit {
   protected async onDeleted(fostering: PigletFostering): Promise<void> {
     this.deleteOpen.set(false);
     this.deletingFostering.set(null);
-    const donor = this.donorSowCode(fostering) ?? 'sin identificar';
-    const receiver = this.receiverSowCode(fostering) ?? 'sin identificar';
+    const donor = fostering.donor_sow_code || 'sin identificar';
+    const receiver = fostering.receiver_sow_code || 'sin identificar';
     this.notifications.success(`Traslado de "${donor}" a "${receiver}" eliminado correctamente`);
     await this.loadFosterings();
   }
 
-  protected deletingDonorSowCode(): string | null {
-    const current = this.deletingFostering();
-    return current ? this.donorSowCode(current) : null;
-  }
-
-  protected deletingReceiverSowCode(): string | null {
-    const current = this.deletingFostering();
-    return current ? this.receiverSowCode(current) : null;
-  }
-
-  protected editingDonorSowCode(): string | null {
-    const current = this.editingFostering();
-    return current ? this.donorSowCode(current) : null;
-  }
-
-  protected editingReceiverSowCode(): string | null {
-    const current = this.editingFostering();
-    return current ? this.receiverSowCode(current) : null;
-  }
-
-  protected donorSowCode(fostering: PigletFostering): string | null {
-    return this.sowCodes().get(fostering.donor_sow_id) ?? null;
-  }
-
-  protected receiverSowCode(fostering: PigletFostering): string | null {
-    return this.sowCodes().get(fostering.receiver_sow_id) ?? null;
-  }
-
   protected async search(): Promise<void> {
-    const { donor_sow_id, receiver_sow_id, from, to } = this.filterForm.getRawValue();
+    const { sow_code, from, to } = this.filterForm.getRawValue();
     if (from && to && from > to) {
       this.rangeError.set('La fecha inicial no puede ser posterior a la fecha final');
       return;
@@ -151,11 +119,9 @@ export class PigletFosteringsPage implements OnInit {
     this.rangeError.set(null);
 
     const filters: PigletFosteringFilters = {};
-    if (donor_sow_id) {
-      filters.donor_sow_id = donor_sow_id;
-    }
-    if (receiver_sow_id) {
-      filters.receiver_sow_id = receiver_sow_id;
+    const trimmedCode = sow_code.trim();
+    if (trimmedCode) {
+      filters.sow_code = trimmedCode;
     }
     if (from) {
       filters.from = from;
@@ -164,6 +130,7 @@ export class PigletFosteringsPage implements OnInit {
       filters.to = to;
     }
     this.appliedFilters.set(filters);
+    this.page.set(1);
     await this.loadFosterings();
   }
 
@@ -173,6 +140,21 @@ export class PigletFosteringsPage implements OnInit {
     this.rangeError.set(null);
     this.appliedFilters.set({});
     if (hadFilters) {
+      this.page.set(1);
+      await this.loadFosterings();
+    }
+  }
+
+  protected async previousPage(): Promise<void> {
+    if (this.page() > 1) {
+      this.page.update((page) => page - 1);
+      await this.loadFosterings();
+    }
+  }
+
+  protected async nextPage(): Promise<void> {
+    if (this.page() < this.totalPages()) {
+      this.page.update((page) => page + 1);
       await this.loadFosterings();
     }
   }
@@ -181,26 +163,21 @@ export class PigletFosteringsPage implements OnInit {
     this.loading.set(true);
     this.error.set(false);
     try {
-      this.fosterings.set(
-        await firstValueFrom(
-          this.pigletFosteringsService.listPigletFosterings(this.appliedFilters()),
-        ),
+      const result = await firstValueFrom(
+        this.pigletFosteringsService.listPigletFosterings(this.appliedFilters(), this.page()),
       );
+      if (result.total_pages > 0 && this.page() > result.total_pages) {
+        this.page.set(result.total_pages);
+        await this.loadFosterings();
+        return;
+      }
+      this.fosterings.set(result.items);
+      this.total.set(result.total);
+      this.totalPages.set(result.total_pages);
     } catch {
       this.error.set(true);
     } finally {
       this.loading.set(false);
-    }
-  }
-
-  private async loadLookups(): Promise<void> {
-    try {
-      const sows = await firstValueFrom(this.sowsService.listSowDropdown());
-      this.sowCodes.set(new Map(sows.map((sow) => [sow.id, sow.code])));
-      this.sowOptions.set(sows.map((sow) => ({ value: sow.id, label: sow.code })));
-    } catch {
-      this.sowCodes.set(new Map());
-      this.sowOptions.set([]);
     }
   }
 }

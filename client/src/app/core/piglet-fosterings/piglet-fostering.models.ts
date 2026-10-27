@@ -3,14 +3,20 @@ export interface PigletFostering {
   donor_farrowing_id: string;
   receiver_farrowing_id: string;
   donor_sow_id: string;
+  donor_sow_code: string;
   receiver_sow_id: string;
+  receiver_sow_code: string;
   movement_date: string;
   quantity: number;
   note: string | null;
-  created_at: string;
-  updated_at: string;
-  created_by: string;
-  updated_by: string;
+}
+
+export interface PigletFosteringPage {
+  items: PigletFostering[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 export interface CreatePigletFosteringRequest {
@@ -28,8 +34,7 @@ export interface UpdatePigletFosteringRequest {
 }
 
 export interface PigletFosteringFilters {
-  donor_sow_id?: string;
-  receiver_sow_id?: string;
+  sow_code?: string;
   from?: string;
   to?: string;
 }

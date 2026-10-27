@@ -10,30 +10,20 @@ function buildFostering(overrides: Partial<PigletFostering> = {}): PigletFosteri
     donor_farrowing_id: 'farrowing-1',
     receiver_farrowing_id: 'farrowing-2',
     donor_sow_id: 'sow-1',
+    donor_sow_code: 'C-001',
     receiver_sow_id: 'sow-2',
+    receiver_sow_code: 'C-002',
     movement_date: '2026-04-25',
     quantity: 2,
     note: null,
-    created_at: '',
-    updated_at: '',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }
 
 describe('PigletFosteringCard', () => {
-  const render = (
-    fostering: PigletFostering,
-    donor: string | null,
-    receiver: string | null,
-    canEdit = false,
-    canDelete = false,
-  ) => {
+  const render = (fostering: PigletFostering, canEdit = false, canDelete = false) => {
     const fixture = TestBed.createComponent(PigletFosteringCard);
     fixture.componentRef.setInput('fostering', fostering);
-    fixture.componentRef.setInput('donorSowCode', donor);
-    fixture.componentRef.setInput('receiverSowCode', receiver);
     fixture.componentRef.setInput('canEdit', canEdit);
     fixture.componentRef.setInput('canDelete', canDelete);
     fixture.detectChanges();
@@ -43,7 +33,7 @@ describe('PigletFosteringCard', () => {
   beforeEach(() => TestBed.configureTestingModule({ imports: [PigletFosteringCard] }));
 
   it('renders the sow codes, date and quantity', () => {
-    const fixture = render(buildFostering(), 'C-001', 'C-002');
+    const fixture = render(buildFostering());
     const text = fixture.nativeElement.textContent;
 
     expect(text).toContain('C-001');
@@ -53,34 +43,34 @@ describe('PigletFosteringCard', () => {
   });
 
   it('falls back when a sow code is unknown', () => {
-    const fixture = render(buildFostering(), null, null);
+    const fixture = render(buildFostering({ donor_sow_code: '', receiver_sow_code: '' }));
 
     expect(fixture.nativeElement.textContent).toContain('sin identificar');
   });
 
   it('shows the note only when present', () => {
-    const without = render(buildFostering(), 'C-001', 'C-002');
+    const without = render(buildFostering());
     expect(without.nativeElement.textContent).not.toContain('Nota');
 
-    const withNote = render(buildFostering({ note: 'Camada numerosa' }), 'C-001', 'C-002');
+    const withNote = render(buildFostering({ note: 'Camada numerosa' }));
     expect(withNote.nativeElement.textContent).toContain('Camada numerosa');
   });
 
   it('hides the edit button when the user cannot edit', () => {
-    const fixture = render(buildFostering(), 'C-001', 'C-002');
+    const fixture = render(buildFostering());
 
     expect(fixture.nativeElement.textContent).not.toContain('Editar');
   });
 
   it('hides the delete button when the user cannot delete', () => {
-    const fixture = render(buildFostering(), 'C-001', 'C-002', true);
+    const fixture = render(buildFostering(), true);
 
     expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
   });
 
   it('emits the fostering when the edit button is clicked', () => {
     const fostering = buildFostering();
-    const fixture = render(fostering, 'C-001', 'C-002', true);
+    const fixture = render(fostering, true);
     const requested = vi.fn();
     fixture.componentInstance.editRequested.subscribe(requested);
 
@@ -92,7 +82,7 @@ describe('PigletFosteringCard', () => {
 
   it('emits the fostering when the delete button is clicked', () => {
     const fostering = buildFostering();
-    const fixture = render(fostering, 'C-001', 'C-002', false, true);
+    const fixture = render(fostering, false, true);
     const requested = vi.fn();
     fixture.componentInstance.deleteRequested.subscribe(requested);
 
@@ -103,7 +93,7 @@ describe('PigletFosteringCard', () => {
   });
 
   it('shows both actions for an admin', () => {
-    const fixture = render(buildFostering(), 'C-001', 'C-002', true, true);
+    const fixture = render(buildFostering(), true, true);
     const buttons = fixture.nativeElement.querySelectorAll('button');
 
     expect(buttons).toHaveLength(2);

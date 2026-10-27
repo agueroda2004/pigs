@@ -29,25 +29,22 @@
   </div>
 
   <form
-    class="grid gap-4 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4"
+    class="grid gap-4 rounded-xl border border-border bg-card p-4 sm:grid-cols-3"
     [formGroup]="filterForm"
     (ngSubmit)="search()"
   >
     <div class="space-y-1.5">
-      <span class="block text-xs font-medium text-muted-foreground">Cerda donante</span>
-      <app-search-dropdown
-        formControlName="donor_sow_id"
-        [options]="sowOptions()"
-        placeholder="Todas"
-      />
-    </div>
-
-    <div class="space-y-1.5">
-      <span class="block text-xs font-medium text-muted-foreground">Cerda receptora</span>
-      <app-search-dropdown
-        formControlName="receiver_sow_id"
-        [options]="sowOptions()"
-        placeholder="Todas"
+      <label for="piglet-fostering-sow-code" class="block text-xs font-medium text-muted-foreground"
+        >Cerda</label
+      >
+      <input
+        id="piglet-fostering-sow-code"
+        type="text"
+        formControlName="sow_code"
+        maxlength="50"
+        autocomplete="off"
+        placeholder="Código de la cerda"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
       />
     </div>
 
@@ -71,10 +68,10 @@
     </div>
 
     @if (rangeError()) {
-      <p class="text-xs text-danger sm:col-span-2 lg:col-span-4">{{ rangeError() }}</p>
+      <p class="text-xs text-danger sm:col-span-3">{{ rangeError() }}</p>
     }
 
-    <div class="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
+    <div class="flex items-end gap-2 sm:col-span-3">
       <button
         type="submit"
         class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -133,8 +130,6 @@
       @for (fostering of fosterings(); track fostering.id) {
         <app-piglet-fostering-card
           [fostering]="fostering"
-          [donorSowCode]="donorSowCode(fostering)"
-          [receiverSowCode]="receiverSowCode(fostering)"
           [canEdit]="isAdmin()"
           [canDelete]="isAdmin()"
           (editRequested)="openEditModal($event)"
@@ -142,14 +137,36 @@
         />
       }
     </div>
+
+    @if (totalPages() > 1) {
+      <div class="flex items-center justify-center gap-4">
+        <button
+          type="button"
+          (click)="previousPage()"
+          [disabled]="page() === 1"
+          class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Anterior
+        </button>
+        <span class="text-sm text-muted-foreground">
+          Página {{ page() }} de {{ totalPages() }} ({{ total() }} traslados)
+        </span>
+        <button
+          type="button"
+          (click)="nextPage()"
+          [disabled]="page() === totalPages()"
+          class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Siguiente
+        </button>
+      </div>
+    }
   }
 </div>
 
 <app-register-piglet-fostering-modal
   [open]="modalOpen()"
   [fostering]="editingFostering()"
-  [donorSowCode]="editingDonorSowCode()"
-  [receiverSowCode]="editingReceiverSowCode()"
   (closed)="closeModal()"
   (created)="onCreated($event)"
   (updated)="onUpdated()"
@@ -158,8 +175,6 @@
 <app-delete-piglet-fostering-modal
   [open]="deleteOpen()"
   [fostering]="deletingFostering()"
-  [donorSowCode]="deletingDonorSowCode()"
-  [receiverSowCode]="deletingReceiverSowCode()"
   (closed)="closeDelete()"
   (deleted)="onDeleted($event)"
 />

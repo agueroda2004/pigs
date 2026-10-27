@@ -10,14 +10,20 @@ const fosteringPayload = {
   donor_farrowing_id: 'farrowing-1',
   receiver_farrowing_id: 'farrowing-2',
   donor_sow_id: 'sow-1',
+  donor_sow_code: 'C-001',
   receiver_sow_id: 'sow-2',
+  receiver_sow_code: 'C-002',
   movement_date: '2026-04-25',
   quantity: 2,
   note: null,
-  created_at: '',
-  updated_at: '',
-  created_by: 'admin',
-  updated_by: 'admin',
+};
+
+const pagePayload = {
+  items: [fosteringPayload],
+  total: 1,
+  page: 1,
+  page_size: 10,
+  total_pages: 1,
 };
 
 describe('PigletFosteringsService', () => {
@@ -40,32 +46,35 @@ describe('PigletFosteringsService', () => {
     const call = http.expectOne(
       (request) => request.url.endsWith('/piglet-fosterings') && request.method === 'GET',
     );
-    expect(call.request.params.keys()).toHaveLength(0);
-    call.flush([fosteringPayload]);
+    expect(call.request.params.get('page')).toBe('1');
+    expect(call.request.params.has('sow_code')).toBe(false);
+    call.flush(pagePayload);
 
-    await expect(promise).resolves.toHaveLength(1);
+    await expect(promise).resolves.toEqual(pagePayload);
   });
 
-  it('lists piglet fosterings with the sow and date range filters', async () => {
+  it('lists piglet fosterings with the sow code, date range and page', async () => {
     const promise = firstValueFrom(
-      service.listPigletFosterings({
-        donor_sow_id: 'sow-1',
-        receiver_sow_id: 'sow-2',
-        from: '2026-04-01',
-        to: '2026-04-30',
-      }),
+      service.listPigletFosterings(
+        {
+          sow_code: 'C-001',
+          from: '2026-04-01',
+          to: '2026-04-30',
+        },
+        2,
+      ),
     );
 
     const call = http.expectOne(
       (request) => request.url.endsWith('/piglet-fosterings') && request.method === 'GET',
     );
-    expect(call.request.params.get('donor_sow_id')).toBe('sow-1');
-    expect(call.request.params.get('receiver_sow_id')).toBe('sow-2');
+    expect(call.request.params.get('sow_code')).toBe('C-001');
     expect(call.request.params.get('from')).toBe('2026-04-01');
     expect(call.request.params.get('to')).toBe('2026-04-30');
-    call.flush([fosteringPayload]);
+    expect(call.request.params.get('page')).toBe('2');
+    call.flush(pagePayload);
 
-    await expect(promise).resolves.toHaveLength(1);
+    await expect(promise).resolves.toEqual(pagePayload);
   });
 
   it('creates a piglet fostering and returns no body', async () => {

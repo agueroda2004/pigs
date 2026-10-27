@@ -16,8 +16,6 @@ import { Modal } from '../../../shared/ui/modal/modal';
 export class DeletePigletFosteringModal {
   readonly open = input(false);
   readonly fostering = input<PigletFostering | null>(null);
-  readonly donorSowCode = input<string | null>(null);
-  readonly receiverSowCode = input<string | null>(null);
   readonly closed = output<void>();
   readonly deleted = output<PigletFostering>();
 

@@ -39,8 +39,6 @@ const MAX_QUANTITY = 30;
 export class RegisterPigletFosteringModal {
   readonly open = input(false);
   readonly fostering = input<PigletFostering | null>(null);
-  readonly donorSowCode = input<string | null>(null);
-  readonly receiverSowCode = input<string | null>(null);
   readonly closed = output<void>();
   readonly created = output<CreatedFostering>();
   readonly updated = output<void>();
@@ -64,8 +62,8 @@ export class RegisterPigletFosteringModal {
       return this.loadedSowOptions();
     }
     return [
-      { value: current.donor_sow_id, label: this.donorSowCode() ?? 'sin identificar' },
-      { value: current.receiver_sow_id, label: this.receiverSowCode() ?? 'sin identificar' },
+      { value: current.donor_sow_id, label: current.donor_sow_code || 'sin identificar' },
+      { value: current.receiver_sow_id, label: current.receiver_sow_code || 'sin identificar' },
     ];
   });
 

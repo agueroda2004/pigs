@@ -5,8 +5,8 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   CreatePigletFosteringRequest,
-  PigletFostering,
   PigletFosteringFilters,
+  PigletFosteringPage,
   UpdatePigletFosteringRequest,
 } from './piglet-fostering.models';
 
@@ -15,13 +15,13 @@ export class PigletFosteringsService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiBaseUrl}/piglet-fosterings`;
 
-  listPigletFosterings(filters: PigletFosteringFilters = {}): Observable<PigletFostering[]> {
+  listPigletFosterings(
+    filters: PigletFosteringFilters = {},
+    page = 1,
+  ): Observable<PigletFosteringPage> {
     let params = new HttpParams();
-    if (filters.donor_sow_id) {
-      params = params.set('donor_sow_id', filters.donor_sow_id);
-    }
-    if (filters.receiver_sow_id) {
-      params = params.set('receiver_sow_id', filters.receiver_sow_id);
+    if (filters.sow_code) {
+      params = params.set('sow_code', filters.sow_code);
     }
     if (filters.from) {
       params = params.set('from', filters.from);
@@ -29,8 +29,9 @@ export class PigletFosteringsService {
     if (filters.to) {
       params = params.set('to', filters.to);
     }
+    params = params.set('page', String(page));
 
-    return this.http.get<PigletFostering[]>(this.baseUrl, { params });
+    return this.http.get<PigletFosteringPage>(this.baseUrl, { params });
   }
 
   // createPigletFostering registers a fostering and resolves once the server

@@ -15,14 +15,12 @@ function buildFostering(overrides: Partial<PigletFostering> = {}): PigletFosteri
     donor_farrowing_id: 'farrowing-1',
     receiver_farrowing_id: 'farrowing-2',
     donor_sow_id: 'sow-1',
+    donor_sow_code: 'C-001',
     receiver_sow_id: 'sow-2',
+    receiver_sow_code: 'C-002',
     movement_date: '2026-04-25',
     quantity: 2,
     note: 'camada numerosa',
-    created_at: '',
-    updated_at: '',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }
@@ -72,8 +70,6 @@ describe('RegisterPigletFosteringModal', () => {
   const createEditing = async (fostering: PigletFostering = buildFostering()): Promise<any> => {
     const fixture = TestBed.createComponent(RegisterPigletFosteringModal);
     fixture.componentRef.setInput('fostering', fostering);
-    fixture.componentRef.setInput('donorSowCode', 'C-001');
-    fixture.componentRef.setInput('receiverSowCode', 'C-002');
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
     await fixture.whenStable();
