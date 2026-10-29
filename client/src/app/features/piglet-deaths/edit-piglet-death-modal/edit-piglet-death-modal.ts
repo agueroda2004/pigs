@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, effect, inject, input, output, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 
@@ -12,17 +12,14 @@ import {
   UpdatePigletDeathRequest,
 } from '../../../core/piglet-deaths/piglet-death.models';
 import { PigletDeathsService } from '../../../core/piglet-deaths/piglet-deaths.service';
-import { DatePicker } from '../../../shared/ui/date-picker/date-picker';
 import { Dropdown, DropdownOption } from '../../../shared/ui/dropdown/dropdown';
 import { Modal } from '../../../shared/ui/modal/modal';
-import { SearchDropdown } from '../../../shared/ui/search-dropdown/search-dropdown';
-import { toISODate } from '../../../shared/utils/date';
 import { PIGLET_DEATH_CAUSE_LABELS } from '../piglet-death-cause';
 import { PIGLET_DEATH_TURN_LABELS } from '../piglet-death-turn';
 
 @Component({
   selector: 'app-edit-piglet-death-modal',
-  imports: [ReactiveFormsModule, Modal, Dropdown, SearchDropdown, DatePicker],
+  imports: [ReactiveFormsModule, Modal, Dropdown],
   styleUrl: './edit-piglet-death-modal.css',
   templateUrl: './edit-piglet-death-modal.html',
 })
@@ -40,7 +37,6 @@ export class EditPigletDeathModal {
 
   protected readonly loading = signal(false);
   protected readonly operatorOptions = signal<DropdownOption[]>([]);
-  protected readonly today = toISODate(new Date());
   protected readonly causeOptions: DropdownOption[] = (
     Object.keys(PIGLET_DEATH_CAUSE_LABELS) as PigletDeathCause[]
   ).map((cause) => ({ value: cause, label: PIGLET_DEATH_CAUSE_LABELS[cause] }));
@@ -48,16 +44,8 @@ export class EditPigletDeathModal {
     Object.keys(PIGLET_DEATH_TURN_LABELS) as Turn[]
   ).map((turn) => ({ value: turn, label: PIGLET_DEATH_TURN_LABELS[turn] }));
 
-  protected readonly sowOptions = computed<DropdownOption[]>(() => {
-    const current = this.death();
-    return current ? [{ value: current.sow_id, label: this.sowCode() ?? 'sin identificar' }] : [];
-  });
-
   protected readonly form = this.formBuilder.nonNullable.group({
-    sow_id: ['', [Validators.required]],
     operator_id: ['', [Validators.required]],
-    death_date: ['', [Validators.required]],
-    quantity: [1, [Validators.required, Validators.min(1), Validators.max(10)]],
     weight: [null as number | null, [Validators.min(0.01), Validators.max(20)]],
     cause: ['', [Validators.required]],
     turn: ['', [Validators.required]],
@@ -65,12 +53,10 @@ export class EditPigletDeathModal {
   });
 
   constructor() {
-    this.lockImmutableFields();
     effect(() => {
       const current = this.death();
       if (current && this.open()) {
         this.prefill(current);
-        this.lockImmutableFields();
         void this.loadOperators();
       }
     });
@@ -114,20 +100,11 @@ export class EditPigletDeathModal {
     }
   }
 
-  // Disables the sow, death date and quantity, which are fixed after creation.
-  // The disabled values stay visible in the form but are never sent on update.
-  private lockImmutableFields(): void {
-    for (const name of ['sow_id', 'death_date', 'quantity'] as const) {
-      this.form.controls[name].disable({ emitEvent: false });
-    }
-  }
-
+  // Prefills only the editable fields; the sow, date and quantity are read from
+  // the death record and shown as read-only values in the template.
   private prefill(current: PigletDeath): void {
     this.form.reset({
-      sow_id: current.sow_id,
       operator_id: current.operator_id,
-      death_date: current.death_date,
-      quantity: current.quantity,
       weight: current.weight,
       cause: current.cause,
       turn: current.turn,

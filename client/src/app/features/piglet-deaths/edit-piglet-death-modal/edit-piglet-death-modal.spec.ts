@@ -68,7 +68,7 @@ describe('EditPigletDeathModal', () => {
     return fixture.componentInstance as any;
   };
 
-  it('prefills the form and disables the locked fields', async () => {
+  it('prefills only the editable fields and renders the read-only summary', async () => {
     const fixture = TestBed.createComponent(EditPigletDeathModal);
     fixture.componentRef.setInput('death', buildDeath());
     fixture.componentRef.setInput('sowCode', 'C-001');
@@ -79,10 +79,7 @@ describe('EditPigletDeathModal', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const component = fixture.componentInstance as any;
     expect(component.form.getRawValue()).toEqual({
-      sow_id: 'sow-1',
       operator_id: 'op-1',
-      death_date: '2026-04-25',
-      quantity: 2,
       weight: 2.5,
       cause: 'Aplastado',
       turn: 'Mañana',
@@ -90,16 +87,29 @@ describe('EditPigletDeathModal', () => {
     });
 
     for (const locked of ['sow_id', 'death_date', 'quantity'] as const) {
-      expect(component.form.controls[locked].disabled).toBe(true);
+      expect(component.form.contains(locked)).toBe(false);
     }
     expect(component.form.controls.weight.disabled).toBe(false);
     expect(component.form.controls.operator_id.disabled).toBe(false);
 
-    const text = fixture.nativeElement.textContent as string;
+    const text = (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
     expect(text).toContain('C-001');
-    expect(text).toContain('La cerda no se puede cambiar en la muerte.');
-    expect(text).toContain('La fecha de la muerte no se puede cambiar.');
-    expect(text).toContain('La cantidad de lechones no se puede cambiar.');
+    expect(text).toContain('2026-04-25');
+    expect(text).toContain(
+      'La cerda, la fecha y la cantidad no se pueden editar para mantener la integridad de los datos.',
+    );
+  });
+
+  it('does not expose the locked fields as editable controls', async () => {
+    const fixture = TestBed.createComponent(EditPigletDeathModal);
+    fixture.componentRef.setInput('death', buildDeath());
+    fixture.componentRef.setInput('sowCode', 'C-001');
+    fixture.componentRef.setInput('open', true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.nativeElement.querySelector('app-date-picker')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#edit-piglet-death-quantity')).toBeNull();
   });
 
   it('sends the update without the locked fields and emits when saved', async () => {

@@ -15,16 +15,14 @@ import { FarrowingsService } from '../../../core/farrowings/farrowings.service';
 import { MedicationsService } from '../../../core/medications/medications.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { OperatorsService } from '../../../core/operators/operators.service';
-import { DatePicker } from '../../../shared/ui/date-picker/date-picker';
 import { Dropdown, DropdownOption } from '../../../shared/ui/dropdown/dropdown';
 import { Modal } from '../../../shared/ui/modal/modal';
 import { SearchDropdown } from '../../../shared/ui/search-dropdown/search-dropdown';
 import { TimePicker } from '../../../shared/ui/time-picker/time-picker';
-import { toISODate } from '../../../shared/utils/date';
 
 @Component({
   selector: 'app-edit-farrowing-modal',
-  imports: [ReactiveFormsModule, Modal, Dropdown, SearchDropdown, DatePicker, TimePicker],
+  imports: [ReactiveFormsModule, Modal, Dropdown, SearchDropdown, TimePicker],
   styleUrl: './edit-farrowing-modal.css',
   templateUrl: './edit-farrowing-modal.html',
 })
@@ -43,7 +41,6 @@ export class EditFarrowingModal {
   protected readonly loading = signal(false);
   protected readonly operatorOptions = signal<DropdownOption[]>([]);
   protected readonly medicationOptions = signal<DropdownOption[]>([]);
-  protected readonly today = toISODate(new Date());
 
   protected readonly operatorsArray = this.formBuilder.array<
     ReturnType<EditFarrowingModal['newOperatorGroup']>
@@ -53,13 +50,9 @@ export class EditFarrowingModal {
   >([]);
 
   protected readonly form = this.formBuilder.nonNullable.group({
-    farrow_date: ['', [Validators.required]],
     start_time: [''],
     end_time: [''],
     location: ['', [Validators.maxLength(100)]],
-    live_born: [null as number | null, [Validators.min(0)]],
-    stillborn: [null as number | null, [Validators.min(0)]],
-    mummified: [null as number | null, [Validators.min(0)]],
     litter_weight: [
       null as number | null,
       [Validators.required, Validators.min(0), Validators.max(30)],
@@ -75,12 +68,10 @@ export class EditFarrowingModal {
   });
 
   constructor() {
-    this.lockImmutableFields();
     effect(() => {
       const current = this.farrowing();
       if (current && this.open()) {
         this.prefill(current);
-        this.lockImmutableFields();
         void this.loadOptions();
       }
     });
@@ -173,23 +164,13 @@ export class EditFarrowingModal {
     });
   }
 
-  // Disables the farrow date and the piglet counts, which are fixed after creation.
-  // The disabled values stay visible in the form but are never sent on update.
-  private lockImmutableFields(): void {
-    for (const name of ['farrow_date', 'live_born', 'stillborn', 'mummified'] as const) {
-      this.form.controls[name].disable({ emitEvent: false });
-    }
-  }
-
+  // Prefills only the editable fields; the sow, the farrow date and the piglet
+  // counts are shown as read-only values in the template and never sent.
   private prefill(current: Farrowing): void {
     this.form.reset({
-      farrow_date: current.farrow_date,
       start_time: current.start_time ?? '',
       end_time: current.end_time ?? '',
       location: current.location ?? '',
-      live_born: current.live_born,
-      stillborn: current.stillborn,
-      mummified: current.mummified,
       litter_weight: current.litter_weight,
       stillborn_weight: current.stillborn_weight,
       is_manipulated: current.is_manipulated,

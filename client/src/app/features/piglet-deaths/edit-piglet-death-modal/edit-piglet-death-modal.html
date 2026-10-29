@@ -1,16 +1,33 @@
 <app-modal [open]="open()" size="xl" title="Editar muerte" (closed)="closed.emit()">
   <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
-    <div class="space-y-1.5">
-      <span class="block text-sm font-medium">Cerda</span>
-      <app-search-dropdown
-        formControlName="sow_id"
-        [options]="sowOptions()"
-        placeholder="Seleccionar cerda"
-      />
-      @if (form.controls.sow_id.touched && form.controls.sow_id.invalid) {
-        <p class="text-xs text-danger">La cerda es obligatoria.</p>
-      }
-      <p class="text-xs text-muted-foreground">La cerda no se puede cambiar en la muerte.</p>
+    <div class="space-y-3 rounded-lg border border-border bg-muted/50 p-4">
+      <p class="text-xs text-muted-foreground">
+        La cerda, la fecha y la cantidad no se pueden editar para mantener la integridad de los
+        datos.
+      </p>
+
+      <div class="grid gap-4 sm:grid-cols-3">
+        <div class="space-y-1.5">
+          <span class="block text-sm font-medium">Cerda</span>
+          <p class="rounded-md border border-border bg-background px-3 py-2 text-sm">
+            {{ sowCode() ?? 'sin identificar' }}
+          </p>
+        </div>
+
+        <div class="space-y-1.5">
+          <span class="block text-sm font-medium">Fecha de la muerte</span>
+          <p class="rounded-md border border-border bg-background px-3 py-2 text-sm">
+            {{ death()?.death_date }}
+          </p>
+        </div>
+
+        <div class="space-y-1.5">
+          <span class="block text-sm font-medium">Cantidad</span>
+          <p class="rounded-md border border-border bg-background px-3 py-2 text-sm">
+            {{ death()?.quantity }}
+          </p>
+        </div>
+      </div>
     </div>
 
     <div class="space-y-1.5">
@@ -26,35 +43,6 @@
     </div>
 
     <div class="grid gap-4 sm:grid-cols-3">
-      <div class="space-y-1.5">
-        <span class="block text-sm font-medium">Fecha de la muerte</span>
-        <app-date-picker
-          formControlName="death_date"
-          [maxDate]="today"
-          placeholder="Seleccionar fecha"
-        />
-        @if (form.controls.death_date.touched && form.controls.death_date.invalid) {
-          <p class="text-xs text-danger">La fecha de la muerte es obligatoria.</p>
-        }
-        <p class="text-xs text-muted-foreground">La fecha de la muerte no se puede cambiar.</p>
-      </div>
-
-      <div class="space-y-1.5">
-        <label for="edit-piglet-death-quantity" class="block text-sm font-medium">Cantidad</label>
-        <input
-          id="edit-piglet-death-quantity"
-          type="number"
-          min="1"
-          max="10"
-          formControlName="quantity"
-          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
-        />
-        @if (form.controls.quantity.touched && form.controls.quantity.invalid) {
-          <p class="text-xs text-danger">La cantidad debe ser mayor a cero.</p>
-        }
-        <p class="text-xs text-muted-foreground">La cantidad de lechones no se puede cambiar.</p>
-      </div>
-
       <div class="space-y-1.5">
         <label for="edit-piglet-death-weight" class="block text-sm font-medium"
           >Peso total (kg)</label
@@ -74,30 +62,30 @@
           <p class="text-xs text-danger">El peso debe ser mayor a cero.</p>
         }
       </div>
-    </div>
 
-    <div class="space-y-1.5">
-      <span class="block text-sm font-medium">Causa</span>
-      <app-dropdown
-        formControlName="cause"
-        [options]="causeOptions"
-        placeholder="Seleccionar causa"
-      />
-      @if (form.controls.cause.touched && form.controls.cause.invalid) {
-        <p class="text-xs text-danger">La causa es obligatoria.</p>
-      }
-    </div>
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Causa</span>
+        <app-dropdown
+          formControlName="cause"
+          [options]="causeOptions"
+          placeholder="Seleccionar causa"
+        />
+        @if (form.controls.cause.touched && form.controls.cause.invalid) {
+          <p class="text-xs text-danger">La causa es obligatoria.</p>
+        }
+      </div>
 
-    <div class="space-y-1.5">
-      <span class="block text-sm font-medium">Turno</span>
-      <app-dropdown
-        formControlName="turn"
-        [options]="turnOptions"
-        placeholder="Seleccionar turno"
-      />
-      @if (form.controls.turn.touched && form.controls.turn.invalid) {
-        <p class="text-xs text-danger">El turno es obligatorio.</p>
-      }
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Turno</span>
+        <app-dropdown
+          formControlName="turn"
+          [options]="turnOptions"
+          placeholder="Seleccionar turno"
+        />
+        @if (form.controls.turn.touched && form.controls.turn.invalid) {
+          <p class="text-xs text-danger">El turno es obligatorio.</p>
+        }
+      </div>
     </div>
 
     <div class="space-y-1.5">

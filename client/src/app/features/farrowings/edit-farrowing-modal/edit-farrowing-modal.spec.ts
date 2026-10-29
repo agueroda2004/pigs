@@ -85,13 +85,12 @@ describe('EditFarrowingModal', () => {
     const component = await create();
 
     expect(component.form.getRawValue()).toMatchObject({
-      farrow_date: '2026-04-20',
       start_time: '22:00',
       end_time: '02:00',
       location: 'Corral 3',
-      live_born: 10,
-      stillborn: 1,
       litter_weight: 15.5,
+      stillborn_weight: 1.5,
+      is_manipulated: false,
     });
     expect(component.operatorsArray.length).toBe(1);
     expect(component.operatorsArray.at(0).getRawValue()).toEqual({ operator_id: 'op-1' });
@@ -102,16 +101,24 @@ describe('EditFarrowingModal', () => {
     });
   });
 
-  it('shows the locked sow code and its helper text', async () => {
+  it('renders the immutable details in a read-only panel', async () => {
     const fixture = TestBed.createComponent(EditFarrowingModal);
     fixture.componentRef.setInput('farrowing', buildFarrowing());
     fixture.componentRef.setInput('open', true);
     fixture.detectChanges();
     await fixture.whenStable();
 
-    const text = fixture.nativeElement.textContent as string;
+    const text = (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
+    expect(text).toContain('Cerda');
     expect(text).toContain('C-001');
-    expect(text).toContain('El código de la cerda no se puede cambiar en el parto.');
+    expect(text).toContain('Fecha del parto');
+    expect(text).toContain('2026-04-20');
+    expect(text).toContain('Nacidos vivos');
+    expect(text).toContain('Nacidos muertos');
+    expect(text).toContain('Momificados');
+    expect(text).toContain(
+      'La cerda, la fecha y las cantidades de lechones no se pueden editar para mantener la integridad de los datos.',
+    );
   });
 
   it('labels inactive operators and medications', async () => {
@@ -131,12 +138,23 @@ describe('EditFarrowingModal', () => {
     ]);
   });
 
-  it('keeps the date and the piglet counts disabled', async () => {
-    const component = await create();
+  it('does not expose the immutable fields as form controls', async () => {
+    const fixture = TestBed.createComponent(EditFarrowingModal);
+    fixture.componentRef.setInput('farrowing', buildFarrowing());
+    fixture.componentRef.setInput('open', true);
+    fixture.detectChanges();
+    await fixture.whenStable();
 
-    for (const name of ['farrow_date', 'live_born', 'stillborn', 'mummified'] as const) {
-      expect(component.form.controls[name].disabled).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const component = fixture.componentInstance as any;
+    for (const locked of ['farrow_date', 'live_born', 'stillborn', 'mummified'] as const) {
+      expect(component.form.contains(locked)).toBe(false);
     }
+
+    expect(fixture.nativeElement.querySelector('app-date-picker')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#edit-farrowing-live-born')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#edit-farrowing-stillborn')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#edit-farrowing-mummified')).toBeNull();
   });
 
   it('sends the update request without the locked fields and emits when saved', async () => {

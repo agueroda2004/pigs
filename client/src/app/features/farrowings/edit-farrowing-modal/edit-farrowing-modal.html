@@ -1,28 +1,50 @@
 <app-modal [open]="open()" size="xl" title="Editar parto" (closed)="closed.emit()">
   <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
-    <div class="grid gap-4 sm:grid-cols-2">
-      <div class="space-y-1.5">
-        <span class="block text-sm font-medium">Cerda</span>
-        <div
-          class="flex h-10 items-center rounded-md border border-border bg-muted px-3 text-sm text-muted-foreground"
-        >
-          {{ farrowing()?.sow_code }}
+    <div class="space-y-3 rounded-lg border border-border bg-muted/50 p-4">
+      <p class="text-xs text-muted-foreground">
+        La cerda, la fecha y las cantidades de lechones no se pueden editar para mantener la
+        integridad de los datos.
+      </p>
+
+      <div class="grid gap-4 sm:grid-cols-3">
+        <div class="space-y-1.5">
+          <span class="block text-sm font-medium">Cerda</span>
+          <p class="rounded-md border border-border bg-background px-3 py-2 text-sm">
+            {{ farrowing()?.sow_code || 'sin identificar' }}
+          </p>
         </div>
-        <p class="text-xs text-muted-foreground">
-          El código de la cerda no se puede cambiar en el parto.
-        </p>
-      </div>
 
-      <div class="space-y-1.5">
-        <span class="block text-sm font-medium">Fecha del parto</span>
-        <app-date-picker
-          formControlName="farrow_date"
-          [maxDate]="today"
-          placeholder="Seleccionar fecha"
-        />
-        <p class="text-xs text-muted-foreground">La fecha del parto no se puede cambiar.</p>
-      </div>
+        <div class="space-y-1.5">
+          <span class="block text-sm font-medium">Fecha del parto</span>
+          <p class="rounded-md border border-border bg-background px-3 py-2 text-sm">
+            {{ farrowing()?.farrow_date }}
+          </p>
+        </div>
 
+        <div class="space-y-1.5">
+          <span class="block text-sm font-medium">Nacidos vivos</span>
+          <p class="rounded-md border border-border bg-background px-3 py-2 text-sm">
+            {{ farrowing()?.live_born }}
+          </p>
+        </div>
+
+        <div class="space-y-1.5">
+          <span class="block text-sm font-medium">Nacidos muertos</span>
+          <p class="rounded-md border border-border bg-background px-3 py-2 text-sm">
+            {{ farrowing()?.stillborn }}
+          </p>
+        </div>
+
+        <div class="space-y-1.5">
+          <span class="block text-sm font-medium">Momificados</span>
+          <p class="rounded-md border border-border bg-background px-3 py-2 text-sm">
+            {{ farrowing()?.mummified }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
       <div class="space-y-1.5">
         <span class="block text-sm font-medium">Hora de inicio</span>
         <app-time-picker formControlName="start_time" placeholder="Opcional" />
@@ -31,46 +53,6 @@
       <div class="space-y-1.5">
         <span class="block text-sm font-medium">Hora de fin</span>
         <app-time-picker formControlName="end_time" placeholder="Opcional" />
-      </div>
-
-      <div class="space-y-1.5">
-        <label for="edit-farrowing-live-born" class="block text-sm font-medium"
-          >Nacidos vivos</label
-        >
-        <input
-          id="edit-farrowing-live-born"
-          type="number"
-          min="0"
-          formControlName="live_born"
-          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-        />
-      </div>
-
-      <div class="space-y-1.5">
-        <label for="edit-farrowing-stillborn" class="block text-sm font-medium"
-          >Nacidos muertos</label
-        >
-        <input
-          id="edit-farrowing-stillborn"
-          type="number"
-          min="0"
-          formControlName="stillborn"
-          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-        />
-      </div>
-
-      <div class="space-y-1.5">
-        <label for="edit-farrowing-mummified" class="block text-sm font-medium">Momificados</label>
-        <input
-          id="edit-farrowing-mummified"
-          type="number"
-          min="0"
-          formControlName="mummified"
-          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-        />
-        <p class="text-xs text-muted-foreground">
-          Las cantidades de lechones no se pueden cambiar.
-        </p>
       </div>
 
       <div class="space-y-1.5">
@@ -128,7 +110,7 @@
         }
       </div>
 
-      <div class="space-y-1.5">
+      <div class="space-y-1.5 sm:col-span-2">
         <label for="edit-farrowing-location" class="block text-sm font-medium">Ubicación</label>
         <input
           id="edit-farrowing-location"
