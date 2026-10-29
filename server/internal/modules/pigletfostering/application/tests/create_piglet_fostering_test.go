@@ -115,7 +115,7 @@ func TestCreatePigletFosteringExecute(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects a movement date on a nurse partial weaging", func(t *testing.T) {
+	t.Run("accepts a movement date on a nurse partial weaging day", func(t *testing.T) {
 		for _, test := range []struct {
 			name    string
 			sowSide func(uuid.UUID, uuid.UUID) uuid.UUID
@@ -131,6 +131,35 @@ func TestCreatePigletFosteringExecute(t *testing.T) {
 				useCase := pigletfosteringapplication.NewCreatePigletFosteringService(repository, func() time.Time { return nowReference })
 				command := validCommand(donorSowID, receiverSowID, actorID)
 				command.MovementDate = nurseWeagingDay
+
+				_, err := useCase.Execute(context.Background(), command)
+
+				if err != nil {
+					t.Fatalf("Execute() error = %v", err)
+				}
+				if repository.partialWeagingCalls == 0 {
+					t.Fatalf("partial weaging date was not queried")
+				}
+			})
+		}
+	})
+
+	t.Run("rejects a movement date before a nurse partial weaging", func(t *testing.T) {
+		for _, test := range []struct {
+			name    string
+			sowSide func(uuid.UUID, uuid.UUID) uuid.UUID
+		}{
+			{name: "donor", sowSide: func(donor, _ uuid.UUID) uuid.UUID { return donor }},
+			{name: "receiver", sowSide: func(_, receiver uuid.UUID) uuid.UUID { return receiver }},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				repository := repositoryWith(donorSowID, receiverSowID, 10, 6)
+				sowID := test.sowSide(donorSowID, receiverSowID)
+				repository.farrowings[sowID].IsNurse = true
+				repository.partialWeagingDates[repository.farrowings[sowID].ID] = nurseWeagingDay
+				useCase := pigletfosteringapplication.NewCreatePigletFosteringService(repository, func() time.Time { return nowReference })
+				command := validCommand(donorSowID, receiverSowID, actorID)
+				command.MovementDate = nurseWeagingDay.AddDate(0, 0, -1)
 
 				_, err := useCase.Execute(context.Background(), command)
 

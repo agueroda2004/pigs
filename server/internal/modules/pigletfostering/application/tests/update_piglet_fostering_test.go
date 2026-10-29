@@ -121,13 +121,34 @@ func TestUpdatePigletFosteringExecute(t *testing.T) {
 		}
 	})
 
-	t.Run("revalidates a changed date against the nurse partial weaging", func(t *testing.T) {
+	t.Run("accepts a changed date on the nurse partial weaging day", func(t *testing.T) {
 		repository, fostering := repositoryWithFostering(8, 8, 2)
 		donor := repository.farrowings[fostering.DonorSowID]
 		donor.IsNurse = true
 		repository.partialWeagingDates[donor.ID] = nurseWeagingDay
 		useCase := pigletfosteringapplication.NewUpdatePigletFosteringService(repository, func() time.Time { return nowReference })
 		changed := nurseWeagingDay
+
+		_, err := useCase.Execute(context.Background(), fostering.ID, pigletfosteringapplication.UpdatePigletFosteringCommand{
+			Params:    pigletfosteringdomain.UpdatePigletFosteringParams{MovementDate: &changed},
+			UpdatedBy: actorID,
+		})
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if repository.updated == nil {
+			t.Fatalf("fostering was not persisted")
+		}
+	})
+
+	t.Run("rejects a changed date before the nurse partial weaging", func(t *testing.T) {
+		repository, fostering := repositoryWithFostering(8, 8, 2)
+		donor := repository.farrowings[fostering.DonorSowID]
+		donor.IsNurse = true
+		repository.partialWeagingDates[donor.ID] = nurseWeagingDay
+		useCase := pigletfosteringapplication.NewUpdatePigletFosteringService(repository, func() time.Time { return nowReference })
+		changed := nurseWeagingDay.AddDate(0, 0, -1)
 
 		_, err := useCase.Execute(context.Background(), fostering.ID, pigletfosteringapplication.UpdatePigletFosteringCommand{
 			Params:    pigletfosteringdomain.UpdatePigletFosteringParams{MovementDate: &changed},

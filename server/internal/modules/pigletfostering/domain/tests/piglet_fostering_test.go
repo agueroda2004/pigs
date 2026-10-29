@@ -203,7 +203,7 @@ func TestNewPigletFostering(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects a movement date on or before a nurse partial weaging", func(t *testing.T) {
+	t.Run("accepts a movement date on a nurse partial weaging day", func(t *testing.T) {
 		for _, test := range []struct {
 			name   string
 			bounds func() pigletfosteringdomain.FosteringDateBounds
@@ -217,7 +217,7 @@ func TestNewPigletFostering(t *testing.T) {
 				},
 			},
 			{
-				name: "receiver after the weaging day",
+				name: "receiver on the weaging day",
 				bounds: func() pigletfosteringdomain.FosteringDateBounds {
 					bounds := validBounds()
 					bounds.ReceiverPartialWeagingDate = nurseWeagingDate
@@ -228,6 +228,41 @@ func TestNewPigletFostering(t *testing.T) {
 			t.Run(test.name, func(t *testing.T) {
 				params := validParams()
 				params.MovementDate = nurseWeagingDate
+
+				_, err := pigletfosteringdomain.NewPigletFostering(params, test.bounds(), nowReference)
+
+				if err != nil {
+					t.Fatalf("NewPigletFostering() error = %v", err)
+				}
+			})
+		}
+	})
+
+	t.Run("rejects a movement date before a nurse partial weaging", func(t *testing.T) {
+		for _, test := range []struct {
+			name   string
+			bounds func() pigletfosteringdomain.FosteringDateBounds
+		}{
+			{
+				name: "donor before the weaging day",
+				bounds: func() pigletfosteringdomain.FosteringDateBounds {
+					bounds := validBounds()
+					bounds.DonorPartialWeagingDate = nurseWeagingDate
+					return bounds
+				},
+			},
+			{
+				name: "receiver before the weaging day",
+				bounds: func() pigletfosteringdomain.FosteringDateBounds {
+					bounds := validBounds()
+					bounds.ReceiverPartialWeagingDate = nurseWeagingDate
+					return bounds
+				},
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				params := validParams()
+				params.MovementDate = nurseWeagingDate.AddDate(0, 0, -1)
 
 				_, err := pigletfosteringdomain.NewPigletFostering(params, test.bounds(), nowReference)
 
@@ -329,13 +364,31 @@ func TestPigletFosteringUpdate(t *testing.T) {
 		}
 	})
 
-	t.Run("revalidates a changed date against the nurse partial weaging", func(t *testing.T) {
+	t.Run("revalidates a changed date on the nurse partial weaging day", func(t *testing.T) {
 		fostering := buildFostering(t)
 		bounds := validBounds()
 		bounds.DonorPartialWeagingDate = nurseWeagingDate
 
 		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{
 			MovementDate: &nurseWeagingDate,
+		}, bounds, updatedBy, nowReference)
+
+		if err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if !fostering.MovementDate.Equal(nurseWeagingDate) {
+			t.Fatalf("movement date = %v, want %v", fostering.MovementDate, nurseWeagingDate)
+		}
+	})
+
+	t.Run("rejects a changed date before the nurse partial weaging", func(t *testing.T) {
+		fostering := buildFostering(t)
+		bounds := validBounds()
+		bounds.DonorPartialWeagingDate = nurseWeagingDate
+		earlierDate := nurseWeagingDate.AddDate(0, 0, -1)
+
+		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{
+			MovementDate: &earlierDate,
 		}, bounds, updatedBy, nowReference)
 
 		if !errors.Is(err, pigletfosteringdomain.ErrMovementDateBeforePartialWeaging) {

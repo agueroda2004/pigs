@@ -168,11 +168,22 @@ func TestNewWeaging(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects a weaging date on or before the last event", func(t *testing.T) {
+	t.Run("accepts a weaging date on the last event day", func(t *testing.T) {
 		params := validParams()
 		params.WeagingDate = lastEventDate
 
 		_, err := weagingdomain.NewWeaging(params, farrowDate, lastEventDate, nowReference)
+
+		if err != nil {
+			t.Fatalf("NewWeaging() error = %v", err)
+		}
+	})
+
+	t.Run("rejects a weaging date before the last event", func(t *testing.T) {
+		params := validParams()
+		eventDate := params.WeagingDate.AddDate(0, 0, 1)
+
+		_, err := weagingdomain.NewWeaging(params, farrowDate, eventDate, nowReference)
 
 		if !errors.Is(err, weagingdomain.ErrWeagingDateBeforeEvents) {
 			t.Fatalf("error = %v, want ErrWeagingDateBeforeEvents", err)

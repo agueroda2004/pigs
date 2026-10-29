@@ -74,13 +74,24 @@ func TestCreateWeagingExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts a weaging date on the last event day", func(t *testing.T) {
+		repository := repositoryWith(sowID, 8)
+		repository.lastEventDate = weagingDay
+		useCase := weagingapplication.NewCreateWeagingService(repository, func() time.Time { return nowReference })
+
+		_, err := useCase.Execute(context.Background(), validCommand(sowID, actorID))
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+	})
+
 	t.Run("rejects a weaging date before the last event", func(t *testing.T) {
 		repository := repositoryWith(sowID, 8)
+		repository.lastEventDate = weagingDay.AddDate(0, 0, 1)
 		useCase := weagingapplication.NewCreateWeagingService(repository, func() time.Time { return nowReference })
-		command := validCommand(sowID, actorID)
-		command.WeagingDate = lastEventDay
 
-		_, err := useCase.Execute(context.Background(), command)
+		_, err := useCase.Execute(context.Background(), validCommand(sowID, actorID))
 
 		if !errors.Is(err, weagingdomain.ErrWeagingDateBeforeEvents) {
 			t.Fatalf("error = %v, want ErrWeagingDateBeforeEvents", err)

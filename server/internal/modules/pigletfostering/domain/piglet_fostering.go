@@ -32,7 +32,7 @@ var (
 	ErrInvalidUpdate                    = errors.New("Debe indicar al menos un campo para actualizar")
 	ErrSameFarrowing                    = errors.New("El parto donante y el receptor no pueden ser el mismo")
 	ErrMovementDateBeforeFarrowing      = errors.New("La fecha del traslado debe ser posterior a los partos")
-	ErrMovementDateBeforePartialWeaging = errors.New("La fecha del traslado debe ser posterior al último destete parcial")
+	ErrMovementDateBeforePartialWeaging = errors.New("La fecha del traslado no puede ser anterior al último destete parcial")
 	ErrMovementDateInFuture             = errors.New("La fecha del traslado no puede ser futura")
 	ErrHasLaterWeaging                  = errors.New("No se puede eliminar el traslado porque existe un destete posterior")
 	ErrHasLaterPartialWeaging           = errors.New("No se puede eliminar el traslado porque existe un destete parcial posterior")
@@ -92,8 +92,8 @@ type FosteringDeleteBounds struct {
 
 // NewPigletFostering builds a fostering after validating its fields and dates.
 // It rejects the same farrowing on both sides and requires the movement date to
-// be strictly after both farrow dates, after each nurse partial weaging and not
-// later than today.
+// be strictly after both farrow dates, not earlier than each nurse partial weaging
+// and not later than today. Events on the same day are allowed.
 func NewPigletFostering(
 	params NewPigletFosteringParams,
 	bounds FosteringDateBounds,
@@ -275,7 +275,8 @@ func validateQuantity(quantity int) error {
 
 // validateMovementDate checks the movement date bounds against both farrowings and
 // their nurse partial weagings. It rejects dates after today, dates on or before
-// either farrow date and dates on or before a nurse partial weaging.
+// either farrow date and dates earlier than a nurse partial weaging. Events on the
+// same day as the partial weaging are allowed.
 func validateMovementDate(
 	movementDate time.Time,
 	donorFarrowDate time.Time,
@@ -293,10 +294,10 @@ func validateMovementDate(
 	if !movement.After(donor) || !movement.After(receiver) {
 		return ErrMovementDateBeforeFarrowing
 	}
-	if !donorPartialWeagingDate.IsZero() && !movement.After(truncateToDay(donorPartialWeagingDate)) {
+	if !donorPartialWeagingDate.IsZero() && movement.Before(truncateToDay(donorPartialWeagingDate)) {
 		return ErrMovementDateBeforePartialWeaging
 	}
-	if !receiverPartialWeagingDate.IsZero() && !movement.After(truncateToDay(receiverPartialWeagingDate)) {
+	if !receiverPartialWeagingDate.IsZero() && movement.Before(truncateToDay(receiverPartialWeagingDate)) {
 		return ErrMovementDateBeforePartialWeaging
 	}
 	return nil

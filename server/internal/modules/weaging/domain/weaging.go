@@ -26,7 +26,7 @@ var (
 	ErrInvalidCreatedBy           = errors.New("El usuario que crea el destete es obligatorio")
 	ErrInvalidUpdatedBy           = errors.New("El usuario que actualiza el destete es obligatorio")
 	ErrWeagingDateBeforeFarrowing = errors.New("La fecha del destete debe ser posterior al parto")
-	ErrWeagingDateBeforeEvents    = errors.New("La fecha del destete debe ser posterior a las muertes, traslados y destetes parciales")
+	ErrWeagingDateBeforeEvents    = errors.New("La fecha del destete no puede ser anterior a las muertes, traslados y destetes parciales")
 	ErrWeagingDateInFuture        = errors.New("La fecha del destete no puede ser futura")
 )
 
@@ -129,8 +129,9 @@ func NewWeaging(
 }
 
 // validateWeagingDate checks the weaging date bounds against the farrowing and events.
-// It rejects dates after today, dates on or before the farrow date and dates on or
-// before the latest death, fostering or partial weaging event when one is provided.
+// It rejects dates after today, dates on or before the farrow date and dates earlier
+// than the latest death, fostering or partial weaging event. Events on the same day
+// as the latest event are allowed.
 func validateWeagingDate(weagingDate time.Time, farrowDate time.Time, lastEventDate time.Time, now time.Time) error {
 	weaging := truncateToDay(weagingDate)
 	if weaging.After(truncateToDay(now)) {
@@ -139,7 +140,7 @@ func validateWeagingDate(weagingDate time.Time, farrowDate time.Time, lastEventD
 	if !weaging.After(truncateToDay(farrowDate)) {
 		return ErrWeagingDateBeforeFarrowing
 	}
-	if !lastEventDate.IsZero() && !weaging.After(truncateToDay(lastEventDate)) {
+	if !lastEventDate.IsZero() && weaging.Before(truncateToDay(lastEventDate)) {
 		return ErrWeagingDateBeforeEvents
 	}
 	return nil
