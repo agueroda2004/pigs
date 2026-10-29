@@ -30,31 +30,92 @@ func (f *fakeCreateWeagingUseCase) Execute(_ context.Context, command weagingapp
 }
 
 type fakeListWeagingsUseCase struct {
-	weagings []*weagingdomain.Weaging
-	err      error
-	filter   ports.WeagingFilter
-	called   bool
+	page    weagingapplication.WeagingPage
+	err     error
+	filter  ports.WeagingFilter
+	pageArg int
+	called  bool
 }
 
-func (f *fakeListWeagingsUseCase) Execute(_ context.Context, filter ports.WeagingFilter) ([]*weagingdomain.Weaging, error) {
+func (f *fakeListWeagingsUseCase) Execute(_ context.Context, filter ports.WeagingFilter, page int) (weagingapplication.WeagingPage, error) {
 	f.called = true
 	f.filter = filter
-	return f.weagings, f.err
+	f.pageArg = page
+	return f.page, f.err
+}
+
+type fakeDeleteWeagingUseCase struct {
+	err     error
+	command weagingapplication.DeleteWeagingCommand
+	called  bool
+}
+
+func (f *fakeDeleteWeagingUseCase) Execute(_ context.Context, command weagingapplication.DeleteWeagingCommand) error {
+	f.called = true
+	f.command = command
+	return f.err
+}
+
+type fakeUpdateWeagingUseCase struct {
+	err     error
+	id      uuid.UUID
+	command weagingapplication.UpdateWeagingCommand
+	called  bool
+}
+
+func (f *fakeUpdateWeagingUseCase) Execute(_ context.Context, id uuid.UUID, command weagingapplication.UpdateWeagingCommand) error {
+	f.called = true
+	f.id = id
+	f.command = command
+	return f.err
 }
 
 func newTestHandler(create weaginginfra.CreateWeagingUseCase, list weaginginfra.ListWeagingsUseCase) *weaginginfra.WeagingHandler {
+	return newTestHandlerWithUpdate(create, &fakeUpdateWeagingUseCase{}, list)
+}
+
+func newTestHandlerWithUpdate(
+	create weaginginfra.CreateWeagingUseCase,
+	update weaginginfra.UpdateWeagingUseCase,
+	list weaginginfra.ListWeagingsUseCase,
+) *weaginginfra.WeagingHandler {
+	return newTestHandlerWithDelete(create, update, &fakeDeleteWeagingUseCase{}, list)
+}
+
+func newTestHandlerWithDelete(
+	create weaginginfra.CreateWeagingUseCase,
+	update weaginginfra.UpdateWeagingUseCase,
+	remove weaginginfra.DeleteWeagingUseCase,
+	list weaginginfra.ListWeagingsUseCase,
+) *weaginginfra.WeagingHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return weaginginfra.NewWeagingHandler(create, list, passThrough, passThrough)
+	return weaginginfra.NewWeagingHandler(create, list, update, remove, passThrough, passThrough)
 }
 
 func newAdminGuardHandler(create weaginginfra.CreateWeagingUseCase) *weaginginfra.WeagingHandler {
+	return newAdminGuardDeleteHandlerWithCreate(create, &fakeUpdateWeagingUseCase{}, &fakeDeleteWeagingUseCase{})
+}
+
+func newAdminGuardDeleteHandler(remove weaginginfra.DeleteWeagingUseCase) *weaginginfra.WeagingHandler {
+	return newAdminGuardDeleteHandlerWithCreate(&fakeCreateWeagingUseCase{}, &fakeUpdateWeagingUseCase{}, remove)
+}
+
+func newAdminGuardUpdateHandler(update weaginginfra.UpdateWeagingUseCase) *weaginginfra.WeagingHandler {
+	return newAdminGuardDeleteHandlerWithCreate(&fakeCreateWeagingUseCase{}, update, &fakeDeleteWeagingUseCase{})
+}
+
+func newAdminGuardDeleteHandlerWithCreate(
+	create weaginginfra.CreateWeagingUseCase,
+	update weaginginfra.UpdateWeagingUseCase,
+	remove weaginginfra.DeleteWeagingUseCase,
+) *weaginginfra.WeagingHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
 	adminGuard := func(_ http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusForbidden)
 		})
 	}
-	return weaginginfra.NewWeagingHandler(create, &fakeListWeagingsUseCase{}, passThrough, adminGuard)
+	return weaginginfra.NewWeagingHandler(create, &fakeListWeagingsUseCase{}, update, remove, passThrough, adminGuard)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {
@@ -82,6 +143,7 @@ func handlerWeaging() *weagingdomain.Weaging {
 		ID:          uuid.New(),
 		FarrowingID: uuid.New(),
 		SowID:       uuid.New(),
+		SowCode:     "C-001",
 		WeagingDate: time.Date(2026, time.April, 25, 0, 0, 0, 0, time.UTC),
 		Quantity:    8,
 		TotalWeight: &weight,

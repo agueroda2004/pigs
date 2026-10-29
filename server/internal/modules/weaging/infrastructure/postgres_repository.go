@@ -108,6 +108,108 @@ func (r *PostgresWeagingRepository) GetLastFarrowing(ctx context.Context, sowID 
 	return result, nil
 }
 
+// GetFarrowingByID fetches a farrowing by its identifier.
+// It returns ports.ErrFarrowingNotFound when no row matches.
+func (r *PostgresWeagingRepository) GetFarrowingByID(ctx context.Context, id uuid.UUID) (*farrowingdomain.Farrowing, error) {
+	result := &farrowingdomain.Farrowing{}
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, service_id, sow_id, farrow_date, start_time, end_time, location,
+		       live_born, stillborn, mummified, current_piglets, litter_weight, stillborn_weight,
+		       is_manipulated, is_nurse, nurse_start_date, note, created_at, updated_at, created_by, updated_by
+		FROM farrowings
+		WHERE id = $1
+	`, id).Scan(
+		&result.ID,
+		&result.ServiceID,
+		&result.SowID,
+		&result.FarrowDate,
+		&result.StartTime,
+		&result.EndTime,
+		&result.Location,
+		&result.LiveBorn,
+		&result.Stillborn,
+		&result.Mummified,
+		&result.CurrentPiglets,
+		&result.LitterWeight,
+		&result.StillbornWeight,
+		&result.IsManipulated,
+		&result.IsNurse,
+		&result.NurseStartDate,
+		&result.Note,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.CreatedBy,
+		&result.UpdatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrFarrowingNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el parto: %w", err)
+	}
+	return result, nil
+}
+
+// GetByID fetches a weaging and the sow of its farrowing by identifier.
+// The sow comes from the farrowing join because the weagings table does not store it.
+func (r *PostgresWeagingRepository) GetByID(ctx context.Context, id uuid.UUID) (*weagingdomain.Weaging, error) {
+	result := &weagingdomain.Weaging{}
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT w.id, w.farrowing_id, f.sow_id, s.code, w.weaging_date, w.quantity, w.total_weight,
+		       w.destination, w.note, w.created_at, w.updated_at, w.created_by, w.updated_by
+		FROM weagings w
+		JOIN farrowings f ON f.id = w.farrowing_id
+		JOIN sows s ON s.id = f.sow_id
+		WHERE w.id = $1
+	`, id).Scan(
+		&result.ID,
+		&result.FarrowingID,
+		&result.SowID,
+		&result.SowCode,
+		&result.WeagingDate,
+		&result.Quantity,
+		&result.TotalWeight,
+		&result.Destination,
+		&result.Note,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.CreatedBy,
+		&result.UpdatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrWeagingNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el destete: %w", err)
+	}
+	return result, nil
+}
+
+// HasFutureEvents reports whether the sow has a mount or a sow removal dated after the
+// given reference date. It compares at day granularity so same-day events do not block.
+func (r *PostgresWeagingRepository) HasFutureEvents(ctx context.Context, sowID uuid.UUID, after time.Time) (bool, error) {
+	var exists bool
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM mounts m
+			JOIN services s ON s.id = m.service_id
+			WHERE s.sow_id = $1 AND m.mount_date::date > $2::date
+		) OR EXISTS(
+			SELECT 1
+			FROM sow_removals sr
+			WHERE sr.sow_id = $1 AND sr.removal_date > $2::date
+		)
+	`, sowID, after).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("No se pudieron consultar los eventos posteriores: %w", err)
+	}
+	return exists, nil
+}
+
 // GetLatestEventDate returns the most recent death, fostering or partial weaging date
 // of a farrowing. It returns the zero time when the farrowing has no related events.
 func (r *PostgresWeagingRepository) GetLatestEventDate(ctx context.Context, farrowingID uuid.UUID) (time.Time, error) {
@@ -210,21 +312,136 @@ func (r *PostgresWeagingRepository) Create(
 	return nil
 }
 
-// List fetches the weagings matching the filter, newest first.
-// It joins the farrowing to expose the sow and returns an empty slice when no row matches.
-func (r *PostgresWeagingRepository) List(ctx context.Context, filter ports.WeagingFilter) ([]*weagingdomain.Weaging, error) {
+// Update persists the editable weight, destination, note and audit fields of a weaging.
+// A missing row returns ports.ErrWeagingNotFound.
+func (r *PostgresWeagingRepository) Update(ctx context.Context, weaging *weagingdomain.Weaging) error {
+	commandTag, err := r.pool.Exec(ctx, `
+		UPDATE weagings
+		SET total_weight = $2,
+		    destination = $3,
+		    note = $4,
+		    updated_at = $5,
+		    updated_by = $6
+		WHERE id = $1
+	`,
+		weaging.ID,
+		weaging.TotalWeight,
+		weaging.Destination,
+		weaging.Note,
+		weaging.UpdatedAt,
+		weaging.UpdatedBy,
+	)
+	if err != nil {
+		return fmt.Errorf("No se pudo actualizar el destete: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrWeagingNotFound
+	}
+
+	return nil
+}
+
+// Delete removes the weaging, gives its piglets back to the farrowing and restores
+// the sow to Lactando. The farrowing update is guarded so it fails when the balance
+// changed, and every write runs in one transaction.
+func (r *PostgresWeagingRepository) Delete(
+	ctx context.Context,
+	weaging *weagingdomain.Weaging,
+	farrowing *farrowingdomain.Farrowing,
+	sow *sowdomain.Sow,
+) error {
+	transaction, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar el destete: %w", err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	commandTag, err := transaction.Exec(ctx, `
+		UPDATE farrowings
+		SET current_piglets = current_piglets + $2,
+		    updated_at = $3,
+		    updated_by = $4
+		WHERE id = $1 AND current_piglets = $5
+	`,
+		farrowing.ID,
+		weaging.Quantity,
+		farrowing.UpdatedAt,
+		farrowing.UpdatedBy,
+		farrowing.CurrentPiglets-weaging.Quantity,
+	)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar el destete: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return farrowingdomain.ErrWeagingQuantityMismatch
+	}
+
+	commandTag, err = transaction.Exec(ctx, `
+		UPDATE sows
+		SET state = $2,
+		    updated_at = $3,
+		    updated_by = $4
+		WHERE id = $1
+	`,
+		sow.ID,
+		sow.State,
+		sow.UpdatedAt,
+		sow.UpdatedBy,
+	)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar el destete: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrSowNotFound
+	}
+
+	commandTag, err = transaction.Exec(ctx, `
+		DELETE FROM weagings
+		WHERE id = $1
+	`, weaging.ID)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar el destete: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrWeagingNotFound
+	}
+
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("No se pudo eliminar el destete: %w", err)
+	}
+	return nil
+}
+
+// List fetches one page of weagings matching the filter, newest first, with their
+// sow code loaded. It returns the items, the total number of matches and an error.
+func (r *PostgresWeagingRepository) List(ctx context.Context, filter ports.WeagingFilter, limit, offset int) ([]*weagingdomain.Weaging, int, error) {
+	var total int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM weagings w
+		JOIN farrowings f ON f.id = w.farrowing_id
+		JOIN sows s ON s.id = f.sow_id
+		WHERE ($1::text IS NULL OR LOWER(s.code) = LOWER($1))
+		  AND ($2::date IS NULL OR w.weaging_date >= $2)
+		  AND ($3::date IS NULL OR w.weaging_date <= $3)
+	`, filter.SowCode, filter.FromDate, filter.ToDate).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("No se pudieron consultar los destetes: %w", err)
+	}
+
 	rows, err := r.pool.Query(ctx, `
-		SELECT w.id, w.farrowing_id, f.sow_id, w.weaging_date, w.quantity, w.total_weight,
+		SELECT w.id, w.farrowing_id, f.sow_id, s.code, w.weaging_date, w.quantity, w.total_weight,
 		       w.destination, w.note, w.created_at, w.updated_at, w.created_by, w.updated_by
 		FROM weagings w
 		JOIN farrowings f ON f.id = w.farrowing_id
-		WHERE ($1::uuid IS NULL OR f.sow_id = $1)
+		JOIN sows s ON s.id = f.sow_id
+		WHERE ($1::text IS NULL OR LOWER(s.code) = LOWER($1))
 		  AND ($2::date IS NULL OR w.weaging_date >= $2)
 		  AND ($3::date IS NULL OR w.weaging_date <= $3)
 		ORDER BY w.weaging_date DESC, w.created_at DESC
-	`, filter.SowID, filter.FromDate, filter.ToDate)
+		LIMIT $4 OFFSET $5
+	`, filter.SowCode, filter.FromDate, filter.ToDate, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar los destetes: %w", err)
+		return nil, 0, fmt.Errorf("No se pudieron consultar los destetes: %w", err)
 	}
 	defer rows.Close()
 
@@ -235,6 +452,7 @@ func (r *PostgresWeagingRepository) List(ctx context.Context, filter ports.Weagi
 			&result.ID,
 			&result.FarrowingID,
 			&result.SowID,
+			&result.SowCode,
 			&result.WeagingDate,
 			&result.Quantity,
 			&result.TotalWeight,
@@ -245,14 +463,14 @@ func (r *PostgresWeagingRepository) List(ctx context.Context, filter ports.Weagi
 			&result.CreatedBy,
 			&result.UpdatedBy,
 		); err != nil {
-			return nil, fmt.Errorf("No se pudieron consultar los destetes: %w", err)
+			return nil, 0, fmt.Errorf("No se pudieron consultar los destetes: %w", err)
 		}
 		weagings = append(weagings, result)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar los destetes: %w", err)
+		return nil, 0, fmt.Errorf("No se pudieron consultar los destetes: %w", err)
 	}
-	return weagings, nil
+	return weagings, total, nil
 }
 
 // mapPostgresError translates PostgreSQL errors into port errors.

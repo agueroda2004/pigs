@@ -1,0 +1,39 @@
+<app-modal [open]="open()" size="xl" title="Eliminar destete" (closed)="closed.emit()">
+  <div class="space-y-4">
+    <p class="text-sm text-muted-foreground">
+      ¿Seguro que quieres eliminar el destete de
+      <span class="font-medium text-foreground">{{ weaging()?.quantity }}</span> lechones de la
+      cerda
+      <span class="font-medium text-foreground">{{ sowCode() ?? 'sin identificar' }}</span>
+      del
+      <span class="font-medium text-foreground">{{ weaging()?.weaging_date }}</span
+      >?
+    </p>
+    <p class="text-sm text-muted-foreground">
+      Esta acción no se puede deshacer. Los lechones volverán a la camada y la cerda volverá al
+      estado Lactando.
+    </p>
+    <p class="text-sm text-muted-foreground">
+      No se puede eliminar un destete cuando la cerda tiene montas o bajas posteriores.
+    </p>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        [disabled]="loading()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="button"
+        (click)="confirm()"
+        [disabled]="loading()"
+        class="rounded-md bg-danger px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Eliminando…' : 'Eliminar' }}
+      </button>
+    </div>
+  </div>
+</app-modal>

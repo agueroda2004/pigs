@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 
 import { Weaging } from '../../../core/weagings/weaging.models';
 
@@ -10,4 +10,8 @@ import { Weaging } from '../../../core/weagings/weaging.models';
 export class WeagingCard {
   readonly weaging = input.required<Weaging>();
   readonly sowCode = input<string | null>(null);
+  readonly canEdit = input(false);
+  readonly canDelete = input(false);
+  readonly editRequested = output<Weaging>();
+  readonly deleteRequested = output<Weaging>();
 }

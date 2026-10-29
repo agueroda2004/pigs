@@ -9,7 +9,7 @@ import { WeagingsService } from '../../../core/weagings/weagings.service';
 import { RegisterWeagingModal } from './register-weaging-modal';
 
 class WeagingsStub {
-  createWeaging = vi.fn((_request: Record<string, unknown>) => of({}));
+  createWeaging = vi.fn((_request: Record<string, unknown>) => of(void 0));
 }
 
 class SowsStub {
@@ -122,6 +122,51 @@ describe('RegisterWeagingModal', () => {
         note: 'camada numerosa',
       }),
     );
+  });
+
+  it('accepts the maximum quantity and weight', async () => {
+    const component = create();
+    fill(component);
+    component.form.patchValue({ quantity: 30, total_weight: 200 });
+
+    await component.submit();
+
+    expect(stub.createWeaging).toHaveBeenCalledWith(
+      expect.objectContaining({ quantity: 30, total_weight: 200 }),
+    );
+  });
+
+  it('blocks a quantity above 30', async () => {
+    const component = create();
+    fill(component);
+    component.form.patchValue({ quantity: 31 });
+
+    await component.submit();
+
+    expect(component.form.controls.quantity.hasError('max')).toBe(true);
+    expect(stub.createWeaging).not.toHaveBeenCalled();
+  });
+
+  it('blocks a weight above 200 kg', async () => {
+    const component = create();
+    fill(component);
+    component.form.patchValue({ total_weight: 200.01 });
+
+    await component.submit();
+
+    expect(component.form.controls.total_weight.hasError('max')).toBe(true);
+    expect(stub.createWeaging).not.toHaveBeenCalled();
+  });
+
+  it('blocks a non-positive weight', async () => {
+    const component = create();
+    fill(component);
+    component.form.patchValue({ total_weight: 0 });
+
+    await component.submit();
+
+    expect(component.form.controls.total_weight.hasError('min')).toBe(true);
+    expect(stub.createWeaging).not.toHaveBeenCalled();
   });
 
   it('shows the server error message when creation fails', async () => {

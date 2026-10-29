@@ -11,6 +11,8 @@ import (
 const (
 	maxNoteLength        = 500
 	maxDestinationLength = 100
+	maxQuantity          = 30
+	maxTotalWeight       = 200.0
 )
 
 var (
@@ -20,7 +22,9 @@ var (
 	ErrInvalidWeagingDate         = errors.New("La fecha del destete es obligatoria")
 	ErrInvalidFarrowDate          = errors.New("La fecha del parto es obligatoria")
 	ErrInvalidQuantity            = errors.New("La cantidad de lechones debe ser mayor a cero")
+	ErrQuantityExceedsMax         = errors.New("La cantidad de lechones no puede ser mayor a 30")
 	ErrInvalidTotalWeight         = errors.New("El peso total debe ser mayor a cero")
+	ErrTotalWeightExceedsMax      = errors.New("El peso total no puede ser mayor a 200 kg")
 	ErrInvalidDestination         = errors.New("El destino debe tener como máximo 100 caracteres")
 	ErrInvalidNote                = errors.New("La nota debe tener como máximo 500 caracteres")
 	ErrInvalidCreatedBy           = errors.New("El usuario que crea el destete es obligatorio")
@@ -28,6 +32,8 @@ var (
 	ErrWeagingDateBeforeFarrowing = errors.New("La fecha del destete debe ser posterior al parto")
 	ErrWeagingDateBeforeEvents    = errors.New("La fecha del destete no puede ser anterior a las muertes, traslados y destetes parciales")
 	ErrWeagingDateInFuture        = errors.New("La fecha del destete no puede ser futura")
+	ErrHasFutureEvents            = errors.New("El destete no se puede eliminar porque la cerda tiene eventos posteriores")
+	ErrInvalidUpdate              = errors.New("Debe indicar al menos un campo para actualizar")
 )
 
 // Weaging is the aggregate root that represents the full weaning of a farrowing.
@@ -36,6 +42,7 @@ type Weaging struct {
 	ID          uuid.UUID
 	FarrowingID uuid.UUID
 	SowID       uuid.UUID
+	SowCode     string
 	WeagingDate time.Time
 	Quantity    int
 	TotalWeight *float64
@@ -64,6 +71,7 @@ type NewWeagingParams struct {
 // NewWeaging builds a weaging after validating its fields and dates.
 // It requires the weaging date to be strictly after the farrow date and after the
 // latest death, fostering or partial weaging event, and never later than today.
+// The quantity is capped at 30 piglets and the optional weight at 200 kg.
 // The last event date may be zero when the farrowing has no related events.
 func NewWeaging(
 	params NewWeagingParams,
@@ -94,8 +102,14 @@ func NewWeaging(
 	if params.Quantity <= 0 {
 		return nil, ErrInvalidQuantity
 	}
+	if params.Quantity > maxQuantity {
+		return nil, ErrQuantityExceedsMax
+	}
 	if params.TotalWeight != nil && *params.TotalWeight <= 0 {
 		return nil, ErrInvalidTotalWeight
+	}
+	if params.TotalWeight != nil && *params.TotalWeight > maxTotalWeight {
+		return nil, ErrTotalWeightExceedsMax
 	}
 
 	destination, err := validateDestination(params.Destination)
@@ -126,6 +140,67 @@ func NewWeaging(
 		CreatedBy:   params.CreatedBy,
 		UpdatedBy:   params.CreatedBy,
 	}, nil
+}
+
+// UpdateWeagingParams holds the editable fields of a weaging.
+// A nil pointer means the field is omitted and stays unchanged, an empty
+// destination or note clears it and ClearTotalWeight removes the optional weight.
+// Sow, farrowing, date and quantity are intentionally absent because they are immutable.
+type UpdateWeagingParams struct {
+	TotalWeight      *float64
+	ClearTotalWeight bool
+	Destination      *string
+	Note             *string
+}
+
+// Update applies the editable fields to the weaging after validating them.
+// It never changes the sow, farrowing, date or quantity, and returns
+// ErrInvalidUpdate when no field is provided or weight conflicts with clear-weight.
+func (w *Weaging) Update(params UpdateWeagingParams, updatedBy uuid.UUID, now time.Time) error {
+	if w == nil || w.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+	if params.TotalWeight == nil && !params.ClearTotalWeight && params.Destination == nil && params.Note == nil {
+		return ErrInvalidUpdate
+	}
+	if params.TotalWeight != nil && params.ClearTotalWeight {
+		return ErrInvalidUpdate
+	}
+
+	if params.TotalWeight != nil {
+		if *params.TotalWeight <= 0 {
+			return ErrInvalidTotalWeight
+		}
+		if *params.TotalWeight > maxTotalWeight {
+			return ErrTotalWeightExceedsMax
+		}
+		w.TotalWeight = params.TotalWeight
+	} else if params.ClearTotalWeight {
+		w.TotalWeight = nil
+	}
+
+	if params.Destination != nil {
+		destination, err := validateDestination(params.Destination)
+		if err != nil {
+			return err
+		}
+		w.Destination = destination
+	}
+
+	if params.Note != nil {
+		note, err := validateNote(params.Note)
+		if err != nil {
+			return err
+		}
+		w.Note = note
+	}
+
+	w.UpdatedAt = now
+	w.UpdatedBy = updatedBy
+	return nil
 }
 
 // validateWeagingDate checks the weaging date bounds against the farrowing and events.

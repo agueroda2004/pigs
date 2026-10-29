@@ -74,6 +74,60 @@ func TestCreateWeagingExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts the maximum quantity and weight", func(t *testing.T) {
+		repository := repositoryWith(sowID, 30)
+		useCase := weagingapplication.NewCreateWeagingService(repository, func() time.Time { return nowReference })
+		command := validCommand(sowID, actorID)
+		command.Quantity = 30
+		weight := 200.0
+		command.TotalWeight = &weight
+
+		weaging, err := useCase.Execute(context.Background(), command)
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if weaging.Quantity != 30 || weaging.TotalWeight == nil || *weaging.TotalWeight != 200 {
+			t.Fatalf("unexpected weaging: %#v", weaging)
+		}
+		if repository.createdFarrowing.CurrentPiglets != 0 {
+			t.Fatalf("current piglets = %d, want 0", repository.createdFarrowing.CurrentPiglets)
+		}
+	})
+
+	t.Run("rejects a quantity above the maximum", func(t *testing.T) {
+		repository := repositoryWith(sowID, 31)
+		useCase := weagingapplication.NewCreateWeagingService(repository, func() time.Time { return nowReference })
+		command := validCommand(sowID, actorID)
+		command.Quantity = 31
+
+		_, err := useCase.Execute(context.Background(), command)
+
+		if !errors.Is(err, weagingdomain.ErrQuantityExceedsMax) {
+			t.Fatalf("error = %v, want ErrQuantityExceedsMax", err)
+		}
+		if repository.created != nil {
+			t.Fatalf("weaging should not be persisted")
+		}
+	})
+
+	t.Run("rejects a weight above the maximum", func(t *testing.T) {
+		repository := repositoryWith(sowID, 8)
+		useCase := weagingapplication.NewCreateWeagingService(repository, func() time.Time { return nowReference })
+		command := validCommand(sowID, actorID)
+		weight := 200.01
+		command.TotalWeight = &weight
+
+		_, err := useCase.Execute(context.Background(), command)
+
+		if !errors.Is(err, weagingdomain.ErrTotalWeightExceedsMax) {
+			t.Fatalf("error = %v, want ErrTotalWeightExceedsMax", err)
+		}
+		if repository.created != nil {
+			t.Fatalf("weaging should not be persisted")
+		}
+	})
+
 	t.Run("accepts a weaging date on the last event day", func(t *testing.T) {
 		repository := repositoryWith(sowID, 8)
 		repository.lastEventDate = weagingDay

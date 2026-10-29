@@ -11,6 +11,8 @@ import (
 type Module struct {
 	CreateWeaging *weagingapplication.CreateWeagingService
 	ListWeagings  *weagingapplication.ListWeagingsService
+	UpdateWeaging *weagingapplication.UpdateWeagingService
+	DeleteWeaging *weagingapplication.DeleteWeagingService
 	Handler       *WeagingHandler
 }
 
@@ -24,10 +26,21 @@ func NewModule(
 ) *Module {
 	createWeaging := weagingapplication.NewCreateWeagingService(repository, clock)
 	listWeagings := weagingapplication.NewListWeagingsService(repository)
+	updateWeaging := weagingapplication.NewUpdateWeagingService(repository, clock)
+	deleteWeaging := weagingapplication.NewDeleteWeagingService(repository, clock)
 
 	return &Module{
 		CreateWeaging: createWeaging,
 		ListWeagings:  listWeagings,
-		Handler:       NewWeagingHandler(createWeaging, listWeagings, authMiddleware, adminMiddleware),
+		UpdateWeaging: updateWeaging,
+		DeleteWeaging: deleteWeaging,
+		Handler: NewWeagingHandler(
+			createWeaging,
+			listWeagings,
+			updateWeaging,
+			deleteWeaging,
+			authMiddleware,
+			adminMiddleware,
+		),
 	}
 }
