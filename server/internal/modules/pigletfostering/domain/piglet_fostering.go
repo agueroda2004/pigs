@@ -31,7 +31,7 @@ var (
 	ErrInvalidDeletedBy                 = errors.New("El usuario que elimina el traslado es obligatorio")
 	ErrInvalidUpdate                    = errors.New("Debe indicar al menos un campo para actualizar")
 	ErrSameFarrowing                    = errors.New("El parto donante y el receptor no pueden ser el mismo")
-	ErrMovementDateBeforeFarrowing      = errors.New("La fecha del traslado debe ser posterior a los partos")
+	ErrMovementDateBeforeFarrowing      = errors.New("La fecha del traslado no puede ser anterior a los partos")
 	ErrMovementDateBeforePartialWeaging = errors.New("La fecha del traslado no puede ser anterior al último destete parcial")
 	ErrMovementDateInFuture             = errors.New("La fecha del traslado no puede ser futura")
 	ErrHasLaterWeaging                  = errors.New("No se puede eliminar el traslado porque existe un destete posterior")
@@ -92,7 +92,7 @@ type FosteringDeleteBounds struct {
 
 // NewPigletFostering builds a fostering after validating its fields and dates.
 // It rejects the same farrowing on both sides and requires the movement date to
-// be strictly after both farrow dates, not earlier than each nurse partial weaging
+// be on or after both farrow dates, not earlier than each nurse partial weaging
 // and not later than today. Events on the same day are allowed.
 func NewPigletFostering(
 	params NewPigletFosteringParams,
@@ -164,21 +164,17 @@ func NewPigletFostering(
 	}, nil
 }
 
-// UpdatePigletFosteringParams holds the editable fields of a fostering update.
-// A nil pointer means the field is omitted and stays unchanged; the donor and
-// receiver farrowings are fixed and can never be edited.
+// UpdatePigletFosteringParams holds the only editable field of a fostering.
+// The movement date, quantity and both farrowings are fixed after creation, so
+// a nil note means the update carries no change.
 type UpdatePigletFosteringParams struct {
-	MovementDate *time.Time
-	Quantity     *int
-	Note         *string
+	Note *string
 }
 
-// Update applies the provided editable fields to the fostering.
-// It validates the quantity and note always, and revalidates the movement date
-// only when it changes, recording the actor plus the timestamp.
+// Update applies the provided note to the fostering.
+// It validates and normalizes the note and records the actor plus the timestamp.
 func (f *PigletFostering) Update(
 	params UpdatePigletFosteringParams,
-	bounds FosteringDateBounds,
 	updatedBy uuid.UUID,
 	now time.Time,
 ) error {
@@ -188,42 +184,15 @@ func (f *PigletFostering) Update(
 	if updatedBy == uuid.Nil {
 		return ErrInvalidUpdatedBy
 	}
-	if params.MovementDate == nil && params.Quantity == nil && params.Note == nil {
+	if params.Note == nil {
 		return ErrInvalidUpdate
 	}
 
-	if params.MovementDate != nil &&
-		!truncateToDay(*params.MovementDate).Equal(truncateToDay(f.MovementDate)) {
-		if bounds.DonorFarrowDate.IsZero() || bounds.ReceiverFarrowDate.IsZero() {
-			return ErrInvalidFarrowDate
-		}
-		if err := validateMovementDate(
-			*params.MovementDate,
-			bounds.DonorFarrowDate,
-			bounds.ReceiverFarrowDate,
-			bounds.DonorPartialWeagingDate,
-			bounds.ReceiverPartialWeagingDate,
-			now,
-		); err != nil {
-			return err
-		}
-		f.MovementDate = *params.MovementDate
+	note, err := validateNote(params.Note)
+	if err != nil {
+		return err
 	}
-
-	if params.Quantity != nil {
-		if err := validateQuantity(*params.Quantity); err != nil {
-			return err
-		}
-		f.Quantity = *params.Quantity
-	}
-
-	if params.Note != nil {
-		note, err := validateNote(params.Note)
-		if err != nil {
-			return err
-		}
-		f.Note = note
-	}
+	f.Note = note
 
 	f.UpdatedAt = now
 	f.UpdatedBy = updatedBy
@@ -274,9 +243,9 @@ func validateQuantity(quantity int) error {
 }
 
 // validateMovementDate checks the movement date bounds against both farrowings and
-// their nurse partial weagings. It rejects dates after today, dates on or before
-// either farrow date and dates earlier than a nurse partial weaging. Events on the
-// same day as the partial weaging are allowed.
+// their nurse partial weagings. It rejects dates after today, dates before either
+// farrow date and dates earlier than a nurse partial weaging. Events on the same
+// day as a farrowing or a partial weaging are allowed.
 func validateMovementDate(
 	movementDate time.Time,
 	donorFarrowDate time.Time,
@@ -291,7 +260,7 @@ func validateMovementDate(
 	}
 	donor := truncateToDay(donorFarrowDate)
 	receiver := truncateToDay(receiverFarrowDate)
-	if !movement.After(donor) || !movement.After(receiver) {
+	if movement.Before(donor) || movement.Before(receiver) {
 		return ErrMovementDateBeforeFarrowing
 	}
 	if !donorPartialWeagingDate.IsZero() && movement.Before(truncateToDay(donorPartialWeagingDate)) {

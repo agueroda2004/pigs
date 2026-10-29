@@ -1,0 +1,72 @@
+<app-modal [open]="open()" size="xl" title="Editar traslado" (closed)="closed.emit()">
+  <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="space-y-3 rounded-lg border border-border bg-muted/50 p-4">
+      <p class="text-xs text-muted-foreground">
+        La fecha, la cantidad y las cerdas donante y receptora no se pueden editar para mantener la
+        integridad de los datos.
+      </p>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div class="space-y-1.5">
+          <span class="block text-sm font-medium">Cerda donante</span>
+          <p class="rounded-md border border-border bg-background px-3 py-2 text-sm">
+            {{ fostering()?.donor_sow_code || 'sin identificar' }}
+          </p>
+        </div>
+
+        <div class="space-y-1.5">
+          <span class="block text-sm font-medium">Cerda receptora</span>
+          <p class="rounded-md border border-border bg-background px-3 py-2 text-sm">
+            {{ fostering()?.receiver_sow_code || 'sin identificar' }}
+          </p>
+        </div>
+
+        <div class="space-y-1.5">
+          <span class="block text-sm font-medium">Fecha del traslado</span>
+          <p class="rounded-md border border-border bg-background px-3 py-2 text-sm">
+            {{ fostering()?.movement_date }}
+          </p>
+        </div>
+
+        <div class="space-y-1.5">
+          <span class="block text-sm font-medium">Cantidad</span>
+          <p class="rounded-md border border-border bg-background px-3 py-2 text-sm">
+            {{ fostering()?.quantity }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="edit-piglet-fostering-note" class="block text-sm font-medium">Nota</label>
+      <textarea
+        id="edit-piglet-fostering-note"
+        rows="2"
+        formControlName="note"
+        class="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+      ></textarea>
+      @if (form.controls.note.touched && form.controls.note.invalid) {
+        <p class="text-xs text-danger">La nota debe tener como máximo 500 caracteres.</p>
+      } @else {
+        <p class="text-xs text-muted-foreground">Dejar vacío para quitar la nota.</p>
+      }
+    </div>
+
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        (click)="closed.emit()"
+        class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        [disabled]="loading()"
+        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ loading() ? 'Guardando…' : 'Guardar cambios' }}
+      </button>
+    </div>
+  </form>
+</app-modal>

@@ -10,11 +10,7 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import { NotificationService } from '../../../core/notifications/notification.service';
-import {
-  CreatePigletFosteringRequest,
-  PigletFostering,
-  UpdatePigletFosteringRequest,
-} from '../../../core/piglet-fosterings/piglet-fostering.models';
+import { CreatePigletFosteringRequest } from '../../../core/piglet-fosterings/piglet-fostering.models';
 import { PigletFosteringsService } from '../../../core/piglet-fosterings/piglet-fosterings.service';
 import { SowsService } from '../../../core/sows/sows.service';
 import { DatePicker } from '../../../shared/ui/date-picker/date-picker';
@@ -38,10 +34,8 @@ const MAX_QUANTITY = 30;
 })
 export class RegisterPigletFosteringModal {
   readonly open = input(false);
-  readonly fostering = input<PigletFostering | null>(null);
   readonly closed = output<void>();
   readonly created = output<CreatedFostering>();
-  readonly updated = output<void>();
 
   private readonly pigletFosterings = inject(PigletFosteringsService);
   private readonly sows = inject(SowsService);
@@ -52,20 +46,7 @@ export class RegisterPigletFosteringModal {
   protected readonly loadedSowOptions = signal<DropdownOption[]>([]);
   protected readonly today = toISODate(new Date());
   protected readonly maxQuantity = MAX_QUANTITY;
-  protected readonly editing = computed(() => this.fostering() !== null);
-
-  // sowOptions uses the selected record on edit mode and the lactating sows on create.
-  // The edit mode only shows the two fixed sows so they can be displayed disabled.
-  protected readonly sowOptions = computed<DropdownOption[]>(() => {
-    const current = this.fostering();
-    if (!current) {
-      return this.loadedSowOptions();
-    }
-    return [
-      { value: current.donor_sow_id, label: current.donor_sow_code || 'sin identificar' },
-      { value: current.receiver_sow_id, label: current.receiver_sow_code || 'sin identificar' },
-    ];
-  });
+  protected readonly sowOptions = computed<DropdownOption[]>(() => this.loadedSowOptions());
 
   // sameSowValidator rejects a form whose donor and receiver match.
   // It only applies once both sides have a value.
@@ -94,13 +75,6 @@ export class RegisterPigletFosteringModal {
       if (!this.open()) {
         return;
       }
-      const current = this.fostering();
-      if (current) {
-        this.prefill(current);
-        this.lockSowFields();
-        return;
-      }
-      this.unlockSowFields();
       this.reset();
       void this.loadOptions();
     });
@@ -114,12 +88,7 @@ export class RegisterPigletFosteringModal {
 
     this.loading.set(true);
     try {
-      const current = this.fostering();
-      if (current) {
-        await this.update(current);
-      } else {
-        await this.create();
-      }
+      await this.create();
     } catch (error) {
       this.notifications.error(this.mapError(error));
     } finally {
@@ -148,45 +117,6 @@ export class RegisterPigletFosteringModal {
       donor: this.sowCode(donor_sow_id),
       receiver: this.sowCode(receiver_sow_id),
     });
-  }
-
-  // update sends only the editable fields, since the sows can never change.
-  // An empty note is sent so the server can clear the stored one.
-  private async update(current: PigletFostering): Promise<void> {
-    const { movement_date, quantity, note } = this.form.getRawValue();
-    const request: UpdatePigletFosteringRequest = {
-      movement_date,
-      quantity,
-      note,
-    };
-
-    await firstValueFrom(this.pigletFosterings.updatePigletFostering(current.id, request));
-    this.updated.emit();
-  }
-
-  private prefill(current: PigletFostering): void {
-    this.form.reset({
-      donor_sow_id: current.donor_sow_id,
-      receiver_sow_id: current.receiver_sow_id,
-      movement_date: current.movement_date,
-      quantity: current.quantity,
-      note: current.note ?? '',
-    });
-  }
-
-  // lockSowFields disables both sow controls, which are fixed after creation.
-  // The disabled values stay visible but are still read when submitting.
-  private lockSowFields(): void {
-    for (const name of ['donor_sow_id', 'receiver_sow_id'] as const) {
-      this.form.controls[name].disable({ emitEvent: false });
-    }
-  }
-
-  // unlockSowFields re-enables both sow controls for the create flow.
-  private unlockSowFields(): void {
-    for (const name of ['donor_sow_id', 'receiver_sow_id'] as const) {
-      this.form.controls[name].enable({ emitEvent: false });
-    }
   }
 
   private reset(): void {
@@ -221,12 +151,7 @@ export class RegisterPigletFosteringModal {
       if (error.status === 409) {
         return 'Alguna de las cerdas no está lactando o la cantidad supera los lechones actuales';
       }
-      if (error.status === 404) {
-        return 'El traslado no existe';
-      }
     }
-    return this.editing()
-      ? 'No se pudo actualizar el traslado'
-      : 'No se pudo registrar el traslado';
+    return 'No se pudo registrar el traslado';
   }
 }

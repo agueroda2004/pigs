@@ -170,17 +170,18 @@ describe('PigletFosteringsPage', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Registrar traslado');
   });
 
-  it('opens the modal in edit mode with the selected fostering', () => {
+  it('opens the edit modal with the selected fostering', () => {
     const component = create();
     const fostering = buildFostering('1');
 
     component.openEditModal(fostering);
 
     expect(component.editingFostering()).toBe(fostering);
-    expect(component.modalOpen()).toBe(true);
+    expect(component.editOpen()).toBe(true);
+    expect(component.modalOpen()).toBe(false);
   });
 
-  it('reloads the list and closes the modal after updating a fostering', async () => {
+  it('reloads the list and closes the edit modal after updating a fostering', async () => {
     const component = create();
     await component.loadFosterings();
     component.openEditModal(buildFostering('1'));
@@ -190,7 +191,7 @@ describe('PigletFosteringsPage', () => {
 
     expect(notifications.success).toHaveBeenCalledWith('Traslado actualizado correctamente');
     expect(component.editingFostering()).toBeNull();
-    expect(component.modalOpen()).toBe(false);
+    expect(component.editOpen()).toBe(false);
     expect(stub.listPigletFosterings).toHaveBeenCalled();
   });
 

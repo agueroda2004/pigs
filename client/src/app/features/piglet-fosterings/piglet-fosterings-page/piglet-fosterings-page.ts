@@ -12,6 +12,7 @@ import { PigletFosteringsService } from '../../../core/piglet-fosterings/piglet-
 import { DatePicker } from '../../../shared/ui/date-picker/date-picker';
 import { toISODate } from '../../../shared/utils/date';
 import { DeletePigletFosteringModal } from '../delete-piglet-fostering-modal/delete-piglet-fostering-modal';
+import { EditPigletFosteringModal } from '../edit-piglet-fostering-modal/edit-piglet-fostering-modal';
 import { PigletFosteringCard } from '../piglet-fostering-card/piglet-fostering-card';
 import {
   CreatedFostering,
@@ -24,6 +25,7 @@ import {
     ReactiveFormsModule,
     PigletFosteringCard,
     RegisterPigletFosteringModal,
+    EditPigletFosteringModal,
     DeletePigletFosteringModal,
     DatePicker,
   ],
@@ -42,6 +44,7 @@ export class PigletFosteringsPage implements OnInit {
   protected readonly loading = signal(false);
   protected readonly error = signal(false);
   protected readonly modalOpen = signal(false);
+  protected readonly editOpen = signal(false);
   protected readonly editingFostering = signal<PigletFostering | null>(null);
   protected readonly deleteOpen = signal(false);
   protected readonly deletingFostering = signal<PigletFostering | null>(null);
@@ -70,11 +73,15 @@ export class PigletFosteringsPage implements OnInit {
 
   protected openEditModal(fostering: PigletFostering): void {
     this.editingFostering.set(fostering);
-    this.modalOpen.set(true);
+    this.editOpen.set(true);
   }
 
   protected closeModal(): void {
     this.modalOpen.set(false);
+  }
+
+  protected closeEditModal(): void {
+    this.editOpen.set(false);
     this.editingFostering.set(null);
   }
 
@@ -88,7 +95,7 @@ export class PigletFosteringsPage implements OnInit {
 
   protected async onUpdated(): Promise<void> {
     this.notifications.success('Traslado actualizado correctamente');
-    this.closeModal();
+    this.closeEditModal();
     await this.loadFosterings();
   }
 

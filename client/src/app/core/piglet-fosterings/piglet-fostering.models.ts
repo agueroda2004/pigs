@@ -28,8 +28,6 @@ export interface CreatePigletFosteringRequest {
 }
 
 export interface UpdatePigletFosteringRequest {
-  movement_date: string;
-  quantity: number;
   note?: string;
 }
 

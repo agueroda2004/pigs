@@ -97,8 +97,6 @@ describe('PigletFosteringsService', () => {
 
   it('updates a piglet fostering and returns no body', async () => {
     const payload = {
-      movement_date: '2026-04-26',
-      quantity: 3,
       note: 'ajuste',
     };
     const promise = firstValueFrom(service.updatePigletFostering('id-1', payload));

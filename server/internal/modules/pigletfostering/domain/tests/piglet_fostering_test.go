@@ -181,20 +181,49 @@ func TestNewPigletFostering(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects a movement date on or before either farrow date", func(t *testing.T) {
+	t.Run("accepts a movement date on the farrow day", func(t *testing.T) {
+		params := validParams()
+		params.MovementDate = donorFarrowDate
+		bounds := pigletfosteringdomain.FosteringDateBounds{
+			DonorFarrowDate:    donorFarrowDate,
+			ReceiverFarrowDate: donorFarrowDate,
+		}
+
+		fostering, err := pigletfosteringdomain.NewPigletFostering(params, bounds, nowReference)
+
+		if err != nil {
+			t.Fatalf("NewPigletFostering() error = %v", err)
+		}
+		if !fostering.MovementDate.Equal(donorFarrowDate) {
+			t.Fatalf("movement date = %v, want %v", fostering.MovementDate, donorFarrowDate)
+		}
+	})
+
+	t.Run("rejects a movement date before either farrow date", func(t *testing.T) {
 		for _, test := range []struct {
 			name   string
 			moving time.Time
+			bounds pigletfosteringdomain.FosteringDateBounds
 		}{
-			{"equal to donor", donorFarrowDate},
-			{"equal to receiver", receiverFarrowDate},
-			{"before both", donorFarrowDate.AddDate(0, 0, -1)},
+			{
+				name:   "before both",
+				moving: donorFarrowDate.AddDate(0, 0, -1),
+				bounds: pigletfosteringdomain.FosteringDateBounds{
+					DonorFarrowDate:    donorFarrowDate,
+					ReceiverFarrowDate: donorFarrowDate,
+				},
+			},
+			{
+				name:   "before the receiver",
+				moving: donorFarrowDate,
+				bounds: validBounds(),
+			},
 		} {
 			t.Run(test.name, func(t *testing.T) {
 				params := validParams()
 				params.MovementDate = test.moving
 
-				_, err := pigletfosteringdomain.NewPigletFostering(params, validBounds(), nowReference)
+				_, err := pigletfosteringdomain.NewPigletFostering(params, test.bounds, nowReference)
 
 				if !errors.Is(err, pigletfosteringdomain.ErrMovementDateBeforeFarrowing) {
 					t.Fatalf("error = %v, want ErrMovementDateBeforeFarrowing", err)
@@ -300,24 +329,22 @@ func TestNewPigletFostering(t *testing.T) {
 
 func TestPigletFosteringUpdate(t *testing.T) {
 	updatedBy := uuid.New()
-	laterDate := time.Date(2026, time.April, 28, 0, 0, 0, 0, time.UTC)
 
-	t.Run("updates the date, quantity and note", func(t *testing.T) {
+	t.Run("updates only the note", func(t *testing.T) {
 		fostering := buildFostering(t)
-		quantity := 4
+		storedDate := fostering.MovementDate
+		storedQuantity := fostering.Quantity
 		note := "  camada ajustada  "
 
 		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{
-			MovementDate: &laterDate,
-			Quantity:     &quantity,
-			Note:         &note,
-		}, validBounds(), updatedBy, nowReference)
+			Note: &note,
+		}, updatedBy, nowReference)
 
 		if err != nil {
 			t.Fatalf("Update() error = %v", err)
 		}
-		if !fostering.MovementDate.Equal(laterDate) || fostering.Quantity != 4 {
-			t.Fatalf("unexpected fields: %#v", fostering)
+		if !fostering.MovementDate.Equal(storedDate) || fostering.Quantity != storedQuantity {
+			t.Fatalf("date or quantity changed: %#v", fostering)
 		}
 		if fostering.Note == nil || *fostering.Note != "camada ajustada" {
 			t.Fatalf("unexpected note: %#v", fostering.Note)
@@ -333,7 +360,7 @@ func TestPigletFosteringUpdate(t *testing.T) {
 
 		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{
 			Note: &empty,
-		}, validBounds(), updatedBy, nowReference)
+		}, updatedBy, nowReference)
 
 		if err != nil {
 			t.Fatalf("Update() error = %v", err)
@@ -343,90 +370,13 @@ func TestPigletFosteringUpdate(t *testing.T) {
 		}
 	})
 
-	t.Run("does not revalidate the date when it does not change", func(t *testing.T) {
-		fostering := buildFostering(t)
-		storedDate := fostering.MovementDate
-		sameDay := fostering.MovementDate.Add(6 * time.Hour)
-		bounds := validBounds()
-		bounds.DonorPartialWeagingDate = laterDate
-		quantity := 3
-
-		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{
-			MovementDate: &sameDay,
-			Quantity:     &quantity,
-		}, bounds, updatedBy, nowReference)
-
-		if err != nil {
-			t.Fatalf("Update() error = %v", err)
-		}
-		if !fostering.MovementDate.Equal(storedDate) {
-			t.Fatalf("movement date = %v, want the stored day", fostering.MovementDate)
-		}
-	})
-
-	t.Run("revalidates a changed date on the nurse partial weaging day", func(t *testing.T) {
-		fostering := buildFostering(t)
-		bounds := validBounds()
-		bounds.DonorPartialWeagingDate = nurseWeagingDate
-
-		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{
-			MovementDate: &nurseWeagingDate,
-		}, bounds, updatedBy, nowReference)
-
-		if err != nil {
-			t.Fatalf("Update() error = %v", err)
-		}
-		if !fostering.MovementDate.Equal(nurseWeagingDate) {
-			t.Fatalf("movement date = %v, want %v", fostering.MovementDate, nurseWeagingDate)
-		}
-	})
-
-	t.Run("rejects a changed date before the nurse partial weaging", func(t *testing.T) {
-		fostering := buildFostering(t)
-		bounds := validBounds()
-		bounds.DonorPartialWeagingDate = nurseWeagingDate
-		earlierDate := nurseWeagingDate.AddDate(0, 0, -1)
-
-		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{
-			MovementDate: &earlierDate,
-		}, bounds, updatedBy, nowReference)
-
-		if !errors.Is(err, pigletfosteringdomain.ErrMovementDateBeforePartialWeaging) {
-			t.Fatalf("error = %v, want ErrMovementDateBeforePartialWeaging", err)
-		}
-	})
-
-	t.Run("rejects invalid quantities", func(t *testing.T) {
-		for _, test := range []struct {
-			name     string
-			quantity int
-			want     error
-		}{
-			{"zero", 0, pigletfosteringdomain.ErrInvalidQuantity},
-			{"above max", pigletfosteringdomain.MaxQuantity + 1, pigletfosteringdomain.ErrQuantityExceedsMax},
-		} {
-			t.Run(test.name, func(t *testing.T) {
-				fostering := buildFostering(t)
-				quantity := test.quantity
-
-				err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{
-					Quantity: &quantity,
-				}, validBounds(), updatedBy, nowReference)
-
-				if !errors.Is(err, test.want) {
-					t.Fatalf("error = %v, want %v", err, test.want)
-				}
-			})
-		}
-	})
-
 	t.Run("rejects a note that is too long", func(t *testing.T) {
 		fostering := buildFostering(t)
 		long := string(make([]rune, 501))
 
 		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{
 			Note: &long,
-		}, validBounds(), updatedBy, nowReference)
+		}, updatedBy, nowReference)
 
 		if !errors.Is(err, pigletfosteringdomain.ErrInvalidNote) {
 			t.Fatalf("error = %v, want ErrInvalidNote", err)
@@ -436,7 +386,7 @@ func TestPigletFosteringUpdate(t *testing.T) {
 	t.Run("rejects an update without fields", func(t *testing.T) {
 		fostering := buildFostering(t)
 
-		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{}, validBounds(), updatedBy, nowReference)
+		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{}, updatedBy, nowReference)
 
 		if !errors.Is(err, pigletfosteringdomain.ErrInvalidUpdate) {
 			t.Fatalf("error = %v, want ErrInvalidUpdate", err)
@@ -445,11 +395,11 @@ func TestPigletFosteringUpdate(t *testing.T) {
 
 	t.Run("rejects a missing actor", func(t *testing.T) {
 		fostering := buildFostering(t)
-		quantity := 3
+		note := "camada ajustada"
 
 		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{
-			Quantity: &quantity,
-		}, validBounds(), uuid.Nil, nowReference)
+			Note: &note,
+		}, uuid.Nil, nowReference)
 
 		if !errors.Is(err, pigletfosteringdomain.ErrInvalidUpdatedBy) {
 			t.Fatalf("error = %v, want ErrInvalidUpdatedBy", err)
@@ -458,26 +408,14 @@ func TestPigletFosteringUpdate(t *testing.T) {
 
 	t.Run("rejects a nil fostering", func(t *testing.T) {
 		var fostering *pigletfosteringdomain.PigletFostering
-		quantity := 3
+		note := "camada ajustada"
 
 		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{
-			Quantity: &quantity,
-		}, validBounds(), updatedBy, nowReference)
+			Note: &note,
+		}, updatedBy, nowReference)
 
 		if !errors.Is(err, pigletfosteringdomain.ErrInvalidID) {
 			t.Fatalf("error = %v, want ErrInvalidID", err)
-		}
-	})
-
-	t.Run("rejects a changed date without farrow bounds", func(t *testing.T) {
-		fostering := buildFostering(t)
-
-		err := fostering.Update(pigletfosteringdomain.UpdatePigletFosteringParams{
-			MovementDate: &laterDate,
-		}, pigletfosteringdomain.FosteringDateBounds{}, updatedBy, nowReference)
-
-		if !errors.Is(err, pigletfosteringdomain.ErrInvalidFarrowDate) {
-			t.Fatalf("error = %v, want ErrInvalidFarrowDate", err)
 		}
 	})
 }

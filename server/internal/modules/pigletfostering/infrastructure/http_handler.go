@@ -88,9 +88,7 @@ type createPigletFosteringRequest struct {
 }
 
 type updatePigletFosteringRequest struct {
-	MovementDate *string `json:"movement_date"`
-	Quantity     *int    `json:"quantity"`
-	Note         *string `json:"note"`
+	Note *string `json:"note"`
 }
 
 type pigletFosteringResponse struct {
@@ -166,8 +164,8 @@ func (h *PigletFosteringHandler) create(w http.ResponseWriter, r *http.Request) 
 }
 
 // update handles PATCH /api/v1/piglet-fosterings/{id} and applies the editable fields.
-// It parses the id and the optional date, quantity and note, reads the actor and
-// answers with a status code only. Sow and farrowing changes are rejected.
+// It parses the id and the optional note, reads the actor and answers with a status
+// code only. Date, quantity, sow and farrowing changes are rejected.
 func (h *PigletFosteringHandler) update(w http.ResponseWriter, r *http.Request) {
 	fosteringID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -181,11 +179,7 @@ func (h *PigletFosteringHandler) update(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	params, err := parseUpdatePigletFosteringParams(request)
-	if err != nil {
-		platformhttp.WriteError(w, http.StatusBadRequest, err)
-		return
-	}
+	params := parseUpdatePigletFosteringParams(request)
 
 	actor, ok := authdomain.AuthenticatedUserFromContext(r.Context())
 	if !ok {
@@ -230,22 +224,9 @@ func (h *PigletFosteringHandler) delete(w http.ResponseWriter, r *http.Request) 
 }
 
 // parseUpdatePigletFosteringParams converts the raw update request into domain params.
-// It parses the optional movement date and rejects a malformed value.
-func parseUpdatePigletFosteringParams(request updatePigletFosteringRequest) (pigletfosteringdomain.UpdatePigletFosteringParams, error) {
-	params := pigletfosteringdomain.UpdatePigletFosteringParams{
-		Quantity: request.Quantity,
-		Note:     request.Note,
-	}
-
-	if request.MovementDate != nil {
-		movementDate, err := time.Parse(dateLayout, *request.MovementDate)
-		if err != nil {
-			return params, errors.New("La fecha del traslado no es válida")
-		}
-		params.MovementDate = &movementDate
-	}
-
-	return params, nil
+// Only the note is accepted; any other field is rejected by the JSON decoder.
+func parseUpdatePigletFosteringParams(request updatePigletFosteringRequest) pigletfosteringdomain.UpdatePigletFosteringParams {
+	return pigletfosteringdomain.UpdatePigletFosteringParams{Note: request.Note}
 }
 
 // list handles GET /api/v1/piglet-fosterings and returns one page of fosterings

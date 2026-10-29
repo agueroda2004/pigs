@@ -166,9 +166,14 @@
 
 <app-register-piglet-fostering-modal
   [open]="modalOpen()"
-  [fostering]="editingFostering()"
   (closed)="closeModal()"
   (created)="onCreated($event)"
+/>
+
+<app-edit-piglet-fostering-modal
+  [open]="editOpen()"
+  [fostering]="editingFostering()"
+  (closed)="closeEditModal()"
   (updated)="onUpdated()"
 />
 
