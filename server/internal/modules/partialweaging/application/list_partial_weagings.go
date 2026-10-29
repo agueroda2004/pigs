@@ -7,6 +7,18 @@ import (
 	"server/internal/modules/partialweaging/ports"
 )
 
+// DefaultPartialWeagingPageSize is the fixed number of partial weagings returned per page.
+const DefaultPartialWeagingPageSize = 10
+
+// PartialWeagingPage is a page of partial weagings together with its pagination metadata.
+type PartialWeagingPage struct {
+	Items      []*partialweagingdomain.PartialWeaging
+	Total      int
+	Page       int
+	PageSize   int
+	TotalPages int
+}
+
 type ListPartialWeagingsService struct {
 	repository ports.PartialWeagingRepository
 }
@@ -17,8 +29,29 @@ func NewListPartialWeagingsService(repository ports.PartialWeagingRepository) *L
 	return &ListPartialWeagingsService{repository: repository}
 }
 
-// Execute returns the partial weagings matching the filter.
-// A zero-value filter returns every registered partial weaging.
-func (s *ListPartialWeagingsService) Execute(ctx context.Context, filter ports.PartialWeagingFilter) ([]*partialweagingdomain.PartialWeaging, error) {
-	return s.repository.List(ctx, filter)
+// Execute returns one page of partial weagings matching the filter.
+// Pages start at one and always contain DefaultPartialWeagingPageSize records.
+func (s *ListPartialWeagingsService) Execute(ctx context.Context, filter ports.PartialWeagingFilter, page int) (PartialWeagingPage, error) {
+	if page < 1 {
+		page = 1
+	}
+
+	offset := (page - 1) * DefaultPartialWeagingPageSize
+	items, total, err := s.repository.List(ctx, filter, DefaultPartialWeagingPageSize, offset)
+	if err != nil {
+		return PartialWeagingPage{}, err
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + DefaultPartialWeagingPageSize - 1) / DefaultPartialWeagingPageSize
+	}
+
+	return PartialWeagingPage{
+		Items:      items,
+		Total:      total,
+		Page:       page,
+		PageSize:   DefaultPartialWeagingPageSize,
+		TotalPages: totalPages,
+	}, nil
 }

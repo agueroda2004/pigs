@@ -597,6 +597,53 @@ func TestFarrowingMarkAsNurse(t *testing.T) {
 	})
 }
 
+func TestFarrowingRestoreNurseState(t *testing.T) {
+	now := time.Date(2026, time.February, 2, 3, 4, 5, 0, time.UTC)
+	actor := uuid.New()
+	startDate := time.Date(2026, time.February, 1, 0, 0, 0, 0, time.UTC)
+
+	t.Run("clears the nurse state with a zero date", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{
+			ID:             uuid.New(),
+			IsNurse:        true,
+			NurseStartDate: &startDate,
+		}
+
+		if err := farrowing.RestoreNurseState(time.Time{}, actor, now); err != nil {
+			t.Fatalf("RestoreNurseState() error = %v", err)
+		}
+		if farrowing.IsNurse || farrowing.NurseStartDate != nil {
+			t.Fatalf("nurse state was not cleared: %#v", farrowing)
+		}
+		if !farrowing.UpdatedAt.Equal(now) || farrowing.UpdatedBy != actor {
+			t.Fatalf("unexpected audit fields: %#v", farrowing)
+		}
+	})
+
+	t.Run("keeps the nurse state from an earlier date", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New()}
+		earlier := time.Date(2026, time.January, 28, 16, 15, 0, 0, time.UTC)
+
+		if err := farrowing.RestoreNurseState(earlier, actor, now); err != nil {
+			t.Fatalf("RestoreNurseState() error = %v", err)
+		}
+		if !farrowing.IsNurse || farrowing.NurseStartDate == nil {
+			t.Fatalf("nurse fields not set: %#v", farrowing)
+		}
+		if !farrowing.NurseStartDate.Equal(time.Date(2026, time.January, 28, 0, 0, 0, 0, time.UTC)) {
+			t.Fatalf("nurse start date = %v, want truncated day", farrowing.NurseStartDate)
+		}
+	})
+
+	t.Run("rejects a nil actor", func(t *testing.T) {
+		farrowing := &farrowingdomain.Farrowing{ID: uuid.New()}
+
+		if err := farrowing.RestoreNurseState(time.Time{}, uuid.Nil, now); !errors.Is(err, farrowingdomain.ErrInvalidUpdatedBy) {
+			t.Fatalf("error = %v, want ErrInvalidUpdatedBy", err)
+		}
+	})
+}
+
 func TestNewFarrowingMedication(t *testing.T) {
 	now := time.Date(2026, time.February, 2, 3, 4, 5, 0, time.UTC)
 	farrowingID := uuid.New()

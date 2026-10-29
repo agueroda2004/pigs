@@ -38,9 +38,10 @@ func NewCreatePartialWeagingService(repository ports.PartialWeagingRepository, c
 }
 
 // Execute registers a partial weaging and reduces the farrowing's current piglets.
-// It validates that the sow is lactating, resolves its latest farrowing and the latest
-// related event date, then for a Nodriza type flags the farrowing as a nurse while for
-// the other types it moves the sow to weaned. Everything is persisted in one transaction.
+// It validates that the sow is lactating, resolves its latest farrowing plus the latest
+// event and partial weaging dates, then for a Nodriza type flags the farrowing as a
+// nurse while for the other types it moves the sow to weaned. Everything is persisted
+// in one transaction.
 func (s *CreatePartialWeagingService) Execute(ctx context.Context, command CreatePartialWeagingCommand) (*partialweagingdomain.PartialWeaging, error) {
 	sow, err := s.repository.GetSow(ctx, command.SowID)
 	if err != nil {
@@ -60,18 +61,29 @@ func (s *CreatePartialWeagingService) Execute(ctx context.Context, command Creat
 		return nil, err
 	}
 
+	lastPartialWeagingDate, err := s.repository.GetLastPartialWeagingDate(ctx, farrowing.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	now := s.clock()
 	newWeaging, err := partialweagingdomain.NewPartialWeaging(partialweagingdomain.NewPartialWeagingParams{
 		ID:          uuid.New(),
 		FarrowingID: farrowing.ID,
 		SowID:       sow.ID,
+		SowCode:     sow.Code,
 		WeagingDate: command.WeagingDate,
 		Quantity:    command.Quantity,
 		TotalWeight: command.TotalWeight,
 		Type:        command.Type,
 		Note:        command.Note,
 		CreatedBy:   command.CreatedBy,
-	}, farrowing.FarrowDate, lastEventDate, now)
+	}, partialweagingdomain.PartialWeagingBounds{
+		FarrowDate:             farrowing.FarrowDate,
+		LastEventDate:          lastEventDate,
+		LastPartialWeagingDate: lastPartialWeagingDate,
+		CurrentPiglets:         farrowing.CurrentPiglets,
+	}, now)
 	if err != nil {
 		return nil, err
 	}

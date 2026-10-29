@@ -552,6 +552,31 @@ func (f *Farrowing) MarkAsNurse(startDate time.Time, updatedBy uuid.UUID, now ti
 	return nil
 }
 
+// RestoreNurseState rolls back the nurse flags after a partial weaging is deleted.
+// A zero start date clears the nurse state; otherwise the farrowing keeps its nurse
+// flag from the given earlier date. It rejects a missing actor and records the metadata.
+func (f *Farrowing) RestoreNurseState(startDate time.Time, updatedBy uuid.UUID, now time.Time) error {
+	if f == nil || f.ID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if updatedBy == uuid.Nil {
+		return ErrInvalidUpdatedBy
+	}
+
+	if startDate.IsZero() {
+		f.IsNurse = false
+		f.NurseStartDate = nil
+	} else {
+		normalized := truncateToDay(startDate)
+		f.IsNurse = true
+		f.NurseStartDate = &normalized
+	}
+
+	f.UpdatedAt = now
+	f.UpdatedBy = updatedBy
+	return nil
+}
+
 // validateFarrowDate checks the farrow date bounds against the last mount.
 // It rejects dates after today and dates on or before the last mount date.
 func validateFarrowDate(farrowDate time.Time, lastMountDate time.Time, now time.Time) error {

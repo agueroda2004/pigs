@@ -31,20 +31,89 @@ func (f *fakeCreatePartialWeagingUseCase) Execute(_ context.Context, command par
 
 type fakeListPartialWeagingsUseCase struct {
 	weagings []*partialweagingdomain.PartialWeaging
+	total    int
 	err      error
 	filter   ports.PartialWeagingFilter
+	page     int
 	called   bool
 }
 
-func (f *fakeListPartialWeagingsUseCase) Execute(_ context.Context, filter ports.PartialWeagingFilter) ([]*partialweagingdomain.PartialWeaging, error) {
+func (f *fakeListPartialWeagingsUseCase) Execute(
+	_ context.Context,
+	filter ports.PartialWeagingFilter,
+	page int,
+) (partialweagingapplication.PartialWeagingPage, error) {
 	f.called = true
 	f.filter = filter
-	return f.weagings, f.err
+	f.page = page
+
+	totalPages := 0
+	if f.total > 0 {
+		totalPages = (f.total + partialweagingapplication.DefaultPartialWeagingPageSize - 1) / partialweagingapplication.DefaultPartialWeagingPageSize
+	}
+
+	return partialweagingapplication.PartialWeagingPage{
+		Items:      f.weagings,
+		Total:      f.total,
+		Page:       page,
+		PageSize:   partialweagingapplication.DefaultPartialWeagingPageSize,
+		TotalPages: totalPages,
+	}, f.err
+}
+
+type fakeDeletePartialWeagingUseCase struct {
+	err     error
+	command partialweagingapplication.DeletePartialWeagingCommand
+	called  bool
+}
+
+func (f *fakeDeletePartialWeagingUseCase) Execute(_ context.Context, command partialweagingapplication.DeletePartialWeagingCommand) error {
+	f.called = true
+	f.command = command
+	return f.err
+}
+
+type fakeUpdatePartialWeagingUseCase struct {
+	err     error
+	id      uuid.UUID
+	command partialweagingapplication.UpdatePartialWeagingCommand
+	called  bool
+}
+
+func (f *fakeUpdatePartialWeagingUseCase) Execute(_ context.Context, id uuid.UUID, command partialweagingapplication.UpdatePartialWeagingCommand) error {
+	f.called = true
+	f.id = id
+	f.command = command
+	return f.err
 }
 
 func newTestHandler(create partialweaginginfra.CreatePartialWeagingUseCase, list partialweaginginfra.ListPartialWeagingsUseCase) *partialweaginginfra.PartialWeagingHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return partialweaginginfra.NewPartialWeagingHandler(create, list, passThrough, passThrough)
+	return partialweaginginfra.NewPartialWeagingHandler(create, list, &fakeDeletePartialWeagingUseCase{}, &fakeUpdatePartialWeagingUseCase{}, passThrough, passThrough)
+}
+
+func newDeleteTestHandler(delete partialweaginginfra.DeletePartialWeagingUseCase) *partialweaginginfra.PartialWeagingHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	return partialweaginginfra.NewPartialWeagingHandler(
+		&fakeCreatePartialWeagingUseCase{},
+		&fakeListPartialWeagingsUseCase{},
+		delete,
+		&fakeUpdatePartialWeagingUseCase{},
+		passThrough,
+		passThrough,
+	)
+}
+
+func newUpdateTestHandler(update partialweaginginfra.UpdatePartialWeagingUseCase) *partialweaginginfra.PartialWeagingHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	return partialweaginginfra.NewPartialWeagingHandler(
+		&fakeCreatePartialWeagingUseCase{},
+		&fakeListPartialWeagingsUseCase{},
+		&fakeDeletePartialWeagingUseCase{},
+		update,
+		passThrough,
+		passThrough,
+	)
 }
 
 func newAdminGuardHandler(create partialweaginginfra.CreatePartialWeagingUseCase) *partialweaginginfra.PartialWeagingHandler {
@@ -54,7 +123,14 @@ func newAdminGuardHandler(create partialweaginginfra.CreatePartialWeagingUseCase
 			w.WriteHeader(http.StatusForbidden)
 		})
 	}
-	return partialweaginginfra.NewPartialWeagingHandler(create, &fakeListPartialWeagingsUseCase{}, passThrough, adminGuard)
+	return partialweaginginfra.NewPartialWeagingHandler(
+		create,
+		&fakeListPartialWeagingsUseCase{},
+		&fakeDeletePartialWeagingUseCase{},
+		&fakeUpdatePartialWeagingUseCase{},
+		passThrough,
+		adminGuard,
+	)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {
@@ -81,6 +157,7 @@ func handlerPartialWeaging() *partialweagingdomain.PartialWeaging {
 		ID:          uuid.New(),
 		FarrowingID: uuid.New(),
 		SowID:       uuid.New(),
+		SowCode:     "C-001",
 		WeagingDate: time.Date(2026, time.April, 25, 0, 0, 0, 0, time.UTC),
 		Quantity:    2,
 		TotalWeight: &weight,

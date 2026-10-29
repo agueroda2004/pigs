@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
 
 import { PartialWeaging } from '../../../core/partial-weagings/partial-weaging.models';
 import { PartialWeagingCard } from './partial-weaging-card';
@@ -8,24 +9,28 @@ function buildWeaging(overrides: Partial<PartialWeaging> = {}): PartialWeaging {
     id: '1',
     farrowing_id: 'farrowing-1',
     sow_id: 'sow-1',
+    sow_code: 'C-001',
     weaging_date: '2026-04-25',
     quantity: 2,
     total_weight: 42.5,
     type: 'Normal',
     note: null,
-    created_at: '',
-    updated_at: '',
-    created_by: 'admin',
-    updated_by: 'admin',
     ...overrides,
   };
 }
 
 describe('PartialWeagingCard', () => {
-  const render = (weaging: PartialWeaging, sowCode: string | null) => {
+  const render = (
+    weaging: PartialWeaging,
+    sowCode: string | null,
+    canDelete = false,
+    canEdit = false,
+  ) => {
     const fixture = TestBed.createComponent(PartialWeagingCard);
     fixture.componentRef.setInput('weaging', weaging);
     fixture.componentRef.setInput('sowCode', sowCode);
+    fixture.componentRef.setInput('canDelete', canDelete);
+    fixture.componentRef.setInput('canEdit', canEdit);
     fixture.detectChanges();
     return fixture;
   };
@@ -62,5 +67,50 @@ describe('PartialWeagingCard', () => {
     const withValues = render(buildWeaging({ total_weight: 10, note: 'Camada numerosa' }), 'C-001');
     expect(withValues.nativeElement.textContent).toContain('Peso total: 10 kg');
     expect(withValues.nativeElement.textContent).toContain('Camada numerosa');
+  });
+
+  it('hides the delete action when the user cannot delete', () => {
+    const fixture = render(buildWeaging(), 'C-001');
+
+    expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
+  });
+
+  it('emits the weaging when the delete action is clicked', () => {
+    const fixture = render(buildWeaging(), 'C-001', true);
+    const requested = vi.fn();
+    fixture.componentInstance.deleteRequested.subscribe(requested);
+
+    const button = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((candidate) => candidate.textContent?.includes('Eliminar'));
+    button?.click();
+
+    expect(requested).toHaveBeenCalledWith(buildWeaging());
+  });
+
+  it('hides the edit action when the user cannot edit', () => {
+    const fixture = render(buildWeaging(), 'C-001');
+
+    expect(fixture.nativeElement.textContent).not.toContain('Editar');
+  });
+
+  it('emits the weaging when the edit action is clicked', () => {
+    const fixture = render(buildWeaging(), 'C-001', false, true);
+    const requested = vi.fn();
+    fixture.componentInstance.editRequested.subscribe(requested);
+
+    const button = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((candidate) => candidate.textContent?.includes('Editar'));
+    button?.click();
+
+    expect(requested).toHaveBeenCalledWith(buildWeaging());
+  });
+
+  it('shows both actions for an admin', () => {
+    const fixture = render(buildWeaging(), 'C-001', true, true);
+
+    expect(fixture.nativeElement.textContent).toContain('Editar');
+    expect(fixture.nativeElement.textContent).toContain('Eliminar');
   });
 });

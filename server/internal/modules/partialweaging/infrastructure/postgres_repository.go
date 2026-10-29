@@ -128,6 +128,27 @@ func (r *PostgresPartialWeagingRepository) GetLatestEventDate(ctx context.Contex
 	return lastEventDate, nil
 }
 
+// GetLastPartialWeagingDate fetches the most recent partial weaging date of a farrowing.
+// It orders by weaging date and returns the zero time when the farrowing has none.
+func (r *PostgresPartialWeagingRepository) GetLastPartialWeagingDate(ctx context.Context, farrowingID uuid.UUID) (time.Time, error) {
+	var weagingDate time.Time
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT weaging_date
+		FROM partial_weagings
+		WHERE farrowing_id = $1
+		ORDER BY weaging_date DESC, created_at DESC
+		LIMIT 1
+	`, farrowingID).Scan(&weagingDate)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, fmt.Errorf("No se pudo consultar el último destete parcial: %w", err)
+	}
+	return weagingDate, nil
+}
+
 // Create inserts the partial weaging, reduces the farrowing current piglets and
 // updates the sow state and the farrowing nurse flags. The decrement is guarded so
 // it fails when the balance is insufficient and every write runs in one transaction.
@@ -214,21 +235,305 @@ func (r *PostgresPartialWeagingRepository) Create(
 	return nil
 }
 
-// List fetches the partial weagings matching the filter, newest first.
-// It joins the farrowing to expose the sow and returns an empty slice when no row matches.
-func (r *PostgresPartialWeagingRepository) List(ctx context.Context, filter ports.PartialWeagingFilter) ([]*partialweagingdomain.PartialWeaging, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT pw.id, pw.farrowing_id, f.sow_id, pw.weaging_date, pw.quantity, pw.total_weight,
+// GetByID fetches a partial weaging by its identifier, including its sow and sow code.
+// It returns ports.ErrPartialWeagingNotFound when no row matches.
+func (r *PostgresPartialWeagingRepository) GetByID(ctx context.Context, id uuid.UUID) (*partialweagingdomain.PartialWeaging, error) {
+	result := &partialweagingdomain.PartialWeaging{}
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT pw.id, pw.farrowing_id, f.sow_id, s.code, pw.weaging_date, pw.quantity, pw.total_weight,
 		       pw.type, pw.note, pw.created_at, pw.updated_at, pw.created_by, pw.updated_by
 		FROM partial_weagings pw
 		JOIN farrowings f ON f.id = pw.farrowing_id
-		WHERE ($1::uuid IS NULL OR f.sow_id = $1)
+		JOIN sows s ON s.id = f.sow_id
+		WHERE pw.id = $1
+	`, id).Scan(
+		&result.ID,
+		&result.FarrowingID,
+		&result.SowID,
+		&result.SowCode,
+		&result.WeagingDate,
+		&result.Quantity,
+		&result.TotalWeight,
+		&result.Type,
+		&result.Note,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.CreatedBy,
+		&result.UpdatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrPartialWeagingNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el destete parcial: %w", err)
+	}
+	return result, nil
+}
+
+// GetFarrowingByID fetches a farrowing by its identifier.
+// It returns ports.ErrFarrowingNotFound when no row matches.
+func (r *PostgresPartialWeagingRepository) GetFarrowingByID(ctx context.Context, id uuid.UUID) (*farrowingdomain.Farrowing, error) {
+	result := &farrowingdomain.Farrowing{}
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, service_id, sow_id, farrow_date, start_time, end_time, location,
+		       live_born, stillborn, mummified, current_piglets, litter_weight, stillborn_weight,
+		       is_manipulated, is_nurse, nurse_start_date, note, created_at, updated_at, created_by, updated_by
+		FROM farrowings
+		WHERE id = $1
+	`, id).Scan(
+		&result.ID,
+		&result.ServiceID,
+		&result.SowID,
+		&result.FarrowDate,
+		&result.StartTime,
+		&result.EndTime,
+		&result.Location,
+		&result.LiveBorn,
+		&result.Stillborn,
+		&result.Mummified,
+		&result.CurrentPiglets,
+		&result.LitterWeight,
+		&result.StillbornWeight,
+		&result.IsManipulated,
+		&result.IsNurse,
+		&result.NurseStartDate,
+		&result.Note,
+		&result.CreatedAt,
+		&result.UpdatedAt,
+		&result.CreatedBy,
+		&result.UpdatedBy,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrFarrowingNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar el parto: %w", err)
+	}
+	return result, nil
+}
+
+// HasFutureEvents reports whether the sow has a mount or a sow removal dated after the
+// given reference date. It compares at day granularity so same-day events do not block.
+func (r *PostgresPartialWeagingRepository) HasFutureEvents(ctx context.Context, sowID uuid.UUID, after time.Time) (bool, error) {
+	var exists bool
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM mounts m
+			JOIN services s ON s.id = m.service_id
+			WHERE s.sow_id = $1 AND m.mount_date::date > $2::date
+		) OR EXISTS(
+			SELECT 1
+			FROM sow_removals sr
+			WHERE sr.sow_id = $1 AND sr.removal_date > $2::date
+		)
+	`, sowID, after).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("No se pudieron consultar los eventos posteriores: %w", err)
+	}
+	return exists, nil
+}
+
+// HasLaterNurseEvents reports whether the farrowing has a death, fostering, partial
+// weaging or full weaging dated after the given date. It compares at day granularity.
+func (r *PostgresPartialWeagingRepository) HasLaterNurseEvents(ctx context.Context, farrowingID uuid.UUID, after time.Time) (bool, error) {
+	var exists bool
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM piglet_deaths
+			WHERE farrowing_id = $1 AND death_date > $2::date
+		) OR EXISTS(
+			SELECT 1
+			FROM piglet_fosterings
+			WHERE (donor_farrowing_id = $1 OR receiver_farrowing_id = $1)
+			  AND movement_date > $2::date
+		) OR EXISTS(
+			SELECT 1
+			FROM partial_weagings
+			WHERE farrowing_id = $1 AND weaging_date > $2::date
+		) OR EXISTS(
+			SELECT 1
+			FROM weagings
+			WHERE farrowing_id = $1 AND weaging_date > $2::date
+		)
+	`, farrowingID, after).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("No se pudieron consultar los eventos posteriores del parto: %w", err)
+	}
+	return exists, nil
+}
+
+// GetPreviousNurseDate returns the latest Nodriza partial weaging date of a farrowing
+// strictly before the given date. It returns the zero time when there is no previous one.
+func (r *PostgresPartialWeagingRepository) GetPreviousNurseDate(ctx context.Context, farrowingID uuid.UUID, before time.Time) (time.Time, error) {
+	var previous *time.Time
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT MAX(weaging_date)
+		FROM partial_weagings
+		WHERE farrowing_id = $1
+		  AND type = $2::partial_weaging_type
+		  AND weaging_date < $3::date
+	`, farrowingID, partialweagingdomain.TypeNodriza, before).Scan(&previous)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("No se pudo consultar el destete parcial anterior: %w", err)
+	}
+	if previous == nil {
+		return time.Time{}, nil
+	}
+	return *previous, nil
+}
+
+// Update persists the editable weight, note and audit fields of a partial weaging.
+// A missing row returns ports.ErrPartialWeagingNotFound.
+func (r *PostgresPartialWeagingRepository) Update(
+	ctx context.Context,
+	weaging *partialweagingdomain.PartialWeaging,
+) error {
+	commandTag, err := r.pool.Exec(ctx, `
+		UPDATE partial_weagings
+		SET total_weight = $2,
+		    note = $3,
+		    updated_at = $4,
+		    updated_by = $5
+		WHERE id = $1
+	`,
+		weaging.ID,
+		weaging.TotalWeight,
+		weaging.Note,
+		weaging.UpdatedAt,
+		weaging.UpdatedBy,
+	)
+	if err != nil {
+		return fmt.Errorf("No se pudo actualizar el destete parcial: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrPartialWeagingNotFound
+	}
+
+	return nil
+}
+
+// Delete removes the partial weaging, gives its piglets back to the farrowing and
+// restores the farrowing nurse flags plus the sow state. Every write runs in one
+// transaction, and the sow is skipped when it is nil because a Nodriza keeps it intact.
+func (r *PostgresPartialWeagingRepository) Delete(
+	ctx context.Context,
+	weaging *partialweagingdomain.PartialWeaging,
+	farrowing *farrowingdomain.Farrowing,
+	sow *sowdomain.Sow,
+) error {
+	transaction, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar el destete parcial: %w", err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	commandTag, err := transaction.Exec(ctx, `
+		UPDATE farrowings
+		SET current_piglets = current_piglets + $2,
+		    is_nurse = $5,
+		    nurse_start_date = $6,
+		    updated_at = $3,
+		    updated_by = $4
+		WHERE id = $1
+	`,
+		farrowing.ID,
+		weaging.Quantity,
+		farrowing.UpdatedAt,
+		farrowing.UpdatedBy,
+		farrowing.IsNurse,
+		farrowing.NurseStartDate,
+	)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar el destete parcial: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrFarrowingNotFound
+	}
+
+	if sow != nil {
+		commandTag, err = transaction.Exec(ctx, `
+			UPDATE sows
+			SET state = $2,
+			    updated_at = $3,
+			    updated_by = $4
+			WHERE id = $1
+		`,
+			sow.ID,
+			sow.State,
+			sow.UpdatedAt,
+			sow.UpdatedBy,
+		)
+		if err != nil {
+			return fmt.Errorf("No se pudo eliminar el destete parcial: %w", err)
+		}
+		if commandTag.RowsAffected() == 0 {
+			return ports.ErrSowNotFound
+		}
+	}
+
+	commandTag, err = transaction.Exec(ctx, `
+		DELETE FROM partial_weagings
+		WHERE id = $1
+	`, weaging.ID)
+	if err != nil {
+		return fmt.Errorf("No se pudo eliminar el destete parcial: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return ports.ErrPartialWeagingNotFound
+	}
+
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("No se pudo eliminar el destete parcial: %w", err)
+	}
+	return nil
+}
+
+// List fetches one page of partial weagings matching the filter, newest first, with
+// the total count of matches. It joins the farrowing and sow to expose the sow code
+// and returns an empty slice when no row matches.
+func (r *PostgresPartialWeagingRepository) List(
+	ctx context.Context,
+	filter ports.PartialWeagingFilter,
+	limit int,
+	offset int,
+) ([]*partialweagingdomain.PartialWeaging, int, error) {
+	var total int
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM partial_weagings pw
+		JOIN farrowings f ON f.id = pw.farrowing_id
+		JOIN sows s ON s.id = f.sow_id
+		WHERE ($1::text IS NULL OR LOWER(s.code) = LOWER($1))
+		  AND ($2::date IS NULL OR pw.weaging_date >= $2)
+		  AND ($3::date IS NULL OR pw.weaging_date <= $3)
+	`, filter.SowCode, filter.FromDate, filter.ToDate).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("No se pudieron consultar los destetes parciales: %w", err)
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT pw.id, pw.farrowing_id, f.sow_id, s.code, pw.weaging_date, pw.quantity,
+		       pw.total_weight, pw.type, pw.note, pw.created_at, pw.updated_at,
+		       pw.created_by, pw.updated_by
+		FROM partial_weagings pw
+		JOIN farrowings f ON f.id = pw.farrowing_id
+		JOIN sows s ON s.id = f.sow_id
+		WHERE ($1::text IS NULL OR LOWER(s.code) = LOWER($1))
 		  AND ($2::date IS NULL OR pw.weaging_date >= $2)
 		  AND ($3::date IS NULL OR pw.weaging_date <= $3)
 		ORDER BY pw.weaging_date DESC, pw.created_at DESC
-	`, filter.SowID, filter.FromDate, filter.ToDate)
+		LIMIT $4 OFFSET $5
+	`, filter.SowCode, filter.FromDate, filter.ToDate, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar los destetes parciales: %w", err)
+		return nil, 0, fmt.Errorf("No se pudieron consultar los destetes parciales: %w", err)
 	}
 	defer rows.Close()
 
@@ -239,6 +544,7 @@ func (r *PostgresPartialWeagingRepository) List(ctx context.Context, filter port
 			&result.ID,
 			&result.FarrowingID,
 			&result.SowID,
+			&result.SowCode,
 			&result.WeagingDate,
 			&result.Quantity,
 			&result.TotalWeight,
@@ -249,12 +555,12 @@ func (r *PostgresPartialWeagingRepository) List(ctx context.Context, filter port
 			&result.CreatedBy,
 			&result.UpdatedBy,
 		); err != nil {
-			return nil, fmt.Errorf("No se pudieron consultar los destetes parciales: %w", err)
+			return nil, 0, fmt.Errorf("No se pudieron consultar los destetes parciales: %w", err)
 		}
 		weagings = append(weagings, result)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar los destetes parciales: %w", err)
+		return nil, 0, fmt.Errorf("No se pudieron consultar los destetes parciales: %w", err)
 	}
-	return weagings, nil
+	return weagings, total, nil
 }

@@ -43,9 +43,9 @@ export class RegisterPartialWeagingModal {
   protected readonly form = this.formBuilder.nonNullable.group({
     sow_id: ['', [Validators.required]],
     weaging_date: [this.today, [Validators.required]],
-    quantity: [1, [Validators.required, Validators.min(1)]],
+    quantity: [1, [Validators.required, Validators.min(1), Validators.max(30)]],
     type: ['', [Validators.required]],
-    total_weight: [null as number | null, [Validators.min(0.01)]],
+    total_weight: [null as number | null, [Validators.min(0.01), Validators.max(200)]],
     note: ['', [Validators.maxLength(500)]],
   });
 

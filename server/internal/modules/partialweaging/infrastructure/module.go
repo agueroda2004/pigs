@@ -11,6 +11,8 @@ import (
 type Module struct {
 	CreatePartialWeaging *partialweagingapplication.CreatePartialWeagingService
 	ListPartialWeagings  *partialweagingapplication.ListPartialWeagingsService
+	UpdatePartialWeaging *partialweagingapplication.UpdatePartialWeagingService
+	DeletePartialWeaging *partialweagingapplication.DeletePartialWeagingService
 	Handler              *PartialWeagingHandler
 }
 
@@ -24,10 +26,14 @@ func NewModule(
 ) *Module {
 	createPartialWeaging := partialweagingapplication.NewCreatePartialWeagingService(repository, clock)
 	listPartialWeagings := partialweagingapplication.NewListPartialWeagingsService(repository)
+	updatePartialWeaging := partialweagingapplication.NewUpdatePartialWeagingService(repository, clock)
+	deletePartialWeaging := partialweagingapplication.NewDeletePartialWeagingService(repository, clock)
 
 	return &Module{
 		CreatePartialWeaging: createPartialWeaging,
 		ListPartialWeagings:  listPartialWeagings,
-		Handler:              NewPartialWeagingHandler(createPartialWeaging, listPartialWeagings, authMiddleware, adminMiddleware),
+		UpdatePartialWeaging: updatePartialWeaging,
+		DeletePartialWeaging: deletePartialWeaging,
+		Handler:              NewPartialWeagingHandler(createPartialWeaging, listPartialWeagings, deletePartialWeaging, updatePartialWeaging, authMiddleware, adminMiddleware),
 	}
 }
