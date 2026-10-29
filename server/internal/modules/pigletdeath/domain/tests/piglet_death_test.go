@@ -53,6 +53,20 @@ func TestNewPigletDeath(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts the Sin Turno shift", func(t *testing.T) {
+		params := validDeathParams()
+		params.Turn = pigletdeathdomain.TurnNoShift
+
+		death, err := pigletdeathdomain.NewPigletDeath(params, farrowDate, time.Time{}, now)
+
+		if err != nil {
+			t.Fatalf("NewPigletDeath() error = %v", err)
+		}
+		if death.Turn != pigletdeathdomain.TurnNoShift {
+			t.Fatalf("turn = %v, want Sin Turno", death.Turn)
+		}
+	})
+
 	t.Run("trims and clears an empty note", func(t *testing.T) {
 		params := validDeathParams()
 		blank := "   "
@@ -172,14 +186,17 @@ func TestNewPigletDeath(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects a missing weight", func(t *testing.T) {
+	t.Run("accepts a missing weight", func(t *testing.T) {
 		params := validDeathParams()
 		params.Weight = nil
 
-		_, err := pigletdeathdomain.NewPigletDeath(params, farrowDate, time.Time{}, now)
+		death, err := pigletdeathdomain.NewPigletDeath(params, farrowDate, time.Time{}, now)
 
-		if !errors.Is(err, pigletdeathdomain.ErrWeightRequired) {
-			t.Fatalf("error = %v, want ErrWeightRequired", err)
+		if err != nil {
+			t.Fatalf("NewPigletDeath() error = %v", err)
+		}
+		if death.Weight != nil {
+			t.Fatalf("weight = %v, want nil", death.Weight)
 		}
 	})
 
@@ -231,6 +248,20 @@ func TestNewPigletDeath(t *testing.T) {
 		}
 		if !death.DeathDate.Equal(params.DeathDate) {
 			t.Fatalf("death date = %v, want %v", death.DeathDate, params.DeathDate)
+		}
+	})
+
+	t.Run("accepts the Desaparecido cause", func(t *testing.T) {
+		params := validDeathParams()
+		params.Cause = pigletdeathdomain.CauseMissing
+
+		death, err := pigletdeathdomain.NewPigletDeath(params, farrowDate, time.Time{}, now)
+
+		if err != nil {
+			t.Fatalf("NewPigletDeath() error = %v", err)
+		}
+		if death.Cause != pigletdeathdomain.CauseMissing {
+			t.Fatalf("cause = %v, want Desaparecido", death.Cause)
 		}
 	})
 
@@ -385,13 +416,54 @@ func TestPigletDeathUpdate(t *testing.T) {
 		}
 	})
 
-	t.Run("requires a weight", func(t *testing.T) {
+	t.Run("keeps the weight when it is omitted", func(t *testing.T) {
 		death := newDeath(t)
 
 		err := death.Update(pigletdeathdomain.UpdatePigletDeathParams{Note: &note}, actor, now)
 
-		if !errors.Is(err, pigletdeathdomain.ErrWeightRequired) {
-			t.Fatalf("error = %v, want ErrWeightRequired", err)
+		if err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if death.Weight == nil || *death.Weight != 1.5 {
+			t.Fatalf("weight = %v, want 1.5", death.Weight)
+		}
+	})
+
+	t.Run("clears the weight", func(t *testing.T) {
+		death := newDeath(t)
+
+		err := death.Update(pigletdeathdomain.UpdatePigletDeathParams{ClearWeight: true}, actor, now)
+
+		if err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if death.Weight != nil {
+			t.Fatalf("weight = %v, want nil", death.Weight)
+		}
+	})
+
+	t.Run("rejects setting and clearing the weight together", func(t *testing.T) {
+		death := newDeath(t)
+
+		err := death.Update(pigletdeathdomain.UpdatePigletDeathParams{
+			Weight:      &weightOf,
+			ClearWeight: true,
+		}, actor, now)
+
+		if !errors.Is(err, pigletdeathdomain.ErrInvalidUpdate) {
+			t.Fatalf("error = %v, want ErrInvalidUpdate", err)
+		}
+	})
+
+	t.Run("accepts the Sin Turno shift", func(t *testing.T) {
+		death := newDeath(t)
+		turn := pigletdeathdomain.TurnNoShift
+
+		if err := death.Update(pigletdeathdomain.UpdatePigletDeathParams{Turn: &turn}, actor, now); err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if death.Turn != pigletdeathdomain.TurnNoShift {
+			t.Fatalf("turn = %v, want Sin Turno", death.Turn)
 		}
 	})
 
@@ -414,6 +486,18 @@ func TestPigletDeathUpdate(t *testing.T) {
 					t.Fatalf("error = %v, want %v", err, test.want)
 				}
 			})
+		}
+	})
+
+	t.Run("accepts the Desaparecido cause", func(t *testing.T) {
+		death := newDeath(t)
+		cause := pigletdeathdomain.CauseMissing
+
+		if err := death.Update(pigletdeathdomain.UpdatePigletDeathParams{Cause: &cause}, actor, now); err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if death.Cause != pigletdeathdomain.CauseMissing {
+			t.Fatalf("cause = %v, want Desaparecido", death.Cause)
 		}
 	})
 
@@ -484,6 +568,17 @@ func TestParseCause(t *testing.T) {
 		}
 	})
 
+	t.Run("parses the Desaparecido cause", func(t *testing.T) {
+		cause, err := pigletdeathdomain.ParseCause(" Desaparecido ")
+
+		if err != nil {
+			t.Fatalf("ParseCause() error = %v", err)
+		}
+		if cause != pigletdeathdomain.CauseMissing {
+			t.Fatalf("cause = %v, want Desaparecido", cause)
+		}
+	})
+
 	t.Run("rejects an unknown cause", func(t *testing.T) {
 		if _, err := pigletdeathdomain.ParseCause("Inexistente"); !errors.Is(err, pigletdeathdomain.ErrInvalidCause) {
 			t.Fatalf("error = %v, want ErrInvalidCause", err)
@@ -500,6 +595,17 @@ func TestParseTurn(t *testing.T) {
 		}
 		if turn != pigletdeathdomain.TurnUnassistedDawn {
 			t.Fatalf("turn = %v, want Madrugada_no_asistida", turn)
+		}
+	})
+
+	t.Run("parses the Sin Turno shift", func(t *testing.T) {
+		turn, err := pigletdeathdomain.ParseTurn(" Sin Turno ")
+
+		if err != nil {
+			t.Fatalf("ParseTurn() error = %v", err)
+		}
+		if turn != pigletdeathdomain.TurnNoShift {
+			t.Fatalf("turn = %v, want Sin Turno", turn)
 		}
 	})
 

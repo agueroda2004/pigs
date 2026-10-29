@@ -128,14 +128,51 @@ describe('EditPigletDeathModal', () => {
     expect(updated).toHaveBeenCalled();
   });
 
-  it('requires a weight', async () => {
+  it('clears the weight when the stored weight is removed', async () => {
     const component = await create();
     component.form.controls.weight.setValue(null);
 
     await component.submit();
 
-    expect(component.form.controls.weight.hasError('required')).toBe(true);
-    expect(stub.updatePigletDeath).not.toHaveBeenCalled();
+    expect(stub.updatePigletDeath).toHaveBeenCalledTimes(1);
+    const request = stub.updatePigletDeath.mock.calls[0][1] as Record<string, unknown>;
+    expect(request).toMatchObject({ clear_weight: true });
+    expect(request).not.toHaveProperty('weight');
+  });
+
+  it('does not send the weight when it was already empty', async () => {
+    const component = await create(buildDeath({ weight: null }));
+
+    await component.submit();
+
+    expect(stub.updatePigletDeath).toHaveBeenCalledTimes(1);
+    const request = stub.updatePigletDeath.mock.calls[0][1] as Record<string, unknown>;
+    expect(request).not.toHaveProperty('weight');
+    expect(request).not.toHaveProperty('clear_weight');
+  });
+
+  it('offers Sin Turno as a turn option', async () => {
+    const component = await create();
+
+    expect(component.turnOptions).toContainEqual({ value: 'Sin Turno', label: 'Sin Turno' });
+  });
+
+  it('offers Desaparecido as a cause option', async () => {
+    const component = await create();
+
+    expect(component.causeOptions).toContainEqual({ value: 'Desaparecido', label: 'Desaparecido' });
+  });
+
+  it('sends the Desaparecido cause', async () => {
+    const component = await create();
+    component.form.patchValue({ cause: 'Desaparecido' });
+
+    await component.submit();
+
+    expect(stub.updatePigletDeath).toHaveBeenCalledWith(
+      '42',
+      expect.objectContaining({ cause: 'Desaparecido' }),
+    );
   });
 
   it('rejects a weight greater than 20 kg', async () => {

@@ -7,9 +7,10 @@ export type PigletDeathCause =
   | 'Canibalismo'
   | 'Pata_abierta'
   | 'Bacteria'
-  | 'Reaccion_medicamento';
+  | 'Reaccion_medicamento'
+  | 'Desaparecido';
 
-export type Turn = 'Mañana' | 'Tarde' | 'Madrugada' | 'Madrugada_no_asistida';
+export type Turn = 'Mañana' | 'Tarde' | 'Madrugada' | 'Madrugada_no_asistida' | 'Sin Turno';
 
 export interface PigletDeath {
   id: string;
@@ -39,7 +40,7 @@ export interface CreatePigletDeathRequest {
   operator_id: string;
   death_date: string;
   quantity: number;
-  weight: number;
+  weight?: number;
   cause: PigletDeathCause;
   turn: Turn;
   note?: string;
@@ -47,7 +48,8 @@ export interface CreatePigletDeathRequest {
 
 export interface UpdatePigletDeathRequest {
   operator_id: string;
-  weight: number;
+  weight?: number;
+  clear_weight?: boolean;
   cause: PigletDeathCause;
   turn: Turn;
   note?: string;

@@ -90,14 +90,15 @@ type createPigletDeathRequest struct {
 }
 
 type updatePigletDeathRequest struct {
-	DeathDate  *string  `json:"death_date"`
-	Quantity   *int     `json:"quantity"`
-	SowID      *string  `json:"sow_id"`
-	OperatorID *string  `json:"operator_id"`
-	Weight     *float64 `json:"weight"`
-	Cause      *string  `json:"cause"`
-	Turn       *string  `json:"turn"`
-	Note       *string  `json:"note"`
+	DeathDate   *string  `json:"death_date"`
+	Quantity    *int     `json:"quantity"`
+	SowID       *string  `json:"sow_id"`
+	OperatorID  *string  `json:"operator_id"`
+	Weight      *float64 `json:"weight"`
+	ClearWeight bool     `json:"clear_weight"`
+	Cause       *string  `json:"cause"`
+	Turn        *string  `json:"turn"`
+	Note        *string  `json:"note"`
 }
 
 type pigletDeathResponse struct {
@@ -258,6 +259,7 @@ func parseUpdatePigletDeathParams(request updatePigletDeathRequest) (pigletdeath
 	var params pigletdeathdomain.UpdatePigletDeathParams
 	params.Quantity = request.Quantity
 	params.Weight = request.Weight
+	params.ClearWeight = request.ClearWeight
 	params.Note = request.Note
 
 	if request.DeathDate != nil {
@@ -445,7 +447,6 @@ func writePigletDeathError(w http.ResponseWriter, err error) {
 		errors.Is(err, pigletdeathdomain.ErrInvalidFarrowDate),
 		errors.Is(err, pigletdeathdomain.ErrInvalidQuantity),
 		errors.Is(err, pigletdeathdomain.ErrQuantityTooHigh),
-		errors.Is(err, pigletdeathdomain.ErrWeightRequired),
 		errors.Is(err, pigletdeathdomain.ErrInvalidWeight),
 		errors.Is(err, pigletdeathdomain.ErrWeightTooHigh),
 		errors.Is(err, pigletdeathdomain.ErrInvalidCause),

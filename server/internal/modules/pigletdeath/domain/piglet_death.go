@@ -28,6 +28,7 @@ const (
 	CauseOpenLeg            PigletDeathCause = "Pata_abierta"
 	CauseBacteria           PigletDeathCause = "Bacteria"
 	CauseMedicationReaction PigletDeathCause = "Reaccion_medicamento"
+	CauseMissing            PigletDeathCause = "Desaparecido"
 )
 
 // Turn represents the shift when a piglet death was registered.
@@ -39,6 +40,7 @@ const (
 	TurnAfternoon      Turn = "Tarde"
 	TurnDawn           Turn = "Madrugada"
 	TurnUnassistedDawn Turn = "Madrugada_no_asistida"
+	TurnNoShift        Turn = "Sin Turno"
 )
 
 var (
@@ -50,7 +52,6 @@ var (
 	ErrInvalidFarrowDate        = errors.New("La fecha del parto es obligatoria")
 	ErrInvalidQuantity          = errors.New("La cantidad de lechones muertos debe ser mayor a cero")
 	ErrQuantityTooHigh          = errors.New("La cantidad de lechones muertos no puede ser mayor a 10")
-	ErrWeightRequired           = errors.New("El peso es obligatorio")
 	ErrInvalidWeight            = errors.New("El peso debe ser mayor a cero")
 	ErrWeightTooHigh            = errors.New("El peso no puede ser mayor a 20 kg")
 	ErrInvalidCause             = errors.New("La causa de la muerte no es válida")
@@ -107,9 +108,10 @@ type NewPigletDeathParams struct {
 
 // NewPigletDeath builds a piglet death after validating its fields and dates.
 // It requires the death date to be on or after farrowDate and not later than
-// today, and rejects a quantity over 10, a missing or non-positive weight and a
-// weight over 20 kg. The last partial weaging date may be zero when the farrowing
-// is not a nurse; otherwise the death date cannot be earlier than that date.
+// today, and rejects a quantity over 10 and a non-positive or over-20 kg weight
+// when one is provided. The last partial weaging date may be zero when the
+// farrowing is not a nurse; otherwise the death date cannot be earlier than that
+// date.
 func NewPigletDeath(params NewPigletDeathParams, farrowDate time.Time, lastPartialWeagingDate time.Time, now time.Time) (*PigletDeath, error) {
 	if params.ID == uuid.Nil {
 		return nil, ErrInvalidID
@@ -140,14 +142,13 @@ func NewPigletDeath(params NewPigletDeathParams, farrowDate time.Time, lastParti
 	if params.Quantity > maxQuantity {
 		return nil, ErrQuantityTooHigh
 	}
-	if params.Weight == nil {
-		return nil, ErrWeightRequired
-	}
-	if *params.Weight <= 0 {
-		return nil, ErrInvalidWeight
-	}
-	if *params.Weight > maxWeight {
-		return nil, ErrWeightTooHigh
+	if params.Weight != nil {
+		if *params.Weight <= 0 {
+			return nil, ErrInvalidWeight
+		}
+		if *params.Weight > maxWeight {
+			return nil, ErrWeightTooHigh
+		}
 	}
 	if !isValidCause(params.Cause) {
 		return nil, ErrInvalidCause
@@ -227,8 +228,10 @@ func validateNote(note *string) (*string, error) {
 
 // UpdatePigletDeathParams holds the editable fields of a piglet death update.
 // A nil pointer means the field is omitted and stays unchanged, except for the
-// locked fields, which are only accepted when they match the stored values. The
-// operator name is resolved by the use case from the operator identifier.
+// locked fields, which are only accepted when they match the stored values. A
+// nil Weight leaves the stored weight unchanged and ClearWeight removes it; the
+// two cannot be combined. The operator name is resolved by the use case from the
+// operator identifier.
 type UpdatePigletDeathParams struct {
 	DeathDate    *time.Time
 	Quantity     *int
@@ -236,6 +239,7 @@ type UpdatePigletDeathParams struct {
 	OperatorID   *uuid.UUID
 	OperatorName *string
 	Weight       *float64
+	ClearWeight  bool
 	Cause        *PigletDeathCause
 	Turn         *Turn
 	Note         *string
@@ -243,8 +247,9 @@ type UpdatePigletDeathParams struct {
 
 // Update applies the provided editable fields to the piglet death.
 // It rejects a change to the death date, quantity or sow, requires a positive
-// weight of at most 20 kg, validates the cause, turn and note, and records the
-// actor plus the timestamp. It returns ErrInvalidUpdate when no field is provided.
+// weight of at most 20 kg when one is provided, validates the cause, turn and
+// note, and records the actor plus the timestamp. It returns ErrInvalidUpdate
+// when no field is provided or when a weight is set and cleared at once.
 func (d *PigletDeath) Update(params UpdatePigletDeathParams, updatedBy uuid.UUID, now time.Time) error {
 	if d == nil || d.ID == uuid.Nil {
 		return ErrInvalidID
@@ -253,8 +258,8 @@ func (d *PigletDeath) Update(params UpdatePigletDeathParams, updatedBy uuid.UUID
 		return ErrInvalidUpdatedBy
 	}
 	if params.DeathDate == nil && params.Quantity == nil && params.SowID == nil &&
-		params.OperatorID == nil && params.Weight == nil && params.Cause == nil &&
-		params.Turn == nil && params.Note == nil {
+		params.OperatorID == nil && params.Weight == nil && !params.ClearWeight &&
+		params.Cause == nil && params.Turn == nil && params.Note == nil {
 		return ErrInvalidUpdate
 	}
 
@@ -269,14 +274,16 @@ func (d *PigletDeath) Update(params UpdatePigletDeathParams, updatedBy uuid.UUID
 		return ErrImmutableDeathField
 	}
 
-	if params.Weight == nil {
-		return ErrWeightRequired
+	if params.Weight != nil && params.ClearWeight {
+		return ErrInvalidUpdate
 	}
-	if *params.Weight <= 0 {
-		return ErrInvalidWeight
-	}
-	if *params.Weight > maxWeight {
-		return ErrWeightTooHigh
+	if params.Weight != nil {
+		if *params.Weight <= 0 {
+			return ErrInvalidWeight
+		}
+		if *params.Weight > maxWeight {
+			return ErrWeightTooHigh
+		}
 	}
 
 	if params.Cause != nil && !isValidCause(*params.Cause) {
@@ -297,7 +304,11 @@ func (d *PigletDeath) Update(params UpdatePigletDeathParams, updatedBy uuid.UUID
 			d.OperatorName = *params.OperatorName
 		}
 	}
-	d.Weight = params.Weight
+	if params.Weight != nil {
+		d.Weight = params.Weight
+	} else if params.ClearWeight {
+		d.Weight = nil
+	}
 	if params.Cause != nil {
 		d.Cause = *params.Cause
 	}
@@ -314,11 +325,12 @@ func (d *PigletDeath) Update(params UpdatePigletDeathParams, updatedBy uuid.UUID
 }
 
 // isValidCause checks whether the cause belongs to the piglet death domain.
-// Only the nine causes defined by the piglet_death_cause enum are accepted.
+// Only the ten causes defined by the piglet_death_cause enum are accepted.
 func isValidCause(cause PigletDeathCause) bool {
 	switch cause {
 	case CauseCrushed, CauseWeakness, CauseDiarrhea, CauseDeformity, CauseOther,
-		CauseCannibalism, CauseOpenLeg, CauseBacteria, CauseMedicationReaction:
+		CauseCannibalism, CauseOpenLeg, CauseBacteria, CauseMedicationReaction,
+		CauseMissing:
 		return true
 	default:
 		return false
@@ -336,10 +348,10 @@ func ParseCause(value string) (PigletDeathCause, error) {
 }
 
 // isValidTurn checks whether the turn belongs to the piglet death domain.
-// Only the four shifts defined by the turn enum are accepted.
+// Only the five shifts defined by the turn enum are accepted.
 func isValidTurn(turn Turn) bool {
 	switch turn {
-	case TurnMorning, TurnAfternoon, TurnDawn, TurnUnassistedDawn:
+	case TurnMorning, TurnAfternoon, TurnDawn, TurnUnassistedDawn, TurnNoShift:
 		return true
 	default:
 		return false

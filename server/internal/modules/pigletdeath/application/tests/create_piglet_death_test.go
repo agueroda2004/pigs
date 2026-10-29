@@ -61,6 +61,44 @@ func TestCreatePigletDeathExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("registers a death without weight", func(t *testing.T) {
+		repository := repositoryWith()
+		useCase := pigletdeathapplication.NewCreatePigletDeathService(repository, func() time.Time { return nowReference })
+		command := validCommand(sowID, operatorID, actorID)
+		command.Weight = nil
+
+		death, err := useCase.Execute(context.Background(), command)
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if death.Weight != nil {
+			t.Fatalf("weight = %v, want nil", death.Weight)
+		}
+		if repository.created != death {
+			t.Fatalf("death was not persisted")
+		}
+	})
+
+	t.Run("registers the Desaparecido cause", func(t *testing.T) {
+		repository := repositoryWith()
+		useCase := pigletdeathapplication.NewCreatePigletDeathService(repository, func() time.Time { return nowReference })
+		command := validCommand(sowID, operatorID, actorID)
+		command.Cause = pigletdeathdomain.CauseMissing
+
+		death, err := useCase.Execute(context.Background(), command)
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if death.Cause != pigletdeathdomain.CauseMissing {
+			t.Fatalf("cause = %v, want Desaparecido", death.Cause)
+		}
+		if repository.created != death {
+			t.Fatalf("death was not persisted")
+		}
+	})
+
 	t.Run("rejects a death date before the last partial weaging of a nurse sow", func(t *testing.T) {
 		repository := repositoryWith()
 		repository.farrowing.IsNurse = true

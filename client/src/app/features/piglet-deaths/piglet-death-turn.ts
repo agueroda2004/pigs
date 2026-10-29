@@ -5,4 +5,5 @@ export const PIGLET_DEATH_TURN_LABELS: Record<Turn, string> = {
   Tarde: 'Tarde',
   Madrugada: 'Madrugada',
   Madrugada_no_asistida: 'Madrugada no asistida',
+  'Sin Turno': 'Sin Turno',
 };

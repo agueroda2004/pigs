@@ -59,6 +59,49 @@ func TestPigletDeathHandlerCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("creates a piglet death without weight and with Sin Turno", func(t *testing.T) {
+		create := &fakeCreatePigletDeathUseCase{death: death}
+		handler := newTestHandler(create, &fakeListPigletDeathsUseCase{})
+		withoutWeight := fmt.Sprintf(
+			`{"sow_id":"%s","operator_id":"%s","death_date":"2026-04-25",`+
+				`"quantity":2,"cause":"Aplastado","turn":"Sin Turno","note":"muerte"}`,
+			sowID, operatorID,
+		)
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/piglet-deaths", strings.NewReader(withoutWeight))
+		request = authenticatedRequest(request, actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusCreated {
+			t.Fatalf("status=%d, want %d", response.Code, http.StatusCreated)
+		}
+		if create.command.Weight != nil {
+			t.Fatalf("weight = %v, want nil", create.command.Weight)
+		}
+		if create.command.Turn != pigletdeathdomain.TurnNoShift {
+			t.Fatalf("turn = %v, want Sin Turno", create.command.Turn)
+		}
+	})
+
+	t.Run("creates a piglet death with the Desaparecido cause", func(t *testing.T) {
+		create := &fakeCreatePigletDeathUseCase{death: death}
+		handler := newTestHandler(create, &fakeListPigletDeathsUseCase{})
+		withMissing := fmt.Sprintf(
+			`{"sow_id":"%s","operator_id":"%s","death_date":"2026-04-25",`+
+				`"quantity":2,"cause":"Desaparecido","turn":"Mañana"}`,
+			sowID, operatorID,
+		)
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/piglet-deaths", strings.NewReader(withMissing))
+		request = authenticatedRequest(request, actorID)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusCreated {
+			t.Fatalf("status=%d, want %d", response.Code, http.StatusCreated)
+		}
+		if create.command.Cause != pigletdeathdomain.CauseMissing {
+			t.Fatalf("cause = %v, want Desaparecido", create.command.Cause)
+		}
+	})
+
 	t.Run("blocks creation for non-admins", func(t *testing.T) {
 		create := &fakeCreatePigletDeathUseCase{death: death}
 		handler := newAdminGuardHandler(create)
@@ -134,7 +177,6 @@ func TestPigletDeathHandlerCreate(t *testing.T) {
 			{"date before partial weaging", pigletdeathdomain.ErrDeathDateBeforeWeaging, http.StatusBadRequest},
 			{"invalid quantity", pigletdeathdomain.ErrInvalidQuantity, http.StatusBadRequest},
 			{"quantity too high", pigletdeathdomain.ErrQuantityTooHigh, http.StatusBadRequest},
-			{"weight required", pigletdeathdomain.ErrWeightRequired, http.StatusBadRequest},
 			{"invalid weight", pigletdeathdomain.ErrInvalidWeight, http.StatusBadRequest},
 			{"weight too high", pigletdeathdomain.ErrWeightTooHigh, http.StatusBadRequest},
 			{"invalid cause", pigletdeathdomain.ErrInvalidCause, http.StatusBadRequest},
@@ -180,6 +222,18 @@ func TestPigletDeathHandlerList(t *testing.T) {
 			if strings.Contains(body, unwanted) {
 				t.Fatalf("body should not contain %q: %s", unwanted, body)
 			}
+		}
+	})
+
+	t.Run("returns a null weight when it is missing", func(t *testing.T) {
+		death := handlerPigletDeath()
+		death.Weight = nil
+		list := &fakeListPigletDeathsUseCase{deaths: []*pigletdeathdomain.PigletDeath{death}}
+		handler := newTestHandler(&fakeCreatePigletDeathUseCase{}, list)
+		response := serve(handler, httptest.NewRequest(http.MethodGet, "/api/v1/piglet-deaths", nil))
+
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"weight":null`) {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 		}
 	})
 
@@ -390,6 +444,54 @@ func TestPigletDeathHandlerUpdate(t *testing.T) {
 		}
 	})
 
+	t.Run("clears the weight", func(t *testing.T) {
+		update := &fakeUpdatePigletDeathUseCase{}
+		handler := newUpdateHandler(update)
+		request := authenticatedRequest(
+			httptest.NewRequest(http.MethodPatch, target, strings.NewReader(`{"clear_weight":true}`)), actorID,
+		)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusOK || !update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+		if !update.command.Params.ClearWeight || update.command.Params.Weight != nil {
+			t.Fatalf("unexpected params: %#v", update.command.Params)
+		}
+	})
+
+	t.Run("accepts the Sin Turno shift", func(t *testing.T) {
+		update := &fakeUpdatePigletDeathUseCase{}
+		handler := newUpdateHandler(update)
+		request := authenticatedRequest(
+			httptest.NewRequest(http.MethodPatch, target, strings.NewReader(`{"turn":"Sin Turno"}`)), actorID,
+		)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusOK || !update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+		if update.command.Params.Turn == nil || *update.command.Params.Turn != pigletdeathdomain.TurnNoShift {
+			t.Fatalf("unexpected turn: %#v", update.command.Params.Turn)
+		}
+	})
+
+	t.Run("accepts the Desaparecido cause", func(t *testing.T) {
+		update := &fakeUpdatePigletDeathUseCase{}
+		handler := newUpdateHandler(update)
+		request := authenticatedRequest(
+			httptest.NewRequest(http.MethodPatch, target, strings.NewReader(`{"cause":"Desaparecido"}`)), actorID,
+		)
+		response := serve(handler, request)
+
+		if response.Code != http.StatusOK || !update.called {
+			t.Fatalf("status=%d called=%v", response.Code, update.called)
+		}
+		if update.command.Params.Cause == nil || *update.command.Params.Cause != pigletdeathdomain.CauseMissing {
+			t.Fatalf("unexpected cause: %#v", update.command.Params.Cause)
+		}
+	})
+
 	t.Run("parses the locked fields when they are sent", func(t *testing.T) {
 		update := &fakeUpdatePigletDeathUseCase{}
 		handler := newUpdateHandler(update)
@@ -484,7 +586,6 @@ func TestPigletDeathHandlerUpdate(t *testing.T) {
 			{"operator not found", ports.ErrOperatorNotFound, http.StatusNotFound},
 			{"immutable field", pigletdeathdomain.ErrImmutableDeathField, http.StatusBadRequest},
 			{"invalid update", pigletdeathdomain.ErrInvalidUpdate, http.StatusBadRequest},
-			{"weight required", pigletdeathdomain.ErrWeightRequired, http.StatusBadRequest},
 			{"weight too high", pigletdeathdomain.ErrWeightTooHigh, http.StatusBadRequest},
 			{"invalid cause", pigletdeathdomain.ErrInvalidCause, http.StatusBadRequest},
 			{"invalid note", pigletdeathdomain.ErrInvalidNote, http.StatusBadRequest},

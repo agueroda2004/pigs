@@ -58,10 +58,7 @@ export class EditPigletDeathModal {
     operator_id: ['', [Validators.required]],
     death_date: ['', [Validators.required]],
     quantity: [1, [Validators.required, Validators.min(1), Validators.max(10)]],
-    weight: [
-      null as number | null,
-      [Validators.required, Validators.min(0.01), Validators.max(20)],
-    ],
+    weight: [null as number | null, [Validators.min(0.01), Validators.max(20)]],
     cause: ['', [Validators.required]],
     turn: ['', [Validators.required]],
     note: ['', [Validators.maxLength(500)]],
@@ -91,18 +88,20 @@ export class EditPigletDeathModal {
     }
 
     const { operator_id, weight, cause, turn, note } = this.form.getRawValue();
-    if (weight === null) {
-      this.form.markAllAsTouched();
-      return;
-    }
 
     const request: UpdatePigletDeathRequest = {
       operator_id,
-      weight,
       cause: cause as PigletDeathCause,
       turn: turn as Turn,
       note,
     };
+    if (weight === null) {
+      if (current.weight !== null) {
+        request.clear_weight = true;
+      }
+    } else if (weight !== current.weight) {
+      request.weight = weight;
+    }
 
     this.loading.set(true);
     try {

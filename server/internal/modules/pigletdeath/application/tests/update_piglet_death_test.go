@@ -63,6 +63,66 @@ func TestUpdatePigletDeathExecute(t *testing.T) {
 		}
 	})
 
+	t.Run("keeps the weight when it is omitted", func(t *testing.T) {
+		repository := repositoryWith()
+		repository.deathByID.Weight = &weight
+		useCase := pigletdeathapplication.NewUpdatePigletDeathService(repository, func() time.Time { return nowReference })
+
+		death, err := useCase.Execute(context.Background(), deathID, pigletdeathapplication.UpdatePigletDeathCommand{
+			Params:    pigletdeathdomain.UpdatePigletDeathParams{Note: &note},
+			UpdatedBy: actorID,
+		})
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if death.Weight == nil || *death.Weight != 3.5 {
+			t.Fatalf("weight = %v, want 3.5", death.Weight)
+		}
+	})
+
+	t.Run("clears the weight", func(t *testing.T) {
+		repository := repositoryWith()
+		repository.deathByID.Weight = &weight
+		useCase := pigletdeathapplication.NewUpdatePigletDeathService(repository, func() time.Time { return nowReference })
+
+		death, err := useCase.Execute(context.Background(), deathID, pigletdeathapplication.UpdatePigletDeathCommand{
+			Params:    pigletdeathdomain.UpdatePigletDeathParams{ClearWeight: true},
+			UpdatedBy: actorID,
+		})
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if death.Weight != nil {
+			t.Fatalf("weight = %v, want nil", death.Weight)
+		}
+		if repository.updated != death {
+			t.Fatalf("death was not persisted")
+		}
+	})
+
+	t.Run("updates the cause to Desaparecido", func(t *testing.T) {
+		repository := repositoryWith()
+		useCase := pigletdeathapplication.NewUpdatePigletDeathService(repository, func() time.Time { return nowReference })
+		cause := pigletdeathdomain.CauseMissing
+
+		death, err := useCase.Execute(context.Background(), deathID, pigletdeathapplication.UpdatePigletDeathCommand{
+			Params:    pigletdeathdomain.UpdatePigletDeathParams{Cause: &cause},
+			UpdatedBy: actorID,
+		})
+
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if death.Cause != pigletdeathdomain.CauseMissing {
+			t.Fatalf("cause = %v, want Desaparecido", death.Cause)
+		}
+		if repository.updated != death {
+			t.Fatalf("death was not persisted")
+		}
+	})
+
 	t.Run("rejects a changed death date", func(t *testing.T) {
 		repository := repositoryWith()
 		useCase := pigletdeathapplication.NewUpdatePigletDeathService(repository, func() time.Time { return nowReference })

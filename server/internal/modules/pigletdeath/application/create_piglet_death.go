@@ -43,7 +43,7 @@ func NewCreatePigletDeathService(repository ports.PigletDeathRepository, clock f
 // It validates that the sow is lactating, resolves its latest farrowing and the
 // operator, then persists the death and the reduced balance in one transaction.
 // When the farrowing is a nurse, it also resolves the latest partial weaging date
-// so the domain can reject deaths registered after it.
+// so the domain can reject deaths registered before it.
 func (s *CreatePigletDeathService) Execute(ctx context.Context, command CreatePigletDeathCommand) (*pigletdeathdomain.PigletDeath, error) {
 	sow, err := s.repository.GetSow(ctx, command.SowID)
 	if err != nil {

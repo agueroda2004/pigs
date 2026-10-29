@@ -10,6 +10,7 @@ export const PIGLET_DEATH_CAUSE_LABELS: Record<PigletDeathCause, string> = {
   Pata_abierta: 'Pata abierta',
   Bacteria: 'Bacteria',
   Reaccion_medicamento: 'Reacción a medicamento',
+  Desaparecido: 'Desaparecido',
 };
 
 export const PIGLET_DEATH_CAUSE_CLASSES: Record<PigletDeathCause, string> = {
@@ -22,4 +23,5 @@ export const PIGLET_DEATH_CAUSE_CLASSES: Record<PigletDeathCause, string> = {
   Pata_abierta: 'bg-info/10 text-info',
   Bacteria: 'bg-danger/10 text-danger',
   Reaccion_medicamento: 'bg-warning/10 text-warning',
+  Desaparecido: 'bg-muted text-muted-foreground',
 };

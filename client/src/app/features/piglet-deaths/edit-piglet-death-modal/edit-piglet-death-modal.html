@@ -68,9 +68,7 @@
           formControlName="weight"
           class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
         />
-        @if (form.controls.weight.touched && form.controls.weight.hasError('required')) {
-          <p class="text-xs text-danger">El peso es obligatorio.</p>
-        } @else if (form.controls.weight.touched && form.controls.weight.hasError('max')) {
+        @if (form.controls.weight.touched && form.controls.weight.hasError('max')) {
           <p class="text-xs text-danger">El peso no puede ser mayor a 20 kg.</p>
         } @else if (form.controls.weight.touched && form.controls.weight.invalid) {
           <p class="text-xs text-danger">El peso debe ser mayor a cero.</p>

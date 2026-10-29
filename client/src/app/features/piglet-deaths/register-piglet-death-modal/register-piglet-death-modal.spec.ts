@@ -113,14 +113,53 @@ describe('RegisterPigletDeathModal', () => {
     expect(created).toHaveBeenCalledWith('C-001');
   });
 
-  it('does not submit when the weight is empty', async () => {
+  it('creates a piglet death without weight when the field is empty', async () => {
     const component = create();
+    component.sowOptions.set([{ value: 'sow-1', label: 'C-001' }]);
     fill(component);
     component.form.patchValue({ weight: null });
 
     await component.submit();
 
+    expect(stub.createPigletDeath).toHaveBeenCalledTimes(1);
+    const request = stub.createPigletDeath.mock.calls[0][0] as Record<string, unknown>;
+    expect(request).not.toHaveProperty('weight');
+    expect(request).toMatchObject({ quantity: 2, cause: 'Aplastado', turn: 'Mañana' });
+  });
+
+  it('does not submit when the weight is zero', async () => {
+    const component = create();
+    fill(component);
+    component.form.patchValue({ weight: 0 });
+
+    await component.submit();
+
     expect(stub.createPigletDeath).not.toHaveBeenCalled();
+  });
+
+  it('offers Sin Turno as a turn option', () => {
+    const component = create();
+
+    expect(component.turnOptions).toContainEqual({ value: 'Sin Turno', label: 'Sin Turno' });
+  });
+
+  it('offers Desaparecido as a cause option', () => {
+    const component = create();
+
+    expect(component.causeOptions).toContainEqual({ value: 'Desaparecido', label: 'Desaparecido' });
+  });
+
+  it('submits the Desaparecido cause', async () => {
+    const component = create();
+    component.sowOptions.set([{ value: 'sow-1', label: 'C-001' }]);
+    fill(component);
+    component.form.patchValue({ cause: 'Desaparecido' });
+
+    await component.submit();
+
+    expect(stub.createPigletDeath).toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'Desaparecido' }),
+    );
   });
 
   it('does not submit when the quantity is greater than ten', async () => {

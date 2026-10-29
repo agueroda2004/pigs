@@ -59,6 +59,18 @@ describe('PigletDeathCard', () => {
     expect(fixture.nativeElement.textContent).toContain('sin identificar');
   });
 
+  it('renders the Sin Turno label', () => {
+    const fixture = render(buildDeath({ turn: 'Sin Turno' }), 'C-001');
+
+    expect(fixture.nativeElement.textContent).toContain('Turno: Sin Turno');
+  });
+
+  it('renders the Desaparecido cause label', () => {
+    const fixture = render(buildDeath({ cause: 'Desaparecido' }), 'C-001');
+
+    expect(fixture.nativeElement.textContent).toContain('Desaparecido');
+  });
+
   it('hides the weight when it is null', () => {
     const fixture = render(buildDeath({ weight: null }), 'C-001');
 
