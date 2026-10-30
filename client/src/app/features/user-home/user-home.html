@@ -1,0 +1,139 @@
+<div class="space-y-6">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight">Hola, {{ user()?.username }}</h1>
+    <p class="mt-1 text-sm text-muted-foreground">
+      Partos confirmados que requieren atención en la granja.
+    </p>
+  </div>
+
+  @if (loading()) {
+    <div class="grid gap-4 sm:grid-cols-2">
+      @for (placeholder of [1, 2]; track placeholder) {
+        <div class="h-40 animate-pulse rounded-xl border border-border bg-muted/50"></div>
+      }
+    </div>
+  } @else if (error()) {
+    <div class="rounded-xl border border-border p-10 text-center">
+      <p class="text-sm text-muted-foreground">No se pudo cargar la programación de partos.</p>
+      <button
+        type="button"
+        (click)="loadSchedule()"
+        class="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Reintentar
+      </button>
+    </div>
+  } @else if (schedule(); as data) {
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <label for="home-sow-code" class="text-sm font-medium">Cerda</label>
+      <input
+        id="home-sow-code"
+        type="text"
+        [value]="filterCode()"
+        (input)="onFilterInput($event)"
+        autocomplete="off"
+        placeholder="Código de la cerda"
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring sm:max-w-xs"
+      />
+      @if (hasFilter()) {
+        <button
+          type="button"
+          (click)="clearFilter()"
+          class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Limpiar
+        </button>
+      }
+    </div>
+
+    <section class="space-y-3">
+      <div class="flex items-center justify-between gap-4">
+        <h2 class="text-lg font-semibold tracking-tight">Próximos partos (7 días)</h2>
+        <span
+          class="shrink-0 rounded-full border border-border px-2.5 py-0.5 text-xs font-medium text-muted-foreground"
+        >
+          {{ upcoming().length }}
+        </span>
+      </div>
+
+      @if (data.upcoming.length === 0) {
+        <div class="rounded-xl border border-dashed border-border p-6 text-center">
+          <p class="text-sm text-muted-foreground">
+            No hay partos previstos para los próximos 7 días.
+          </p>
+        </div>
+      } @else if (upcoming().length === 0) {
+        <div class="rounded-xl border border-dashed border-border p-6 text-center">
+          <p class="text-sm text-muted-foreground">
+            Ningún parto coincide con el código "{{ filterCode().trim() }}".
+          </p>
+          <button
+            type="button"
+            (click)="clearFilter()"
+            class="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Limpiar
+          </button>
+        </div>
+      } @else {
+        <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          @for (entry of upcoming(); track entry.id) {
+            <li class="rounded-xl border border-border bg-card p-4">
+              <p class="font-medium">Cerda {{ entry.sow_code || 'sin identificar' }}</p>
+              <div class="mt-2 space-y-1 text-sm text-muted-foreground">
+                <p>Parto probable (114 días): {{ entry.expected_farrowing_date }}</p>
+                <p>Parto según su promedio: {{ averageDate(entry) }}</p>
+                <p>Gestación promedio: {{ averageGestation(entry) }}</p>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section class="space-y-3">
+      <div class="flex items-center justify-between gap-4">
+        <h2 class="text-lg font-semibold tracking-tight">Partos vencidos</h2>
+        <span
+          class="shrink-0 rounded-full border border-danger/40 px-2.5 py-0.5 text-xs font-medium text-danger"
+        >
+          {{ overdue().length }}
+        </span>
+      </div>
+
+      @if (data.overdue.length === 0) {
+        <div class="rounded-xl border border-dashed border-border p-6 text-center">
+          <p class="text-sm text-muted-foreground">No hay partos vencidos.</p>
+        </div>
+      } @else if (overdue().length === 0) {
+        <div class="rounded-xl border border-dashed border-border p-6 text-center">
+          <p class="text-sm text-muted-foreground">
+            Ningún parto coincide con el código "{{ filterCode().trim() }}".
+          </p>
+          <button
+            type="button"
+            (click)="clearFilter()"
+            class="mt-4 rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Limpiar
+          </button>
+        </div>
+      } @else {
+        <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          @for (entry of overdue(); track entry.id) {
+            <li class="rounded-xl border border-border bg-card p-4">
+              <p class="font-medium">Cerda {{ entry.sow_code || 'sin identificar' }}</p>
+              <div class="mt-2 space-y-1 text-sm text-muted-foreground">
+                <p class="text-danger">
+                  Parto probable (114 días): {{ entry.expected_farrowing_date }}
+                </p>
+                <p>Parto según su promedio: {{ averageDate(entry) }}</p>
+                <p>Gestación promedio: {{ averageGestation(entry) }}</p>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+</div>

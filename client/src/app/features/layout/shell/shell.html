@@ -12,134 +12,134 @@
     </div>
 
     <nav class="flex-1 space-y-1 p-3">
-      <a
-        routerLink="/"
-        [routerLinkActiveOptions]="{ exact: true }"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Panel</span>
-      </a>
-
-      <a
-        routerLink="/breeds"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Razas</span>
-      </a>
-
-      <a
-        routerLink="/boars"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Verracos</span>
-      </a>
-
-      <a
-        routerLink="/boar-removals"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Remover verracos</span>
-      </a>
-
-      <a
-        routerLink="/sows"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Cerdas</span>
-      </a>
-
-      <a
-        routerLink="/services"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Servicios</span>
-      </a>
-
-      <a
-        routerLink="/abortions"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Abortos</span>
-      </a>
-
-      <a
-        routerLink="/farrowings"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Partos</span>
-      </a>
-
-      <a
-        routerLink="/piglet-deaths"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Muertes de lechones</span>
-      </a>
-
-      <a
-        routerLink="/piglet-fosterings"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Traslados de lechones</span>
-      </a>
-
-      <a
-        routerLink="/partial-weagings"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Destetes parciales</span>
-      </a>
-
-      <a
-        routerLink="/weagings"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Destetes</span>
-      </a>
-
-      <a
-        routerLink="/sow-removals"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Remover cerdas</span>
-      </a>
-
-      <a
-        routerLink="/medications"
-        routerLinkActive="bg-muted font-medium text-foreground"
-        (click)="closeSidebar()"
-        class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        <span>Medicamentos</span>
-      </a>
-
       @if (isAdmin()) {
+        <a
+          [routerLink]="homeLink()"
+          [routerLinkActiveOptions]="{ exact: true }"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Panel</span>
+        </a>
+
+        <a
+          routerLink="/breeds"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Razas</span>
+        </a>
+
+        <a
+          routerLink="/boars"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Verracos</span>
+        </a>
+
+        <a
+          routerLink="/boar-removals"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Remover verracos</span>
+        </a>
+
+        <a
+          routerLink="/sows"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Cerdas</span>
+        </a>
+
+        <a
+          routerLink="/services"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Servicios</span>
+        </a>
+
+        <a
+          routerLink="/abortions"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Abortos</span>
+        </a>
+
+        <a
+          routerLink="/farrowings"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Partos</span>
+        </a>
+
+        <a
+          routerLink="/piglet-deaths"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Muertes de lechones</span>
+        </a>
+
+        <a
+          routerLink="/piglet-fosterings"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Traslados de lechones</span>
+        </a>
+
+        <a
+          routerLink="/partial-weagings"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Destetes parciales</span>
+        </a>
+
+        <a
+          routerLink="/weagings"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Destetes</span>
+        </a>
+
+        <a
+          routerLink="/sow-removals"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Remover cerdas</span>
+        </a>
+
+        <a
+          routerLink="/medications"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Medicamentos</span>
+        </a>
+
         <a
           routerLink="/operators"
           routerLinkActive="bg-muted font-medium text-foreground"
@@ -156,6 +156,33 @@
           class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
         >
           <span>Usuarios</span>
+        </a>
+      } @else {
+        <a
+          routerLink="/home"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Inicio</span>
+        </a>
+
+        <a
+          routerLink="/reports"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Reportes</span>
+        </a>
+
+        <a
+          routerLink="/sow-history"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Historial de cerdas</span>
         </a>
       }
     </nav>

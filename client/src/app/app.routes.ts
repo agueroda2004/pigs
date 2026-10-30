@@ -15,7 +15,24 @@ export const routes: Routes = [
     children: [
       {
         path: '',
+        canActivate: [adminGuard],
         loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.Dashboard),
+      },
+      {
+        path: 'home',
+        loadComponent: () => import('./features/user-home/user-home').then((m) => m.UserHome),
+      },
+      {
+        path: 'reports',
+        loadComponent: () =>
+          import('./features/reports/reports-page/reports-page').then((m) => m.ReportsPage),
+      },
+      {
+        path: 'sow-history',
+        loadComponent: () =>
+          import('./features/sow-history/sow-history-page/sow-history-page').then(
+            (m) => m.SowHistoryPage,
+          ),
       },
       {
         path: 'breeds',

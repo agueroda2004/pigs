@@ -34,6 +34,20 @@ export interface ServicePage {
   total_pages: number;
 }
 
+export interface FarrowingScheduleEntry {
+  id: string;
+  sow_id: string;
+  sow_code: string;
+  expected_farrowing_date: string;
+  average_gestation_days: number | null;
+  average_expected_farrowing_date: string | null;
+}
+
+export interface FarrowingSchedule {
+  upcoming: FarrowingScheduleEntry[];
+  overdue: FarrowingScheduleEntry[];
+}
+
 export interface CreateMountRequest {
   boar_id: string;
   operator_id: string;

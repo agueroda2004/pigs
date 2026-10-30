@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
+import { landingUrl } from '../../../core/auth/auth.navigation';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ThemeToggle } from '../../../shared/ui/theme-toggle/theme-toggle';
 import { PASSWORD_MAX_LENGTH } from '../../../shared/utils/password-strength';
@@ -40,7 +41,8 @@ export class Login {
 
     try {
       await this.auth.login(this.form.getRawValue());
-      const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/';
+      const returnUrl =
+        this.route.snapshot.queryParamMap.get('returnUrl') ?? landingUrl(this.auth.isAdmin());
       await this.router.navigateByUrl(returnUrl);
     } catch {
       this.error.set('Usuario o contraseña incorrectos');

@@ -42,19 +42,37 @@ describe('auth guards', () => {
     expect((result as UrlTree).queryParams['returnUrl']).toBe('/dashboard');
   });
 
-  it('redirects authenticated users away from the guest route', () => {
+  it('redirects regular users away from the guest route to their home page', () => {
     auth.authenticated = true;
+    const result = run(guestGuard);
+    expect(result).toBeInstanceOf(UrlTree);
+    expect((result as UrlTree).toString()).toBe('/home');
+  });
+
+  it('redirects admins away from the guest route to the dashboard', () => {
+    auth.authenticated = true;
+    auth.admin = true;
     const result = run(guestGuard);
     expect(result).toBeInstanceOf(UrlTree);
     expect((result as UrlTree).toString()).toBe('/');
   });
 
-  it('allows admins through adminGuard and blocks regular users', () => {
+  it('allows admins through adminGuard', () => {
     auth.authenticated = true;
     auth.admin = true;
     expect(run(adminGuard)).toBe(true);
+  });
 
-    auth.admin = false;
-    expect(run(adminGuard)).toBeInstanceOf(UrlTree);
+  it('redirects regular users from admin routes to their home page', () => {
+    auth.authenticated = true;
+    const result = run(adminGuard);
+    expect(result).toBeInstanceOf(UrlTree);
+    expect((result as UrlTree).toString()).toBe('/home');
+  });
+
+  it('redirects anonymous users from admin routes to login', () => {
+    const result = run(adminGuard);
+    expect(result).toBeInstanceOf(UrlTree);
+    expect((result as UrlTree).toString()).toBe('/login');
   });
 });

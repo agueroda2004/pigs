@@ -1,6 +1,7 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
+import { landingUrl } from '../../../core/auth/auth.navigation';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ThemeToggle } from '../../../shared/ui/theme-toggle/theme-toggle';
 
@@ -16,6 +17,7 @@ export class Shell {
 
   protected readonly user = this.auth.user;
   protected readonly isAdmin = this.auth.isAdmin;
+  protected readonly homeLink = computed(() => landingUrl(this.auth.isAdmin()));
   protected readonly sidebarOpen = signal(false);
 
   protected toggleSidebar(): void {

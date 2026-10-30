@@ -1,8 +1,10 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 
+import { landingUrl } from './auth.navigation';
 import { AuthService } from './auth.service';
 
+/** Allows authenticated users through and otherwise sends them to login with a return URL. */
 export const authGuard: CanActivateFn = (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
@@ -14,6 +16,7 @@ export const authGuard: CanActivateFn = (_route, state) => {
   return router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
 };
 
+/** Allows administrators through and redirects any other user to their role-based landing. */
 export const adminGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
@@ -22,9 +25,10 @@ export const adminGuard: CanActivateFn = () => {
     return true;
   }
 
-  return router.createUrlTree([auth.isAuthenticated() ? '/' : '/login']);
+  return router.createUrlTree([auth.isAuthenticated() ? landingUrl(false) : '/login']);
 };
 
+/** Sends authenticated users to their role-based landing and lets guests reach the login page. */
 export const guestGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
@@ -33,5 +37,5 @@ export const guestGuard: CanActivateFn = () => {
     return true;
   }
 
-  return router.createUrlTree(['/']);
+  return router.createUrlTree([landingUrl(auth.isAdmin())]);
 };

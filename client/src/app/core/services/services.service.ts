@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   CreateServiceRequest,
+  FarrowingSchedule,
   ServiceFilters,
   ServicePage,
   UpdateServiceRequest,
@@ -26,6 +27,10 @@ export class ServicesService {
     params = params.set('page', String(page));
 
     return this.http.get<ServicePage>(this.baseUrl, { params });
+  }
+
+  getFarrowingSchedule(): Observable<FarrowingSchedule> {
+    return this.http.get<FarrowingSchedule>(`${this.baseUrl}/farrowing-schedule`);
   }
 
   createService(request: CreateServiceRequest): Observable<void> {

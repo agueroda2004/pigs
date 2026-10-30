@@ -37,6 +37,27 @@ const pagePayload = {
   total_pages: 1,
 };
 
+const schedulePayload = {
+  upcoming: [
+    {
+      id: '1',
+      sow_id: 'sow-1',
+      sow_code: 'C-001',
+      expected_farrowing_date: '2026-05-04',
+      average_gestation_days: 110.5,
+    },
+  ],
+  overdue: [
+    {
+      id: '2',
+      sow_id: 'sow-2',
+      sow_code: 'C-002',
+      expected_farrowing_date: '2026-04-20',
+      average_gestation_days: null,
+    },
+  ],
+};
+
 describe('ServicesService', () => {
   let service: ServicesService;
   let http: HttpTestingController;
@@ -77,6 +98,17 @@ describe('ServicesService', () => {
     call.flush({ ...pagePayload, page: 3, total: 25, total_pages: 3 });
 
     await expect(promise).resolves.toMatchObject({ page: 3, total: 25, total_pages: 3 });
+  });
+
+  it('gets the farrowing schedule', async () => {
+    const promise = firstValueFrom(service.getFarrowingSchedule());
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/services/farrowing-schedule') && request.method === 'GET',
+    );
+    call.flush(schedulePayload);
+
+    await expect(promise).resolves.toEqual(schedulePayload);
   });
 
   it('creates a service with its mounts without expecting a body', async () => {
