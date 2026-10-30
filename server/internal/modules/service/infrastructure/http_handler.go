@@ -23,6 +23,10 @@ const dateLayout = "2006-01-02"
 // A longer sow code filter is rejected as invalid.
 const maxSowCodeLength = 50
 
+// errFarrowingScheduleUnavailable hides unexpected repository errors from the
+// schedule response so database details are never exposed to the client.
+var errFarrowingScheduleUnavailable = errors.New("No se pudo obtener la programación de partos")
+
 type CreateServiceUseCase interface {
 	Execute(context.Context, serviceapplication.CreateServiceCommand) (*servicedomain.Service, error)
 }
@@ -39,13 +43,18 @@ type UpdateServiceUseCase interface {
 	Execute(context.Context, uuid.UUID, serviceapplication.UpdateServiceCommand) error
 }
 
+type GetFarrowingScheduleUseCase interface {
+	Execute(context.Context) (*servicedomain.FarrowingSchedule, error)
+}
+
 type ServiceHandler struct {
-	createService   CreateServiceUseCase
-	listServices    ListServicesUseCase
-	deleteService   DeleteServiceUseCase
-	updateService   UpdateServiceUseCase
-	authMiddleware  func(http.Handler) http.Handler
-	adminMiddleware func(http.Handler) http.Handler
+	createService     CreateServiceUseCase
+	listServices      ListServicesUseCase
+	deleteService     DeleteServiceUseCase
+	updateService     UpdateServiceUseCase
+	farrowingSchedule GetFarrowingScheduleUseCase
+	authMiddleware    func(http.Handler) http.Handler
+	adminMiddleware   func(http.Handler) http.Handler
 }
 
 // NewServiceHandler wires the service use cases and middlewares into a handler.
@@ -55,24 +64,27 @@ func NewServiceHandler(
 	listServices ListServicesUseCase,
 	deleteService DeleteServiceUseCase,
 	updateService UpdateServiceUseCase,
+	farrowingSchedule GetFarrowingScheduleUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *ServiceHandler {
 	return &ServiceHandler{
-		createService:   createService,
-		listServices:    listServices,
-		deleteService:   deleteService,
-		updateService:   updateService,
-		authMiddleware:  authMiddleware,
-		adminMiddleware: adminMiddleware,
+		createService:     createService,
+		listServices:      listServices,
+		deleteService:     deleteService,
+		updateService:     updateService,
+		farrowingSchedule: farrowingSchedule,
+		authMiddleware:    authMiddleware,
+		adminMiddleware:   adminMiddleware,
 	}
 }
 
-// RegisterRoutes registers the service create, list, update and delete endpoints.
-// Write routes are admin-only while the list route only requires authentication.
+// RegisterRoutes registers the service create, list, update, delete and schedule endpoints.
+// Write routes are admin-only while the list and schedule routes only require authentication.
 func (h *ServiceHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/services", h.adminMiddleware(http.HandlerFunc(h.create)))
 	mux.Handle("GET /api/v1/services", h.authMiddleware(http.HandlerFunc(h.list)))
+	mux.Handle("GET /api/v1/services/farrowing-schedule", h.authMiddleware(http.HandlerFunc(h.getFarrowingSchedule)))
 	mux.Handle("PATCH /api/v1/services/{id}", h.adminMiddleware(http.HandlerFunc(h.update)))
 	mux.Handle("DELETE /api/v1/services/{id}", h.adminMiddleware(http.HandlerFunc(h.delete)))
 }
@@ -146,6 +158,22 @@ type servicePageResponse struct {
 	Page       int               `json:"page"`
 	PageSize   int               `json:"page_size"`
 	TotalPages int               `json:"total_pages"`
+}
+
+// farrowingScheduleEntryResponse is one confirmed service of the schedule report.
+type farrowingScheduleEntryResponse struct {
+	ID                           uuid.UUID `json:"id"`
+	SowID                        uuid.UUID `json:"sow_id"`
+	SowCode                      string    `json:"sow_code"`
+	ExpectedFarrowingDate        string    `json:"expected_farrowing_date"`
+	AverageGestationDays         *float64  `json:"average_gestation_days"`
+	AverageExpectedFarrowingDate *string   `json:"average_expected_farrowing_date"`
+}
+
+// farrowingScheduleResponse groups the upcoming and overdue schedule entries.
+type farrowingScheduleResponse struct {
+	Upcoming []farrowingScheduleEntryResponse `json:"upcoming"`
+	Overdue  []farrowingScheduleEntryResponse `json:"overdue"`
 }
 
 // create handles POST /api/v1/services and registers a service with its mounts.
@@ -349,6 +377,24 @@ func (h *ServiceHandler) list(w http.ResponseWriter, r *http.Request) {
 	platformhttp.WriteJSON(w, http.StatusOK, toServicePageResponse(services))
 }
 
+// getFarrowingSchedule handles GET /api/v1/services/farrowing-schedule.
+// It returns the confirmed services due to farrow soon plus the overdue ones and
+// hides unexpected repository errors behind a generic message.
+func (h *ServiceHandler) getFarrowingSchedule(w http.ResponseWriter, r *http.Request) {
+	schedule, err := h.farrowingSchedule.Execute(r.Context())
+	if err != nil {
+		status := serviceErrorStatus(err)
+		if status == http.StatusInternalServerError {
+			platformhttp.WriteError(w, status, errFarrowingScheduleUnavailable)
+			return
+		}
+		platformhttp.WriteError(w, status, err)
+		return
+	}
+
+	platformhttp.WriteJSON(w, http.StatusOK, toFarrowingScheduleResponse(schedule))
+}
+
 // delete handles DELETE /api/v1/services/{id} and removes a service.
 // It parses the id path value, reads the actor and maps a non-confirmed service
 // or a service with related records to a 409 conflict.
@@ -466,6 +512,39 @@ func toMountResponses(mounts []*servicedomain.Mount) []mountResponse {
 	return responses
 }
 
+// toFarrowingScheduleResponse maps the domain schedule to the response shape.
+// It formats dates as YYYY-MM-DD and returns empty arrays instead of null groups.
+func toFarrowingScheduleResponse(schedule *servicedomain.FarrowingSchedule) farrowingScheduleResponse {
+	response := farrowingScheduleResponse{
+		Upcoming: make([]farrowingScheduleEntryResponse, 0),
+		Overdue:  make([]farrowingScheduleEntryResponse, 0),
+	}
+	if schedule == nil {
+		return response
+	}
+
+	response.Upcoming = toFarrowingScheduleEntries(schedule.Upcoming)
+	response.Overdue = toFarrowingScheduleEntries(schedule.Overdue)
+	return response
+}
+
+// toFarrowingScheduleEntries maps schedule entries to their response shapes.
+// It returns an empty slice instead of null when there are no entries.
+func toFarrowingScheduleEntries(entries []servicedomain.FarrowingScheduleEntry) []farrowingScheduleEntryResponse {
+	responses := make([]farrowingScheduleEntryResponse, 0, len(entries))
+	for _, entry := range entries {
+		responses = append(responses, farrowingScheduleEntryResponse{
+			ID:                           entry.ServiceID,
+			SowID:                        entry.SowID,
+			SowCode:                      entry.SowCode,
+			ExpectedFarrowingDate:        entry.ExpectedFarrowingDate.UTC().Format(dateLayout),
+			AverageGestationDays:         entry.AverageGestationDays,
+			AverageExpectedFarrowingDate: formatOptionalDate(entry.AverageExpectedFarrowingDate),
+		})
+	}
+	return responses
+}
+
 // formatOptionalDate formats an optional date as YYYY-MM-DD.
 // It returns nil when the date pointer is nil.
 func formatOptionalDate(value *time.Time) *string {
@@ -479,6 +558,12 @@ func formatOptionalDate(value *time.Time) *string {
 // writeServiceError maps service domain, application and port errors to status codes.
 // It falls back to 500 for unrecognized errors.
 func writeServiceError(w http.ResponseWriter, err error) {
+	platformhttp.WriteError(w, serviceErrorStatus(err), err)
+}
+
+// serviceErrorStatus maps service domain, application and port errors to status codes.
+// It returns 500 when the error does not match any known service error.
+func serviceErrorStatus(err error) int {
 	status := http.StatusInternalServerError
 	switch {
 	case errors.Is(err, ports.ErrServiceNotFound),
@@ -521,5 +606,5 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		errors.Is(err, servicedomain.ErrInvalidMountCreatedBy):
 		status = http.StatusBadRequest
 	}
-	platformhttp.WriteError(w, status, err)
+	return status
 }

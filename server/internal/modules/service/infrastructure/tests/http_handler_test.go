@@ -473,3 +473,152 @@ func TestServiceHandlerUpdate(t *testing.T) {
 		}
 	})
 }
+
+func TestServiceHandlerFarrowingSchedule(t *testing.T) {
+	target := "/api/v1/services/farrowing-schedule"
+	passThrough := func(next http.Handler) http.Handler { return next }
+
+	t.Run("returns the upcoming and overdue entries", func(t *testing.T) {
+		average := 110.5
+		averageDate := time.Date(2026, time.June, 22, 4, 30, 0, 0, time.UTC)
+		schedule := &servicedomain.FarrowingSchedule{
+			Upcoming: []servicedomain.FarrowingScheduleEntry{{
+				ServiceID:                    uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+				SowID:                        uuid.MustParse("22222222-2222-2222-2222-222222222222"),
+				SowCode:                      "C-001",
+				ExpectedFarrowingDate:        time.Date(2026, time.June, 20, 15, 4, 5, 0, time.UTC),
+				AverageGestationDays:         &average,
+				AverageExpectedFarrowingDate: &averageDate,
+			}},
+			Overdue: []servicedomain.FarrowingScheduleEntry{{
+				ServiceID:             uuid.MustParse("33333333-3333-3333-3333-333333333333"),
+				SowID:                 uuid.MustParse("44444444-4444-4444-4444-444444444444"),
+				SowCode:               "D-001",
+				ExpectedFarrowingDate: time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC),
+			}},
+		}
+		useCase := &fakeGetFarrowingScheduleUseCase{schedule: schedule}
+		handler := newScheduleTestHandler(useCase, passThrough, passThrough)
+
+		response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
+
+		if response.Code != http.StatusOK || !useCase.called {
+			t.Fatalf("status=%d called=%v", response.Code, useCase.called)
+		}
+		body := response.Body.String()
+		for _, want := range []string{
+			`"upcoming":[`,
+			`"overdue":[`,
+			`"id":"11111111-1111-1111-1111-111111111111"`,
+			`"sow_id":"22222222-2222-2222-2222-222222222222"`,
+			`"sow_code":"C-001"`,
+			`"expected_farrowing_date":"2026-06-20"`,
+			`"average_gestation_days":110.5`,
+			`"average_expected_farrowing_date":"2026-06-22"`,
+			`"sow_code":"D-001"`,
+			`"expected_farrowing_date":"2026-06-01"`,
+			`"average_gestation_days":null`,
+			`"average_expected_farrowing_date":null`,
+		} {
+			if !strings.Contains(body, want) {
+				t.Fatalf("body missing %q: %s", want, body)
+			}
+		}
+	})
+
+	t.Run("returns empty arrays when there are no entries", func(t *testing.T) {
+		useCase := &fakeGetFarrowingScheduleUseCase{schedule: &servicedomain.FarrowingSchedule{}}
+		handler := newScheduleTestHandler(useCase, passThrough, passThrough)
+
+		response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
+
+		body := response.Body.String()
+		if response.Code != http.StatusOK || !strings.Contains(body, `"upcoming":[]`) ||
+			!strings.Contains(body, `"overdue":[]`) {
+			t.Fatalf("status=%d body=%s", response.Code, body)
+		}
+	})
+
+	t.Run("returns empty arrays when the use case returns nil", func(t *testing.T) {
+		useCase := &fakeGetFarrowingScheduleUseCase{}
+		handler := newScheduleTestHandler(useCase, passThrough, passThrough)
+
+		response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
+
+		body := response.Body.String()
+		if response.Code != http.StatusOK || strings.Contains(body, "null") ||
+			!strings.Contains(body, `"upcoming":[]`) || !strings.Contains(body, `"overdue":[]`) {
+			t.Fatalf("status=%d body=%s", response.Code, body)
+		}
+	})
+
+	t.Run("requires authentication", func(t *testing.T) {
+		useCase := &fakeGetFarrowingScheduleUseCase{}
+		unauthorized := func(_ http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusUnauthorized)
+			})
+		}
+		handler := newScheduleTestHandler(useCase, unauthorized, passThrough)
+
+		response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
+
+		if response.Code != http.StatusUnauthorized || useCase.called {
+			t.Fatalf("status=%d called=%v", response.Code, useCase.called)
+		}
+	})
+
+	t.Run("is available to non-admin users", func(t *testing.T) {
+		average := 114.0
+		useCase := &fakeGetFarrowingScheduleUseCase{schedule: &servicedomain.FarrowingSchedule{
+			Upcoming: []servicedomain.FarrowingScheduleEntry{{
+				ServiceID:             uuid.New(),
+				SowID:                 uuid.New(),
+				SowCode:               "C-002",
+				ExpectedFarrowingDate: time.Date(2026, time.June, 21, 0, 0, 0, 0, time.UTC),
+				AverageGestationDays:  &average,
+			}},
+		}}
+		adminGuard := func(_ http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusForbidden)
+			})
+		}
+		handler := newScheduleTestHandler(useCase, passThrough, adminGuard)
+
+		response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
+
+		if response.Code != http.StatusOK || !useCase.called {
+			t.Fatalf("status=%d called=%v", response.Code, useCase.called)
+		}
+	})
+
+	t.Run("maps known errors to their status", func(t *testing.T) {
+		useCase := &fakeGetFarrowingScheduleUseCase{err: ports.ErrServiceNotFound}
+		handler := newScheduleTestHandler(useCase, passThrough, passThrough)
+
+		response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
+
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("status=%d, want %d", response.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("hides unexpected repository errors", func(t *testing.T) {
+		useCase := &fakeGetFarrowingScheduleUseCase{err: errors.New("dial tcp 127.0.0.1:5432: connection refused")}
+		handler := newScheduleTestHandler(useCase, passThrough, passThrough)
+
+		response := serve(handler, httptest.NewRequest(http.MethodGet, target, nil))
+
+		body := response.Body.String()
+		if response.Code != http.StatusInternalServerError {
+			t.Fatalf("status=%d, want %d", response.Code, http.StatusInternalServerError)
+		}
+		if strings.Contains(body, "dial tcp") || strings.Contains(body, "5432") {
+			t.Fatalf("body leaked database details: %s", body)
+		}
+		if !strings.Contains(body, "No se pudo obtener la programación de partos") {
+			t.Fatalf("unexpected body: %s", body)
+		}
+	})
+}

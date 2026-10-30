@@ -9,11 +9,12 @@ import (
 )
 
 type Module struct {
-	CreateService *serviceapplication.CreateServiceService
-	ListServices  *serviceapplication.ListServicesService
-	DeleteService *serviceapplication.DeleteServiceService
-	UpdateService *serviceapplication.UpdateServiceService
-	Handler       *ServiceHandler
+	CreateService     *serviceapplication.CreateServiceService
+	ListServices      *serviceapplication.ListServicesService
+	DeleteService     *serviceapplication.DeleteServiceService
+	UpdateService     *serviceapplication.UpdateServiceService
+	FarrowingSchedule *serviceapplication.GetFarrowingScheduleService
+	Handler           *ServiceHandler
 }
 
 // NewModule assembles the service use cases and HTTP handler from its dependencies.
@@ -28,12 +29,14 @@ func NewModule(
 	listServices := serviceapplication.NewListServicesService(repository)
 	deleteService := serviceapplication.NewDeleteServiceService(repository, clock)
 	updateService := serviceapplication.NewUpdateServiceService(repository, clock)
+	farrowingSchedule := serviceapplication.NewGetFarrowingScheduleService(repository, clock)
 
 	return &Module{
-		CreateService: createService,
-		ListServices:  listServices,
-		DeleteService: deleteService,
-		UpdateService: updateService,
-		Handler:       NewServiceHandler(createService, listServices, deleteService, updateService, authMiddleware, adminMiddleware),
+		CreateService:     createService,
+		ListServices:      listServices,
+		DeleteService:     deleteService,
+		UpdateService:     updateService,
+		FarrowingSchedule: farrowingSchedule,
+		Handler:           NewServiceHandler(createService, listServices, deleteService, updateService, farrowingSchedule, authMiddleware, adminMiddleware),
 	}
 }

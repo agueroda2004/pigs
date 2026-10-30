@@ -518,6 +518,79 @@ func (r *PostgresServiceRepository) List(ctx context.Context, filter ports.Servi
 	return services, total, nil
 }
 
+const farrowingScheduleQuery = `
+	SELECT sv.id, sv.sow_id, sow.code, sv.expected_farrowing_date,
+	       (sv.expected_farrowing_date < $1::date) AS overdue,
+	       history.average_gestation_days,
+	       CASE
+	           WHEN history.average_gestation_days IS NULL
+	             OR current_mount.last_mount_date IS NULL THEN NULL
+	           ELSE current_mount.last_mount_date
+	                + ROUND(history.average_gestation_days::numeric)::int
+	       END AS average_expected_farrowing_date
+	FROM services sv
+	JOIN sows sow ON sow.id = sv.sow_id
+	LEFT JOIN LATERAL (
+		SELECT AVG(f.farrow_date - mount.last_mount_date)::float8 AS average_gestation_days
+		FROM farrowings f
+		JOIN services completed
+		  ON completed.id = f.service_id
+		 AND completed.state = 'Terminado'
+		JOIN LATERAL (
+			SELECT MAX(m.mount_date)::date AS last_mount_date
+			FROM mounts m
+			WHERE m.service_id = f.service_id
+		) mount ON mount.last_mount_date IS NOT NULL
+		WHERE f.sow_id = sv.sow_id
+		  AND f.service_id <> sv.id
+	) history ON true
+	LEFT JOIN LATERAL (
+		SELECT MAX(m.mount_date)::date AS last_mount_date
+		FROM mounts m
+		WHERE m.service_id = sv.id
+	) current_mount ON true
+	WHERE sv.state = 'Confirmado'
+	  AND sv.expected_farrowing_date IS NOT NULL
+	  AND sv.expected_farrowing_date <= $2::date
+	ORDER BY sv.expected_farrowing_date ASC, sow.code ASC
+`
+
+// GetFarrowingSchedule returns confirmed services due from the reference date
+// through the next seven days plus overdue services, with each sow's average and
+// the average-based expected date.
+func (r *PostgresServiceRepository) GetFarrowingSchedule(ctx context.Context, reference time.Time) (*servicedomain.FarrowingSchedule, error) {
+	today, upcomingEnd := servicedomain.ScheduleDateRange(reference)
+
+	rows, err := r.pool.Query(ctx, farrowingScheduleQuery, today, upcomingEnd)
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar la programación de partos: %w", err)
+	}
+	defer rows.Close()
+
+	scheduleRows := make([]servicedomain.FarrowingScheduleRow, 0)
+	for rows.Next() {
+		var row servicedomain.FarrowingScheduleRow
+		if err := rows.Scan(
+			&row.Entry.ServiceID,
+			&row.Entry.SowID,
+			&row.Entry.SowCode,
+			&row.Entry.ExpectedFarrowingDate,
+			&row.Overdue,
+			&row.Entry.AverageGestationDays,
+			&row.Entry.AverageExpectedFarrowingDate,
+		); err != nil {
+			return nil, fmt.Errorf("No se pudo consultar la programación de partos: %w", err)
+		}
+		scheduleRows = append(scheduleRows, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudo consultar la programación de partos: %w", err)
+	}
+
+	schedule := servicedomain.BuildFarrowingSchedule(scheduleRows)
+	return &schedule, nil
+}
+
 // Update persists the service fields and replaces its mounts.
 // All writes run in a single transaction: the service row is updated and every
 // mount is reinserted from the service's final list, which supports create,

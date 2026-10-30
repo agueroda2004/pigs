@@ -50,6 +50,9 @@ type ServiceRepository interface {
 	// List returns one page of services matching the filter together with the
 	// total count of matches, so callers can paginate the result.
 	List(ctx context.Context, filter ServiceFilter, limit, offset int) ([]*servicedomain.Service, int, error)
+	// GetFarrowingSchedule returns confirmed services due from the reference
+	// date through the next seven days plus overdue ones, with sow averages.
+	GetFarrowingSchedule(ctx context.Context, reference time.Time) (*servicedomain.FarrowingSchedule, error)
 	// Delete removes a service and its mounts, restoring the sow state and the
 	// previous service state in one atomic transaction.
 	Delete(ctx context.Context, service *servicedomain.Service, sow *sowdomain.Sow, previous *servicedomain.Service) error

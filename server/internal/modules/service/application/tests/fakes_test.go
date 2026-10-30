@@ -52,6 +52,11 @@ type fakeServiceRepository struct {
 	listFilter   ports.ServiceFilter
 	listLimit    int
 	listOffset   int
+
+	schedule          *servicedomain.FarrowingSchedule
+	scheduleErr       error
+	scheduleReference time.Time
+	scheduleCalled    bool
 }
 
 func (f *fakeServiceRepository) GetSow(_ context.Context, _ uuid.UUID) (*sowdomain.Sow, error) {
@@ -110,4 +115,10 @@ func (f *fakeServiceRepository) List(_ context.Context, filter ports.ServiceFilt
 	f.listLimit = limit
 	f.listOffset = offset
 	return f.listServices, f.listTotal, f.listErr
+}
+
+func (f *fakeServiceRepository) GetFarrowingSchedule(_ context.Context, reference time.Time) (*servicedomain.FarrowingSchedule, error) {
+	f.scheduleCalled = true
+	f.scheduleReference = reference
+	return f.schedule, f.scheduleErr
 }

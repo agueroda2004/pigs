@@ -81,9 +81,20 @@ func (f *fakeUpdateServiceUseCase) Execute(_ context.Context, id uuid.UUID, comm
 	return f.err
 }
 
+type fakeGetFarrowingScheduleUseCase struct {
+	schedule *servicedomain.FarrowingSchedule
+	err      error
+	called   bool
+}
+
+func (f *fakeGetFarrowingScheduleUseCase) Execute(_ context.Context) (*servicedomain.FarrowingSchedule, error) {
+	f.called = true
+	return f.schedule, f.err
+}
+
 func newTestHandler(create serviceinfra.CreateServiceUseCase, list serviceinfra.ListServicesUseCase, remove serviceinfra.DeleteServiceUseCase, update serviceinfra.UpdateServiceUseCase) *serviceinfra.ServiceHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return serviceinfra.NewServiceHandler(create, list, remove, update, passThrough, passThrough)
+	return serviceinfra.NewServiceHandler(create, list, remove, update, &fakeGetFarrowingScheduleUseCase{}, passThrough, passThrough)
 }
 
 func newAdminGuardHandler(remove serviceinfra.DeleteServiceUseCase, update serviceinfra.UpdateServiceUseCase) *serviceinfra.ServiceHandler {
@@ -93,7 +104,13 @@ func newAdminGuardHandler(remove serviceinfra.DeleteServiceUseCase, update servi
 			w.WriteHeader(http.StatusForbidden)
 		})
 	}
-	return serviceinfra.NewServiceHandler(&fakeCreateServiceUseCase{}, &fakeListServicesUseCase{}, remove, update, passThrough, adminGuard)
+	return serviceinfra.NewServiceHandler(&fakeCreateServiceUseCase{}, &fakeListServicesUseCase{}, remove, update, &fakeGetFarrowingScheduleUseCase{}, passThrough, adminGuard)
+}
+
+// newScheduleTestHandler builds a handler with a specific schedule use case.
+// It accepts both middlewares so tests can assert how the route is guarded.
+func newScheduleTestHandler(schedule serviceinfra.GetFarrowingScheduleUseCase, auth, admin func(http.Handler) http.Handler) *serviceinfra.ServiceHandler {
+	return serviceinfra.NewServiceHandler(&fakeCreateServiceUseCase{}, &fakeListServicesUseCase{}, &fakeDeleteServiceUseCase{}, &fakeUpdateServiceUseCase{}, schedule, auth, admin)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {
