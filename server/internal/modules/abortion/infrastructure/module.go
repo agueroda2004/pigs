@@ -9,11 +9,12 @@ import (
 )
 
 type Module struct {
-	CreateAbortion *abortionapplication.CreateAbortionService
-	ListAbortions  *abortionapplication.ListAbortionsService
-	UpdateAbortion *abortionapplication.UpdateAbortionService
-	DeleteAbortion *abortionapplication.DeleteAbortionService
-	Handler        *AbortionHandler
+	CreateAbortion    *abortionapplication.CreateAbortionService
+	ListAbortions     *abortionapplication.ListAbortionsService
+	UpdateAbortion    *abortionapplication.UpdateAbortionService
+	DeleteAbortion    *abortionapplication.DeleteAbortionService
+	AbortHistoryBySow *abortionapplication.AbortHistoryBySowService
+	Handler           *AbortionHandler
 }
 
 // NewModule assembles the abortion use cases and HTTP handler from its dependencies.
@@ -28,12 +29,14 @@ func NewModule(
 	listAbortions := abortionapplication.NewListAbortionsService(repository)
 	updateAbortion := abortionapplication.NewUpdateAbortionService(repository, clock)
 	deleteAbortion := abortionapplication.NewDeleteAbortionService(repository, clock)
+	abortHistoryBySow := abortionapplication.NewAbortHistoryBySowService(repository)
 
 	return &Module{
-		CreateAbortion: createAbortion,
-		ListAbortions:  listAbortions,
-		UpdateAbortion: updateAbortion,
-		DeleteAbortion: deleteAbortion,
-		Handler:        NewAbortionHandler(createAbortion, listAbortions, updateAbortion, deleteAbortion, authMiddleware, adminMiddleware),
+		CreateAbortion:    createAbortion,
+		ListAbortions:     listAbortions,
+		UpdateAbortion:    updateAbortion,
+		DeleteAbortion:    deleteAbortion,
+		AbortHistoryBySow: abortHistoryBySow,
+		Handler:           NewAbortionHandler(createAbortion, listAbortions, updateAbortion, deleteAbortion, authMiddleware, adminMiddleware),
 	}
 }

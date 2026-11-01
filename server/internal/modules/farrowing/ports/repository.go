@@ -52,4 +52,7 @@ type FarrowingRepository interface {
 	// List returns one page of farrowings matching the filter together with the
 	// total count of matches, so callers can paginate the result.
 	List(ctx context.Context, filter FarrowingFilter, limit, offset int) ([]*farrowingdomain.Farrowing, int, error)
+	// HistoryBySow returns the farrowing history read models of a sow code with
+	// their operator and medication names, or an empty slice when it has none.
+	HistoryBySow(ctx context.Context, sowCode string) ([]*farrowingdomain.FarrowingHistoryBySow, error)
 }

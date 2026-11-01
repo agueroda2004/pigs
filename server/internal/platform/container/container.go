@@ -27,23 +27,24 @@ import (
 )
 
 type Container struct {
-	DB              *pgxpool.Pool
-	User            *userinfrastructure.Module
-	Breed           *breedinfrastructure.Module
-	Boar            *boarinfrastructure.Module
-	BoarRemoval     *boarremovalinfrastructure.Module
-	Sow             *sowinfrastructure.Module
-	Operator        *operatorinfrastructure.Module
-	Medication      *medicationinfrastructure.Module
-	Service         *serviceinfrastructure.Module
-	Abortion        *abortioninfrastructure.Module
-	SowRemoval      *sowremovalinfrastructure.Module
-	Farrowing       *farrowinginfrastructure.Module
-	PigletDeath     *pigletdeathinfrastructure.Module
-	PigletFostering *pigletfosteringinfrastructure.Module
-	PartialWeaging  *partialweaginginfrastructure.Module
-	Weaging         *weaginginfrastructure.Module
-	Auth            *authinfrastructure.Module
+	DB                *pgxpool.Pool
+	User              *userinfrastructure.Module
+	Breed             *breedinfrastructure.Module
+	Boar              *boarinfrastructure.Module
+	BoarRemoval       *boarremovalinfrastructure.Module
+	Sow               *sowinfrastructure.Module
+	SowHistoryHandler *sowinfrastructure.SowHistoryHandler
+	Operator          *operatorinfrastructure.Module
+	Medication        *medicationinfrastructure.Module
+	Service           *serviceinfrastructure.Module
+	Abortion          *abortioninfrastructure.Module
+	SowRemoval        *sowremovalinfrastructure.Module
+	Farrowing         *farrowinginfrastructure.Module
+	PigletDeath       *pigletdeathinfrastructure.Module
+	PigletFostering   *pigletfosteringinfrastructure.Module
+	PartialWeaging    *partialweaginginfrastructure.Module
+	Weaging           *weaginginfrastructure.Module
+	Auth              *authinfrastructure.Module
 }
 
 func New(ctx context.Context, applicationConfig config.Config) (*Container, error) {
@@ -129,7 +130,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		cookieConfig,
 	)
 
-	return &Container{
+	container := &Container{
 		DB:              db,
 		User:            userinfrastructure.NewModule(userRepository, hasher, clock, authModule.AdminMiddleware),
 		Breed:           breedinfrastructure.NewModule(breedRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
@@ -147,7 +148,15 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		PartialWeaging:  partialweaginginfrastructure.NewModule(partialWeagingRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Weaging:         weaginginfrastructure.NewModule(weagingRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Auth:            authModule,
-	}, nil
+	}
+	container.SowHistoryHandler = sowinfrastructure.NewSowHistoryHandler(
+		container.Sow.HistoryBySow,
+		container.Service.ServicesHistoryBySow,
+		container.Abortion.AbortHistoryBySow,
+		container.Farrowing.FarrowingHistoryBySow,
+		authModule.AuthMiddleware,
+	)
+	return container, nil
 }
 
 func (c *Container) Close() {

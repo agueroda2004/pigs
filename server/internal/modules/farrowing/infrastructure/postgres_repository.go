@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -687,6 +688,138 @@ func (r *PostgresFarrowingRepository) List(ctx context.Context, filter ports.Far
 		}
 	}
 	return farrowings, total, nil
+}
+
+// HistoryBySow loads every farrowing of a sow with its operator and medication names.
+// It returns an empty slice when the sow has no farrowings and never duplicates events.
+func (r *PostgresFarrowingRepository) HistoryBySow(ctx context.Context, sowCode string) ([]*farrowingdomain.FarrowingHistoryBySow, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT f.id, f.farrow_date, f.start_time, f.end_time, f.location,
+		       f.live_born, f.mummified, f.stillborn, f.litter_weight,
+		       f.stillborn_weight, f.is_manipulated, f.note, f.is_nurse
+		FROM farrowings f
+		JOIN sows s ON s.id = f.sow_id
+		WHERE LOWER(s.code) = LOWER($1)
+		ORDER BY f.farrow_date DESC, f.created_at DESC
+	`, strings.TrimSpace(sowCode))
+	if err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los partos: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]*farrowingdomain.FarrowingHistoryBySow, 0)
+	ids := make([]string, 0)
+	for rows.Next() {
+		item := &farrowingdomain.FarrowingHistoryBySow{}
+		var farrowDate time.Time
+		if err := rows.Scan(
+			&item.ID,
+			&farrowDate,
+			&item.StartTime,
+			&item.EndTime,
+			&item.Location,
+			&item.LiveBorn,
+			&item.Mummified,
+			&item.Stillborn,
+			&item.LitterWeight,
+			&item.StillbornWeight,
+			&item.IsManipulated,
+			&item.Note,
+			&item.IsNurse,
+		); err != nil {
+			return nil, fmt.Errorf("No se pudieron consultar los partos: %w", err)
+		}
+		item.FarrowDate = farrowDate.UTC().Format("2006-01-02")
+		item.Operators = make([]farrowingdomain.FarrowingHistoryOperator, 0)
+		item.Medications = make([]farrowingdomain.FarrowingHistoryMedication, 0)
+		items = append(items, item)
+		ids = append(ids, item.ID.String())
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los partos: %w", err)
+	}
+	if len(items) == 0 {
+		return items, nil
+	}
+
+	operators, err := r.historyOperators(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	medications, err := r.historyMedications(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		if values, ok := operators[item.ID]; ok {
+			item.Operators = values
+		}
+		if values, ok := medications[item.ID]; ok {
+			item.Medications = values
+		}
+	}
+	return items, nil
+}
+
+// historyOperators loads the operator names of the given farrowings grouped by farrowing id.
+// It returns an empty map when none of the farrowings has an operator.
+func (r *PostgresFarrowingRepository) historyOperators(ctx context.Context, farrowingIDs []string) (map[uuid.UUID][]farrowingdomain.FarrowingHistoryOperator, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT fo.farrowing_id, o.name
+		FROM farrowing_operators fo
+		JOIN operators o ON o.id = fo.operator_id
+		WHERE fo.farrowing_id = ANY($1::uuid[])
+		ORDER BY fo.farrowing_id, fo.created_at ASC
+	`, farrowingIDs)
+	if err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los operadores del parto: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID][]farrowingdomain.FarrowingHistoryOperator, len(farrowingIDs))
+	for rows.Next() {
+		var farrowingID uuid.UUID
+		var name string
+		if err := rows.Scan(&farrowingID, &name); err != nil {
+			return nil, fmt.Errorf("No se pudieron consultar los operadores del parto: %w", err)
+		}
+		result[farrowingID] = append(result[farrowingID], farrowingdomain.FarrowingHistoryOperator{OperatorName: name})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los operadores del parto: %w", err)
+	}
+	return result, nil
+}
+
+// historyMedications loads the medication names, doses and applying operators of the
+// given farrowings grouped by farrowing id. It returns an empty map when none exist.
+func (r *PostgresFarrowingRepository) historyMedications(ctx context.Context, farrowingIDs []string) (map[uuid.UUID][]farrowingdomain.FarrowingHistoryMedication, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT fm.farrowing_id, m.name, fm.dose, o.name
+		FROM farrowing_medications fm
+		JOIN medications m ON m.id = fm.medication_id
+		JOIN operators o ON o.id = fm.applied_by
+		WHERE fm.farrowing_id = ANY($1::uuid[])
+		ORDER BY fm.farrowing_id, fm.created_at ASC
+	`, farrowingIDs)
+	if err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los medicamentos del parto: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID][]farrowingdomain.FarrowingHistoryMedication, len(farrowingIDs))
+	for rows.Next() {
+		var farrowingID uuid.UUID
+		var medication farrowingdomain.FarrowingHistoryMedication
+		if err := rows.Scan(&farrowingID, &medication.MedicationName, &medication.Dose, &medication.AppliedByName); err != nil {
+			return nil, fmt.Errorf("No se pudieron consultar los medicamentos del parto: %w", err)
+		}
+		result[farrowingID] = append(result[farrowingID], medication)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los medicamentos del parto: %w", err)
+	}
+	return result, nil
 }
 
 // listOperators fetches the operator links of a farrowing.

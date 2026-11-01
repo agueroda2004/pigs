@@ -205,3 +205,12 @@ func ParseMountType(value string) (MountType, error) {
 	}
 	return mountType, nil
 }
+
+// ServiceHistoryMountBySow is the internal read model returned for each mount
+// of a service in sow history.
+type ServiceHistoryMountBySow struct {
+	BoarCode     string
+	OperatorName string
+	MountDate    string
+	Type         MountType
+}

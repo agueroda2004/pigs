@@ -475,3 +475,13 @@ func ParseState(value string) (State, error) {
 	}
 	return state, nil
 }
+
+// ServiceHistoryBySow is the internal read model returned for each service
+// associated with a sow.
+type ServiceHistoryBySow struct {
+	SowCode  string
+	Note     *string
+	State    State
+	Location *string
+	Mounts   []ServiceHistoryMountBySow
+}

@@ -9,11 +9,12 @@ import (
 )
 
 type Module struct {
-	CreateFarrowing *farrowingapplication.CreateFarrowingService
-	ListFarrowings  *farrowingapplication.ListFarrowingsService
-	UpdateFarrowing *farrowingapplication.UpdateFarrowingService
-	DeleteFarrowing *farrowingapplication.DeleteFarrowingService
-	Handler         *FarrowingHandler
+	CreateFarrowing       *farrowingapplication.CreateFarrowingService
+	ListFarrowings        *farrowingapplication.ListFarrowingsService
+	UpdateFarrowing       *farrowingapplication.UpdateFarrowingService
+	DeleteFarrowing       *farrowingapplication.DeleteFarrowingService
+	FarrowingHistoryBySow *farrowingapplication.FarrowingHistoryBySowService
+	Handler               *FarrowingHandler
 }
 
 // NewModule assembles the farrowing use cases and HTTP handler from its dependencies.
@@ -28,12 +29,14 @@ func NewModule(
 	listFarrowings := farrowingapplication.NewListFarrowingsService(repository)
 	updateFarrowing := farrowingapplication.NewUpdateFarrowingService(repository, clock)
 	deleteFarrowing := farrowingapplication.NewDeleteFarrowingService(repository, clock)
+	farrowingHistoryBySow := farrowingapplication.NewFarrowingHistoryBySowService(repository)
 
 	return &Module{
-		CreateFarrowing: createFarrowing,
-		ListFarrowings:  listFarrowings,
-		UpdateFarrowing: updateFarrowing,
-		DeleteFarrowing: deleteFarrowing,
+		CreateFarrowing:       createFarrowing,
+		ListFarrowings:        listFarrowings,
+		UpdateFarrowing:       updateFarrowing,
+		DeleteFarrowing:       deleteFarrowing,
+		FarrowingHistoryBySow: farrowingHistoryBySow,
 		Handler: NewFarrowingHandler(
 			createFarrowing, listFarrowings, updateFarrowing, deleteFarrowing, authMiddleware, adminMiddleware,
 		),

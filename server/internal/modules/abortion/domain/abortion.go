@@ -252,3 +252,12 @@ func ParseCause(value string) (Cause, error) {
 	}
 	return cause, nil
 }
+
+// AbortionHistoryBySow is the application read model returned for each abortion
+// associated with a sow.
+type AbortionHistoryBySow struct {
+	SowCode      string
+	AbortionDate string
+	Cause        string
+	Note         *string
+}

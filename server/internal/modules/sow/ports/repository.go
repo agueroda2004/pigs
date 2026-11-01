@@ -37,4 +37,6 @@ type SowRepository interface {
 	// Delete removes a sow by its identifier. It returns ErrSowInUse when the
 	// sow still has linked records such as services, abortions or farrowings.
 	Delete(ctx context.Context, id uuid.UUID) error
+	// HistoryBySow returns the history-ready sow read model for the given code.
+	HistoryBySow(ctx context.Context, code string) (*sowdomain.SowHistoryBySow, error)
 }

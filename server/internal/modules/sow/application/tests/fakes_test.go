@@ -11,30 +11,33 @@ import (
 )
 
 type fakeSowRepository struct {
-	exists          bool
-	existsErr       error
-	getSow          *sowdomain.Sow
-	getErr          error
-	listSows        []*sowdomain.Sow
-	listTotal       int
-	listErr         error
-	listFilter      ports.SowFilter
-	listLimit       int
-	listOffset      int
-	listDropdown    []sowdomain.SowDropdown
-	listDropdownErr error
-	listActive      *bool
-	listStates      []sowdomain.State
-	lastServiceDate *time.Time
-	lastServiceErr  error
-	createErr       error
-	updateErr       error
-	updateStateErr  error
-	deleteErr       error
-	created         *sowdomain.Sow
-	updated         *sowdomain.Sow
-	updatedState    *sowdomain.Sow
-	deletedID       uuid.UUID
+	exists           bool
+	existsErr        error
+	getSow           *sowdomain.Sow
+	getErr           error
+	listSows         []*sowdomain.Sow
+	listTotal        int
+	listErr          error
+	listFilter       ports.SowFilter
+	listLimit        int
+	listOffset       int
+	listDropdown     []sowdomain.SowDropdown
+	listDropdownErr  error
+	listActive       *bool
+	listStates       []sowdomain.State
+	lastServiceDate  *time.Time
+	lastServiceErr   error
+	createErr        error
+	updateErr        error
+	updateStateErr   error
+	deleteErr        error
+	historyBySow     *sowdomain.SowHistoryBySow
+	historyBySowErr  error
+	historyBySowCode string
+	created          *sowdomain.Sow
+	updated          *sowdomain.Sow
+	updatedState     *sowdomain.Sow
+	deletedID        uuid.UUID
 }
 
 func (f *fakeSowRepository) Create(_ context.Context, sow *sowdomain.Sow) error {
@@ -80,4 +83,9 @@ func (f *fakeSowRepository) UpdateState(_ context.Context, sow *sowdomain.Sow) e
 func (f *fakeSowRepository) Delete(_ context.Context, id uuid.UUID) error {
 	f.deletedID = id
 	return f.deleteErr
+}
+
+func (f *fakeSowRepository) HistoryBySow(_ context.Context, code string) (*sowdomain.SowHistoryBySow, error) {
+	f.historyBySowCode = code
+	return f.historyBySow, f.historyBySowErr
 }

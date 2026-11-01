@@ -15,6 +15,7 @@ type Module struct {
 	UpdateSow       *sowapplication.UpdateSowService
 	DeleteSow       *sowapplication.DeleteSowService
 	ChangeSowState  *sowapplication.ChangeSowStateService
+	HistoryBySow    *sowapplication.SowHistoryBySowService
 	Handler         *SowHandler
 }
 
@@ -33,6 +34,7 @@ func NewModule(
 	updateSow := sowapplication.NewUpdateSowService(repository, clock)
 	deleteSow := sowapplication.NewDeleteSowService(repository)
 	changeSowState := sowapplication.NewChangeSowStateService(repository, clock)
+	historyBySow := sowapplication.NewSowHistoryBySowService(repository, clock)
 
 	return &Module{
 		CreateSow:       createSow,
@@ -41,6 +43,7 @@ func NewModule(
 		UpdateSow:       updateSow,
 		DeleteSow:       deleteSow,
 		ChangeSowState:  changeSowState,
+		HistoryBySow:    historyBySow,
 		Handler:         NewSowHandler(createSow, listSows, listSowDropdown, updateSow, deleteSow, authMiddleware, adminMiddleware),
 	}
 }

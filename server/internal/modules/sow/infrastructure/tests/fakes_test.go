@@ -8,7 +8,10 @@ import (
 
 	"github.com/google/uuid"
 
+	abortiondomain "server/internal/modules/abortion/domain"
 	authdomain "server/internal/modules/auth/domain"
+	farrowingdomain "server/internal/modules/farrowing/domain"
+	servicedomain "server/internal/modules/service/domain"
 	sowapplication "server/internal/modules/sow/application"
 	sowdomain "server/internal/modules/sow/domain"
 	sowinfra "server/internal/modules/sow/infrastructure"
@@ -84,6 +87,58 @@ type fakeDeleteSowUseCase struct {
 	err    error
 	sowID  uuid.UUID
 	called bool
+}
+
+type fakeSowHistoryBySowUseCase struct {
+	history *sowdomain.SowHistoryBySow
+	err     error
+	code    string
+	called  bool
+}
+
+func (f *fakeSowHistoryBySowUseCase) Execute(_ context.Context, code string) (*sowdomain.SowHistoryBySow, error) {
+	f.called = true
+	f.code = code
+	return f.history, f.err
+}
+
+type fakeServicesHistoryBySowUseCase struct {
+	services []*servicedomain.ServiceHistoryBySow
+	err      error
+	code     string
+	called   bool
+}
+
+func (f *fakeServicesHistoryBySowUseCase) Execute(_ context.Context, code string) ([]*servicedomain.ServiceHistoryBySow, error) {
+	f.called = true
+	f.code = code
+	return f.services, f.err
+}
+
+type fakeAbortionHistoryBySowUseCase struct {
+	abortions []abortiondomain.AbortionHistoryBySow
+	err       error
+	code      string
+	called    bool
+}
+
+func (f *fakeAbortionHistoryBySowUseCase) Execute(_ context.Context, code string) ([]abortiondomain.AbortionHistoryBySow, error) {
+	f.called = true
+	f.code = code
+	return f.abortions, f.err
+}
+
+type fakeFarrowingHistoryBySowUseCase struct {
+	farrowings []*farrowingdomain.FarrowingHistoryBySow
+	err        error
+	code       string
+	called     bool
+}
+
+func (f *fakeFarrowingHistoryBySowUseCase) Execute(_ context.Context, code string) ([]*farrowingdomain.FarrowingHistoryBySow, error) {
+	f.called = true
+	f.code = code
+	return f.farrowings, f.err
 }
 
 func (f *fakeDeleteSowUseCase) Execute(_ context.Context, sowID uuid.UUID) error {

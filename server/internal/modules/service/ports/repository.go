@@ -56,4 +56,7 @@ type ServiceRepository interface {
 	// Delete removes a service and its mounts, restoring the sow state and the
 	// previous service state in one atomic transaction.
 	Delete(ctx context.Context, service *servicedomain.Service, sow *sowdomain.Sow, previous *servicedomain.Service) error
+	// HistoryBySow returns every service associated with the given sow code in
+	// history order, without pagination.
+	HistoryBySow(ctx context.Context, sowCode string) ([]*servicedomain.ServiceHistoryBySow, error)
 }

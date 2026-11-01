@@ -45,4 +45,7 @@ type AbortionRepository interface {
 	// List returns one page of abortions matching the filter together with the
 	// total count of matches, so callers can paginate the result.
 	List(ctx context.Context, filter AbortionFilter, limit, offset int) ([]*abortiondomain.Abortion, int, error)
+	// HistoryBySow returns every abortion associated with the given sow code,
+	// without pagination, in the repository's newest-first order.
+	HistoryBySow(ctx context.Context, sowCode string) ([]*abortiondomain.Abortion, error)
 }

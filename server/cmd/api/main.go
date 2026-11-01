@@ -48,6 +48,7 @@ func main() {
 
 	sowHandler := dependencies.Sow.Handler
 	sowHandler.RegisterRoutes(mux)
+	dependencies.SowHistoryHandler.RegisterRoutes(mux)
 
 	operatorHandler := dependencies.Operator.Handler
 	operatorHandler.RegisterRoutes(mux)

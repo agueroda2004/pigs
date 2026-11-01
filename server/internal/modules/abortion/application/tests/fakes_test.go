@@ -47,6 +47,10 @@ type fakeAbortionRepository struct {
 	listFilter    ports.AbortionFilter
 	listLimit     int
 	listOffset    int
+
+	historyBySow    []*abortiondomain.Abortion
+	historyBySowErr error
+	historyBySowCode string
 }
 
 func (f *fakeAbortionRepository) GetSow(_ context.Context, _ uuid.UUID) (*sowdomain.Sow, error) {
@@ -103,4 +107,9 @@ func (f *fakeAbortionRepository) List(_ context.Context, filter ports.AbortionFi
 	f.listLimit = limit
 	f.listOffset = offset
 	return f.listAbortions, f.listTotal, f.listErr
+}
+
+func (f *fakeAbortionRepository) HistoryBySow(_ context.Context, sowCode string) ([]*abortiondomain.Abortion, error) {
+	f.historyBySowCode = sowCode
+	return f.historyBySow, f.historyBySowErr
 }

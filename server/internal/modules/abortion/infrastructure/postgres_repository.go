@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -503,6 +504,40 @@ func (r *PostgresAbortionRepository) List(ctx context.Context, filter ports.Abor
 
 // mapPostgresError translates PostgreSQL errors into domain port errors.
 // It wraps any error with context because no module-specific constraint exists.
+// HistoryBySow returns every abortion associated with the given sow code,
+// without pagination, in newest-first order.
+func (r *PostgresAbortionRepository) HistoryBySow(ctx context.Context, sowCode string) ([]*abortiondomain.Abortion, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT a.abortion_date, a.cause, a.note, sow.code
+		FROM abortions a
+		JOIN sows sow ON sow.id = a.sow_id
+		WHERE LOWER(sow.code) = LOWER($1)
+		ORDER BY a.abortion_date DESC, a.created_at DESC
+	`, strings.TrimSpace(sowCode))
+	if err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los abortos: %w", err)
+	}
+	defer rows.Close()
+
+	abortions := make([]*abortiondomain.Abortion, 0)
+	for rows.Next() {
+		result := &abortiondomain.Abortion{}
+		if err := rows.Scan(
+			&result.AbortionDate,
+			&result.Cause,
+			&result.Note,
+			&result.SowCode,
+		); err != nil {
+			return nil, fmt.Errorf("No se pudieron consultar los abortos: %w", err)
+		}
+		abortions = append(abortions, result)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los abortos: %w", err)
+	}
+	return abortions, nil
+}
+
 func mapPostgresError(err error) error {
 	return fmt.Errorf("No se pudo guardar el aborto: %w", err)
 }

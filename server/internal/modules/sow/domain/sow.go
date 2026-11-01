@@ -500,3 +500,15 @@ func ParseState(value string) (State, error) {
 	}
 	return state, nil
 }
+
+// SowHistoryBySow is the internal read model used by the sow history by sow
+// query. It exposes only the history-ready sow fields and a precomputed age.
+type SowHistoryBySow struct {
+	Code      string
+	EntryDate string
+	BirthDate *string
+	State     State
+	Parity    int
+	BreedName string
+	Age       string
+}

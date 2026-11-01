@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	sowapplication "server/internal/modules/sow/application"
 	sowdomain "server/internal/modules/sow/domain"
 	"server/internal/modules/sow/ports"
 )
@@ -339,6 +341,58 @@ func (r *PostgresSowRepository) Delete(ctx context.Context, id uuid.UUID) error 
 		return ErrSowNotFound
 	}
 	return nil
+}
+
+// HistoryBySow loads the history-ready sow read model for the given code.
+// It joins sows with breeds and preserves the missing/inactive sow errors.
+func (r *PostgresSowRepository) HistoryBySow(ctx context.Context, code string) (*sowdomain.SowHistoryBySow, error) {
+	var entryDate time.Time
+	var birthDate *time.Time
+	var state string
+	var parity int
+	var breedName string
+	var resultCode string
+	var active bool
+
+	err := r.pool.QueryRow(ctx, `
+		SELECT s.code, s.active, s.entry_date, s.birth_date, s.state, s.parity, b.name
+		FROM sows s
+		JOIN breeds b ON b.id = s.breed_id
+		WHERE LOWER(s.code) = LOWER($1)
+		ORDER BY (s.code = $1) DESC, s.code ASC
+		LIMIT 1
+	`, strings.TrimSpace(code)).Scan(
+		&resultCode,
+		&active,
+		&entryDate,
+		&birthDate,
+		&state,
+		&parity,
+		&breedName,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ports.ErrSowNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("No se pudo consultar la cerda: %w", err)
+	}
+	if !active {
+		return nil, sowapplication.ErrSowInactive
+	}
+
+	entryDateText := entryDate.UTC().Format("2006-01-02")
+	result := &sowdomain.SowHistoryBySow{
+		Code:      resultCode,
+		EntryDate: entryDateText,
+		State:     sowdomain.State(state),
+		Parity:    parity,
+		BreedName: breedName,
+	}
+	if birthDate != nil {
+		text := birthDate.UTC().Format("2006-01-02")
+		result.BirthDate = &text
+	}
+	return result, nil
 }
 
 // mapPostgresError translates PostgreSQL errors into domain port errors.

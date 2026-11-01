@@ -57,6 +57,10 @@ type fakeServiceRepository struct {
 	scheduleErr       error
 	scheduleReference time.Time
 	scheduleCalled    bool
+
+	historyBySow      []*servicedomain.ServiceHistoryBySow
+	historyBySowErr   error
+	historyBySowCode  string
 }
 
 func (f *fakeServiceRepository) GetSow(_ context.Context, _ uuid.UUID) (*sowdomain.Sow, error) {
@@ -121,4 +125,9 @@ func (f *fakeServiceRepository) GetFarrowingSchedule(_ context.Context, referenc
 	f.scheduleCalled = true
 	f.scheduleReference = reference
 	return f.schedule, f.scheduleErr
+}
+
+func (f *fakeServiceRepository) HistoryBySow(_ context.Context, sowCode string) ([]*servicedomain.ServiceHistoryBySow, error) {
+	f.historyBySowCode = sowCode
+	return f.historyBySow, f.historyBySowErr
 }

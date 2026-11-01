@@ -9,12 +9,13 @@ import (
 )
 
 type Module struct {
-	CreateService     *serviceapplication.CreateServiceService
-	ListServices      *serviceapplication.ListServicesService
-	DeleteService     *serviceapplication.DeleteServiceService
-	UpdateService     *serviceapplication.UpdateServiceService
-	FarrowingSchedule *serviceapplication.GetFarrowingScheduleService
-	Handler           *ServiceHandler
+	CreateService          *serviceapplication.CreateServiceService
+	ListServices           *serviceapplication.ListServicesService
+	DeleteService          *serviceapplication.DeleteServiceService
+	UpdateService          *serviceapplication.UpdateServiceService
+	FarrowingSchedule       *serviceapplication.GetFarrowingScheduleService
+	ServicesHistoryBySow   *serviceapplication.ServicesHistoryBySowService
+	Handler                *ServiceHandler
 }
 
 // NewModule assembles the service use cases and HTTP handler from its dependencies.
@@ -30,13 +31,15 @@ func NewModule(
 	deleteService := serviceapplication.NewDeleteServiceService(repository, clock)
 	updateService := serviceapplication.NewUpdateServiceService(repository, clock)
 	farrowingSchedule := serviceapplication.NewGetFarrowingScheduleService(repository, clock)
+	servicesHistoryBySow := serviceapplication.NewServicesHistoryBySowService(repository)
 
 	return &Module{
-		CreateService:     createService,
-		ListServices:      listServices,
-		DeleteService:     deleteService,
-		UpdateService:     updateService,
-		FarrowingSchedule: farrowingSchedule,
-		Handler:           NewServiceHandler(createService, listServices, deleteService, updateService, farrowingSchedule, authMiddleware, adminMiddleware),
+		CreateService:          createService,
+		ListServices:           listServices,
+		DeleteService:          deleteService,
+		UpdateService:          updateService,
+		FarrowingSchedule:       farrowingSchedule,
+		ServicesHistoryBySow:    servicesHistoryBySow,
+		Handler:                NewServiceHandler(createService, listServices, deleteService, updateService, farrowingSchedule, authMiddleware, adminMiddleware),
 	}
 }

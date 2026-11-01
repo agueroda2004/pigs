@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -743,6 +744,115 @@ func (r *PostgresServiceRepository) Delete(ctx context.Context, service *service
 
 // mapPostgresError translates PostgreSQL errors into domain port errors.
 // It wraps any error with context because no module-specific constraint exists.
+// HistoryBySow returns every service associated with the given sow code in
+// history order, without pagination.
+func (r *PostgresServiceRepository) HistoryBySow(ctx context.Context, sowCode string) ([]*servicedomain.ServiceHistoryBySow, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			s.id,
+			so.code,
+			s.note,
+			s.state,
+			s.location,
+			m.id,
+			m.mount_number,
+			m.mount_date,
+			m.type,
+			b.code,
+			o.name
+		FROM services s
+		JOIN sows so ON so.id = s.sow_id
+		LEFT JOIN mounts m ON m.service_id = s.id
+		LEFT JOIN boars b ON b.id = m.boar_id
+		LEFT JOIN operators o ON o.id = m.operator_id
+		WHERE LOWER(so.code) = LOWER($1)
+		ORDER BY
+			(SELECT MIN(m2.mount_date) FROM mounts m2 WHERE m2.service_id = s.id) DESC NULLS LAST,
+			s.id ASC,
+			m.mount_number ASC NULLS LAST
+	`, strings.TrimSpace(sowCode))
+	if err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los servicios: %w", err)
+	}
+	defer rows.Close()
+
+	itemsByID := make(map[uuid.UUID]*servicedomain.ServiceHistoryBySow)
+	itemOrder := make([]uuid.UUID, 0)
+	for rows.Next() {
+		var serviceID uuid.UUID
+		var sowCodeValue string
+		var note *string
+		var state string
+		var location *string
+		var mountID *uuid.UUID
+		var mountNumber *int
+		var mountDate *time.Time
+		var mountType *string
+		var boarCode *string
+		var operatorName *string
+
+		if err := rows.Scan(
+			&serviceID,
+			&sowCodeValue,
+			&note,
+			&state,
+			&location,
+			&mountID,
+			&mountNumber,
+			&mountDate,
+			&mountType,
+			&boarCode,
+			&operatorName,
+		); err != nil {
+			return nil, fmt.Errorf("No se pudieron consultar los servicios: %w", err)
+		}
+
+		item, ok := itemsByID[serviceID]
+		if !ok {
+			item = &servicedomain.ServiceHistoryBySow{
+				SowCode:  sowCodeValue,
+				Note:     note,
+				State:    servicedomain.State(state),
+				Location: location,
+				Mounts:   make([]servicedomain.ServiceHistoryMountBySow, 0),
+			}
+			itemsByID[serviceID] = item
+			itemOrder = append(itemOrder, serviceID)
+		}
+
+		if mountID != nil {
+			mount := servicedomain.ServiceHistoryMountBySow{
+				BoarCode:     stringValue(boarCode),
+				OperatorName: stringValue(operatorName),
+				Type:         servicedomain.MountType(stringValue(mountType)),
+			}
+			if mountDate != nil {
+				mount.MountDate = mountDate.UTC().Format("2006-01-02")
+			}
+			item.Mounts = append(item.Mounts, mount)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los servicios: %w", err)
+	}
+
+	items := make([]*servicedomain.ServiceHistoryBySow, 0, len(itemOrder))
+	for _, serviceID := range itemOrder {
+		items = append(items, itemsByID[serviceID])
+	}
+	if items == nil {
+		items = make([]*servicedomain.ServiceHistoryBySow, 0)
+	}
+	return items, nil
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
 func mapPostgresError(err error) error {
 	return fmt.Errorf("No se pudo guardar el servicio: %w", err)
 }

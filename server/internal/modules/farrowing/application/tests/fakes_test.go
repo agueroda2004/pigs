@@ -53,6 +53,10 @@ type fakeFarrowingRepository struct {
 	listFilter     ports.FarrowingFilter
 	listLimit      int
 	listOffset     int
+
+	historyItems []*farrowingdomain.FarrowingHistoryBySow
+	historyErr   error
+	historyCode  string
 }
 
 func (f *fakeFarrowingRepository) GetSow(_ context.Context, _ uuid.UUID) (*sowdomain.Sow, error) {
@@ -130,4 +134,9 @@ func (f *fakeFarrowingRepository) List(_ context.Context, filter ports.Farrowing
 		total = len(f.listFarrowings)
 	}
 	return f.listFarrowings, total, f.listErr
+}
+
+func (f *fakeFarrowingRepository) HistoryBySow(_ context.Context, sowCode string) ([]*farrowingdomain.FarrowingHistoryBySow, error) {
+	f.historyCode = sowCode
+	return f.historyItems, f.historyErr
 }
