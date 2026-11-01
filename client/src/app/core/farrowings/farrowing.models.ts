@@ -1,6 +1,7 @@
 export interface FarrowingOperatorLink {
   id: string;
   operator_id: string;
+  operator_name?: string;
 }
 
 export interface FarrowingMedicationLink {

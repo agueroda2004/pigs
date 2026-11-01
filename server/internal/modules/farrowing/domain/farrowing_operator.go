@@ -14,12 +14,13 @@ var (
 )
 
 // FarrowingOperator links a farrowing with an operator that took part in it.
-// It is a lightweight join row that only records the audit timestamp.
+// It is a lightweight join row that also carries the operator name for reads.
 type FarrowingOperator struct {
-	ID          uuid.UUID
-	FarrowingID uuid.UUID
-	OperatorID  uuid.UUID
-	CreatedAt   time.Time
+	ID           uuid.UUID
+	FarrowingID  uuid.UUID
+	OperatorID   uuid.UUID
+	OperatorName string
+	CreatedAt    time.Time
 }
 
 // NewFarrowingOperatorParams holds the fields required to build a join row.

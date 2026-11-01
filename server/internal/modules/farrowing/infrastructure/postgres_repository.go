@@ -826,10 +826,11 @@ func (r *PostgresFarrowingRepository) historyMedications(ctx context.Context, fa
 // It returns an empty slice when the farrowing has no operators.
 func (r *PostgresFarrowingRepository) listOperators(ctx context.Context, farrowingID uuid.UUID) ([]*farrowingdomain.FarrowingOperator, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, farrowing_id, operator_id, created_at
-		FROM farrowing_operators
-		WHERE farrowing_id = $1
-		ORDER BY created_at ASC
+		SELECT fo.id, fo.farrowing_id, fo.operator_id, o.name, fo.created_at
+		FROM farrowing_operators fo
+		JOIN operators o ON o.id = fo.operator_id
+		WHERE fo.farrowing_id = $1
+		ORDER BY fo.created_at ASC
 	`, farrowingID)
 	if err != nil {
 		return nil, fmt.Errorf("No se pudieron consultar los operadores del parto: %w", err)
@@ -839,7 +840,7 @@ func (r *PostgresFarrowingRepository) listOperators(ctx context.Context, farrowi
 	operators := make([]*farrowingdomain.FarrowingOperator, 0)
 	for rows.Next() {
 		result := &farrowingdomain.FarrowingOperator{}
-		if err := rows.Scan(&result.ID, &result.FarrowingID, &result.OperatorID, &result.CreatedAt); err != nil {
+		if err := rows.Scan(&result.ID, &result.FarrowingID, &result.OperatorID, &result.OperatorName, &result.CreatedAt); err != nil {
 			return nil, fmt.Errorf("No se pudieron consultar los operadores del parto: %w", err)
 		}
 		operators = append(operators, result)

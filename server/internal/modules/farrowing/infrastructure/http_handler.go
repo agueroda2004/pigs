@@ -117,8 +117,9 @@ type updateFarrowingRequest struct {
 }
 
 type farrowingOperatorResponse struct {
-	ID         uuid.UUID `json:"id"`
-	OperatorID uuid.UUID `json:"operator_id"`
+	ID           uuid.UUID `json:"id"`
+	OperatorID   uuid.UUID `json:"operator_id"`
+	OperatorName string    `json:"operator_name"`
 }
 
 type farrowingMedicationResponse struct {
@@ -519,8 +520,9 @@ func toOperatorResponses(operators []*farrowingdomain.FarrowingOperator) []farro
 	responses := make([]farrowingOperatorResponse, 0, len(operators))
 	for _, operator := range operators {
 		responses = append(responses, farrowingOperatorResponse{
-			ID:         operator.ID,
-			OperatorID: operator.OperatorID,
+			ID:           operator.ID,
+			OperatorID:   operator.OperatorID,
+			OperatorName: operator.OperatorName,
 		})
 	}
 	return responses
