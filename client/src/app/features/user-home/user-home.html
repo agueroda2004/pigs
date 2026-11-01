@@ -24,26 +24,32 @@
       </button>
     </div>
   } @else if (schedule(); as data) {
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-      <label for="home-sow-code" class="text-sm font-medium">Cerda</label>
-      <input
-        id="home-sow-code"
-        type="text"
-        [value]="filterCode()"
-        (input)="onFilterInput($event)"
-        autocomplete="off"
-        placeholder="Código de la cerda"
-        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring sm:max-w-xs"
-      />
-      @if (hasFilter()) {
-        <button
-          type="button"
-          (click)="clearFilter()"
-          class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Limpiar
-        </button>
-      }
+    <div class="grid gap-4 rounded-xl border border-border bg-card p-4 sm:grid-cols-2">
+      <div class="space-y-1.5">
+        <label for="home-sow-code" class="block text-xs font-medium text-muted-foreground">
+          Cerda
+        </label>
+        <input
+          id="home-sow-code"
+          type="text"
+          [value]="filterCode()"
+          (input)="onFilterInput($event)"
+          autocomplete="off"
+          placeholder="Código de la cerda"
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-ring"
+        />
+      </div>
+      <div class="flex items-end gap-2">
+        @if (hasFilter()) {
+          <button
+            type="button"
+            (click)="clearFilter()"
+            class="rounded-md border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Limpiar
+          </button>
+        }
+      </div>
     </div>
 
     <section class="space-y-3">
