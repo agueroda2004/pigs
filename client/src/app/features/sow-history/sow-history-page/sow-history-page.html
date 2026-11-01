@@ -123,19 +123,22 @@
                   }
                   <p class="mt-1 text-sm text-muted-foreground">Manipulado: {{ event.data.is_manipulated ? 'Sí' : 'No' }}</p>
                   <p class="mt-1 text-sm text-muted-foreground">Nodriza: {{ event.data.is_nurse ? 'Sí' : 'No' }}</p>
-                  @if (event.data.operators.length) {
-                    <ul class="mt-2 space-y-1 text-sm text-muted-foreground">
+                  @if (event.data.operators.length || event.data.medications.length) {
+                    <div class="mt-2 grid gap-2 sm:grid-cols-2">
                       @for (operator of event.data.operators; track $index) {
-                        <li>Operador: {{ operator.operator_name }}</li>
+                        <article class="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                          <p class="font-medium">Operador</p>
+                          <p class="mt-1">{{ operator.operator_name }}</p>
+                        </article>
                       }
-                    </ul>
-                  }
-                  @if (event.data.medications.length) {
-                    <ul class="mt-2 space-y-1 text-sm text-muted-foreground">
                       @for (medication of event.data.medications; track $index) {
-                        <li>{{ medication.medication_name }} · Dosis {{ medication.dose }} · Aplicado por {{ medication.applied_by_name }}</li>
+                        <article class="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                          <p class="font-medium">{{ medication.medication_name }}</p>
+                          <p class="mt-1 text-muted-foreground">Dosis: {{ medication.dose }}</p>
+                          <p class="mt-1 text-muted-foreground">Aplicado por: {{ medication.applied_by_name }}</p>
+                        </article>
                       }
-                    </ul>
+                    </div>
                   }
                   @if (event.data.note) {
                     <p class="mt-2 text-sm">Nota: {{ event.data.note }}</p>
