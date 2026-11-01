@@ -4,7 +4,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 
-import { SowHistory, SowHistoryEvent } from '../../../core/sows/sow-history.models';
+import { SowHistory, SowHistoryEvent, SowHistoryFarrowing } from '../../../core/sows/sow-history.models';
 import { SowsService } from '../../../core/sows/sows.service';
 
 @Component({
@@ -75,4 +75,38 @@ export class SowHistoryPage {
         return 'border-l-4 border-l-gray-300';
     }
   }
+
+  protected farrowingTimeRange(farrowing: SowHistoryFarrowing): string | null {
+    const { start_time, end_time } = farrowing;
+    if (start_time && end_time) {
+      return `${start_time} → ${end_time}`;
+    }
+    return start_time ?? end_time ?? null;
+  }
+
+  protected farrowingDuration(farrowing: SowHistoryFarrowing): string | null {
+    const { start_time, end_time } = farrowing;
+    if (!start_time || !end_time) {
+      return null;
+    }
+    const start = toMinutes(start_time);
+    const end = toMinutes(end_time);
+    if (start === null || end === null) {
+      return null;
+    }
+    const diff = end >= start ? end - start : end + 24 * 60 - start;
+    const hours = Math.floor(diff / 60);
+    const minutes = diff % 60;
+    return minutes === 0 ? `${hours} h` : `${hours} h ${minutes} min`;
+  }
+}
+
+// toMinutes converts an HH:MM string into its total minutes.
+// It returns null when the value does not match the HH:MM format.
+function toMinutes(value: string): number | null {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
+  if (!match) {
+    return null;
+  }
+  return Number(match[1]) * 60 + Number(match[2]);
 }

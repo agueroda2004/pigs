@@ -1,7 +1,9 @@
 <main class="space-y-6">
   <header>
     <h1 class="text-2xl font-semibold tracking-tight">Historial de cerdas</h1>
-    <p class="mt-1 text-sm text-muted-foreground">Busque por código para consultar el historial reproductivo.</p>
+    <p class="mt-1 text-sm text-muted-foreground">
+      Busque por código para consultar el historial reproductivo.
+    </p>
   </header>
 
   <form
@@ -10,7 +12,9 @@
     (ngSubmit)="search()"
   >
     <div class="flex-1 space-y-1.5">
-      <label for="sow-history-code" class="block text-xs font-medium text-muted-foreground">Código de la cerda</label>
+      <label for="sow-history-code" class="block text-xs font-medium text-muted-foreground"
+        >Código de la cerda</label
+      >
       <input
         id="sow-history-code"
         type="text"
@@ -33,11 +37,17 @@
   </form>
 
   @if (loading()) {
-    <div role="status" class="rounded-xl border border-border p-8 text-center text-sm text-muted-foreground">
+    <div
+      role="status"
+      class="rounded-xl border border-border p-8 text-center text-sm text-muted-foreground"
+    >
       Cargando historial…
     </div>
   } @else if (error()) {
-    <div role="alert" class="rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
+    <div
+      role="alert"
+      class="rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger"
+    >
       {{ error() }}
     </div>
   } @else if (history(); as result) {
@@ -47,17 +57,35 @@
         <span class="text-sm text-muted-foreground">{{ result.sow.state }}</span>
       </div>
       <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-        <div><dt class="text-muted-foreground">Ingreso</dt><dd>{{ result.sow.entry_date }}</dd></div>
+        <div>
+          <dt class="text-muted-foreground">Ingreso</dt>
+          <dd>{{ result.sow.entry_date }}</dd>
+        </div>
         @if (result.sow.birth_date) {
-          <div><dt class="text-muted-foreground">Nacimiento</dt><dd>{{ result.sow.birth_date }}</dd></div>
+          <div>
+            <dt class="text-muted-foreground">Nacimiento</dt>
+            <dd>{{ result.sow.birth_date }}</dd>
+          </div>
         }
-        <div><dt class="text-muted-foreground">Raza</dt><dd>{{ result.sow.breed_name }}</dd></div>
-        <div><dt class="text-muted-foreground">Paridad</dt><dd>{{ result.sow.parity }}</dd></div>
-        <div><dt class="text-muted-foreground">Edad</dt><dd>{{ result.sow.age }}</dd></div>
+        <div>
+          <dt class="text-muted-foreground">Raza</dt>
+          <dd>{{ result.sow.breed_name }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">Paridad</dt>
+          <dd>{{ result.sow.parity }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">Edad</dt>
+          <dd>{{ result.sow.age }}</dd>
+        </div>
       </dl>
     </section>
 
-    @if (result.events.length === 0 || (result.events.length === 1 && result.events[0].type === 'sow_entry')) {
+    @if (
+      result.events.length === 0 ||
+      (result.events.length === 1 && result.events[0].type === 'sow_entry')
+    ) {
       <div class="rounded-xl border border-border p-8 text-center text-sm text-muted-foreground">
         No hay eventos reproductivos registrados para esta cerda.
       </div>
@@ -66,27 +94,43 @@
         <h2 class="text-lg font-semibold">Eventos</h2>
         <ol class="space-y-3">
           @for (event of result.events; track $index) {
-            <li class="rounded-xl border border-border bg-card p-4" [ngClass]="eventBorderClass(event.type)">
+            <li
+              class="rounded-xl border border-border bg-card p-4"
+              [ngClass]="eventBorderClass(event.type)"
+            >
               <div class="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 class="font-semibold">{{ eventTitle(event) }}</h3>
-                <time class="text-sm text-muted-foreground" [dateTime]="event.date">{{ event.date | date: 'mediumDate':'UTC' }}</time>
+                <time class="text-sm text-muted-foreground" [dateTime]="event.date">{{
+                  event.date | date: 'mediumDate' : 'UTC'
+                }}</time>
               </div>
 
               @switch (event.type) {
                 @case ('sow_entry') {
-                  <p class="mt-2 text-sm text-muted-foreground">Registro de ingreso de {{ event.data.code }}.</p>
-                  <p class="mt-1 text-sm text-muted-foreground">Raza: {{ event.data.breed_name }} · Edad: {{ event.data.age }}</p>
+                  <p class="mt-2 text-sm text-muted-foreground">
+                    Registro de ingreso de {{ event.data.code }}.
+                  </p>
+                  <p class="mt-1 text-sm text-muted-foreground">
+                    Raza: {{ event.data.breed_name }} · Edad: {{ event.data.age }}
+                  </p>
                 }
                 @case ('service') {
-                  <p class="mt-2 text-sm">Estado: {{ event.data.state }} · {{ event.data.location || 'Sin ubicación' }}</p>
+                  <p class="mt-2 text-sm">
+                    Estado: {{ event.data.state }} · {{ event.data.location || 'Sin ubicación' }}
+                  </p>
                   <div class="mt-2 grid gap-2 sm:grid-cols-2">
                     @for (mount of event.data.mounts; track $index) {
                       <article class="rounded-lg border border-border bg-muted/30 p-3 text-sm">
                         <div class="flex items-center justify-between gap-2">
                           <span class="font-medium">Monta</span>
-                          <span class="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">{{ mount.type }}</span>
+                          <span
+                            class="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground"
+                            >{{ mount.type }}</span
+                          >
                         </div>
-                        <p class="mt-1 text-muted-foreground">{{ mount.mount_date | date: 'short':'UTC' }}</p>
+                        <p class="mt-1 text-muted-foreground">
+                          {{ mount.mount_date | date: 'short' : 'UTC' }}
+                        </p>
                         <p class="mt-1">Verraco: {{ mount.boar_code }}</p>
                         <p class="mt-1">Operador: {{ mount.operator_name || 'Sin operador' }}</p>
                       </article>
@@ -98,31 +142,49 @@
                 }
                 @case ('abortion') {
                   <p class="mt-2 text-sm">Causa: {{ event.data.cause }}</p>
-                  <p class="mt-1 text-sm text-muted-foreground">Fecha: {{ event.data.abortion_date }}</p>
+                  <p class="mt-1 text-sm text-muted-foreground">
+                    Fecha: {{ event.data.abortion_date }}
+                  </p>
                   @if (event.data.note) {
                     <p class="mt-1 text-sm text-muted-foreground">Nota: {{ event.data.note }}</p>
                   }
                 }
                 @case ('farrowing') {
-                  <p class="mt-2 text-sm">Vivos: {{ event.data.live_born }} · Nacidos muertos: {{ event.data.stillborn }} · Momificados: {{ event.data.mummified }}</p>
-                  <p class="mt-1 text-sm text-muted-foreground">Total nacidos: {{ event.data.live_born + event.data.stillborn + event.data.mummified }}</p>
-                  @if (event.data.duration) {
-                    <p class="mt-1 text-sm text-muted-foreground">Duración: {{ event.data.duration }}</p>
+                  <p class="mt-2 text-sm">
+                    Vivos: {{ event.data.live_born }} · Nacidos muertos:
+                    {{ event.data.stillborn }} · Momificados: {{ event.data.mummified }}
+                  </p>
+                  <p class="mt-1 text-sm text-muted-foreground">
+                    Total nacidos:
+                    {{ event.data.live_born + event.data.stillborn + event.data.mummified }}
+                  </p>
+                  @if (farrowingTimeRange(event.data); as timeRange) {
+                    <p class="mt-1 text-sm text-muted-foreground">Horario: {{ timeRange }}</p>
                   }
-                  @if (event.data.start_time || event.data.end_time) {
-                    <p class="mt-1 text-sm text-muted-foreground">Horario: {{ event.data.start_time || '—' }} – {{ event.data.end_time || '—' }}</p>
+                  @if (farrowingDuration(event.data); as duration) {
+                    <p class="mt-1 text-sm text-muted-foreground">Duración: {{ duration }}</p>
                   }
                   @if (event.data.location) {
-                    <p class="mt-1 text-sm text-muted-foreground">Ubicación: {{ event.data.location }}</p>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                      Ubicación: {{ event.data.location }}
+                    </p>
                   }
                   @if (event.data.litter_weight !== null) {
-                    <p class="mt-1 text-sm text-muted-foreground">Peso camada: {{ event.data.litter_weight }} kg</p>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                      Peso camada: {{ event.data.litter_weight }} kg
+                    </p>
                   }
                   @if (event.data.stillborn_weight !== null) {
-                    <p class="mt-1 text-sm text-muted-foreground">Peso nacidos muertos: {{ event.data.stillborn_weight }} kg</p>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                      Peso nacidos muertos: {{ event.data.stillborn_weight }} kg
+                    </p>
                   }
-                  <p class="mt-1 text-sm text-muted-foreground">Manipulado: {{ event.data.is_manipulated ? 'Sí' : 'No' }}</p>
-                  <p class="mt-1 text-sm text-muted-foreground">Nodriza: {{ event.data.is_nurse ? 'Sí' : 'No' }}</p>
+                  <p class="mt-1 text-sm text-muted-foreground">
+                    Manipulado: {{ event.data.is_manipulated ? 'Sí' : 'No' }}
+                  </p>
+                  <p class="mt-1 text-sm text-muted-foreground">
+                    Nodriza: {{ event.data.is_nurse ? 'Sí' : 'No' }}
+                  </p>
                   @if (event.data.operators.length) {
                     <article class="mt-2 rounded-lg border border-border bg-muted/30 p-3 text-sm">
                       <p class="font-medium">Operadores</p>
@@ -138,7 +200,10 @@
                       <p class="font-medium">Medicamentos</p>
                       <ul class="mt-1 space-y-1">
                         @for (medication of event.data.medications; track $index) {
-                          <li>{{ medication.medication_name }} · Dosis {{ medication.dose }} · Aplicado por {{ medication.applied_by_name }}</li>
+                          <li>
+                            {{ medication.medication_name }} · Dosis {{ medication.dose }} ·
+                            Aplicado por {{ medication.applied_by_name }}
+                          </li>
                         }
                       </ul>
                     </article>
@@ -154,7 +219,10 @@
       </section>
     }
   } @else {
-    <div role="status" class="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+    <div
+      role="status"
+      class="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground"
+    >
       Ingrese un código de cerda para consultar su historial.
     </div>
   }

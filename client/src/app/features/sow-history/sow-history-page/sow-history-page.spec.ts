@@ -56,7 +56,8 @@ describe('SowHistoryPage', () => {
     expect(sowService.getSowHistory).toHaveBeenCalledWith('C-001');
     expect(fixture.nativeElement.textContent).toContain('Cerda C-001');
     expect(fixture.nativeElement.textContent).toContain('Aborto');
-    expect(fixture.nativeElement.textContent).toContain('Duración: 04:30');
+    expect(fixture.nativeElement.textContent).toContain('Horario: 22:00 → 02:30');
+    expect(fixture.nativeElement.textContent).toContain('Duración: 4 h 30 min');
     expect(fixture.nativeElement.textContent).toContain('Oxitocina');
 
     const cards = fixture.nativeElement.querySelectorAll('ol > li');
