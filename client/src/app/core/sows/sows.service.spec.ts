@@ -148,4 +148,16 @@ describe('SowsService', () => {
 
     await expect(promise).resolves.toBeNull();
   });
+
+  it('gets a sow history by encoded code', async () => {
+    const expected = { sow: sowPayload, events: [] };
+    const promise = firstValueFrom(service.getSowHistory('C 001'));
+
+    const call = http.expectOne(
+      (request) => request.url.endsWith('/sows/C%20001/history') && request.method === 'GET',
+    );
+    call.flush(expected);
+
+    await expect(promise).resolves.toEqual(expected);
+  });
 });

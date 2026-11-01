@@ -11,6 +11,7 @@ import {
   SowState,
   UpdateSowRequest,
 } from './sow.models';
+import { SowHistory } from './sow-history.models';
 
 @Injectable({ providedIn: 'root' })
 export class SowsService {
@@ -37,6 +38,10 @@ export class SowsService {
     params = params.set('page', String(page));
 
     return this.http.get<SowPage>(this.baseUrl, { params });
+  }
+
+  getSowHistory(code: string): Observable<SowHistory> {
+    return this.http.get<SowHistory>(`${this.baseUrl}/${encodeURIComponent(code)}/history`);
   }
 
   listSowDropdown(active?: boolean, states?: SowState[]): Observable<SowDropdown[]> {
