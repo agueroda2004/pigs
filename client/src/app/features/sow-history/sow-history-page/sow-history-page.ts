@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgClass } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -9,7 +9,7 @@ import { SowsService } from '../../../core/sows/sows.service';
 
 @Component({
   selector: 'app-sow-history-page',
-  imports: [DatePipe, ReactiveFormsModule],
+  imports: [DatePipe, NgClass, ReactiveFormsModule],
   styleUrl: './sow-history-page.css',
   templateUrl: './sow-history-page.html',
 })
@@ -57,11 +57,22 @@ export class SowHistoryPage {
       service: 'Servicio',
       abortion: 'Aborto',
       farrowing: 'Parto',
-      piglet_death: 'Muerte de lechones',
-      piglet_fostering: 'Movimiento de lechones',
-      partial_weaging: 'Destete parcial',
-      weaging: 'Destete',
     };
     return titles[event.type];
+  }
+
+  protected eventBorderClass(type: SowHistoryEvent['type']): string {
+    switch (type) {
+      case 'sow_entry':
+        return 'border-l-4 border-l-gray-400';
+      case 'service':
+        return 'border-l-4 border-l-green-500';
+      case 'abortion':
+        return 'border-l-4 border-l-red-500';
+      case 'farrowing':
+        return 'border-l-4 border-l-blue-500';
+      default:
+        return 'border-l-4 border-l-gray-300';
+    }
   }
 }

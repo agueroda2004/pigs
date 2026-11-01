@@ -51,16 +51,9 @@
         @if (result.sow.birth_date) {
           <div><dt class="text-muted-foreground">Nacimiento</dt><dd>{{ result.sow.birth_date }}</dd></div>
         }
-        <div><dt class="text-muted-foreground">Origen</dt><dd>{{ result.sow.origin }}</dd></div>
+        <div><dt class="text-muted-foreground">Raza</dt><dd>{{ result.sow.breed_name }}</dd></div>
         <div><dt class="text-muted-foreground">Paridad</dt><dd>{{ result.sow.parity }}</dd></div>
-        <div><dt class="text-muted-foreground">Ubicación</dt><dd>{{ result.sow.location || '—' }}</dd></div>
-        <div><dt class="text-muted-foreground">Raza ID</dt><dd>{{ result.sow.breed_id }}</dd></div>
-        @if (result.sow.note) {
-          <div class="sm:col-span-2 lg:col-span-4">
-            <dt class="text-muted-foreground">Nota</dt>
-            <dd>{{ result.sow.note }}</dd>
-          </div>
-        }
+        <div><dt class="text-muted-foreground">Edad</dt><dd>{{ result.sow.age }}</dd></div>
       </dl>
     </section>
 
@@ -72,8 +65,8 @@
       <section aria-label="Eventos del historial" class="space-y-3">
         <h2 class="text-lg font-semibold">Eventos</h2>
         <ol class="space-y-3">
-          @for (event of result.events; track event.data.id) {
-            <li class="rounded-xl border border-border bg-card p-4">
+          @for (event of result.events; track $index) {
+            <li class="rounded-xl border border-border bg-card p-4" [ngClass]="eventBorderClass(event.type)">
               <div class="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 class="font-semibold">{{ eventTitle(event) }}</h3>
                 <time class="text-sm text-muted-foreground" [dateTime]="event.date">{{ event.date | date: 'mediumDate':'UTC' }}</time>
@@ -82,31 +75,20 @@
               @switch (event.type) {
                 @case ('sow_entry') {
                   <p class="mt-2 text-sm text-muted-foreground">Registro de ingreso de {{ event.data.code }}.</p>
-                  @if (event.data.location) {
-                    <p class="mt-1 text-sm text-muted-foreground">Ubicación: {{ event.data.location }}</p>
-                  }
-                  @if (event.data.note) {
-                    <p class="mt-1 text-sm text-muted-foreground">Nota: {{ event.data.note }}</p>
-                  }
+                  <p class="mt-1 text-sm text-muted-foreground">Raza: {{ event.data.breed_name }} · Edad: {{ event.data.age }}</p>
                 }
                 @case ('service') {
                   <p class="mt-2 text-sm">Estado: {{ event.data.state }} · {{ event.data.location || 'Sin ubicación' }}</p>
-                  @if (event.data.expected_farrowing_date) {
-                    <p class="mt-1 text-sm text-muted-foreground">Parto probable: {{ event.data.expected_farrowing_date }}</p>
-                  }
                   <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                    @for (mount of event.data.mounts; track mount.id) {
+                    @for (mount of event.data.mounts; track $index) {
                       <article class="rounded-lg border border-border bg-muted/30 p-3 text-sm">
                         <div class="flex items-center justify-between gap-2">
-                          <span class="font-medium">Monta {{ mount.mount_number }}</span>
+                          <span class="font-medium">Monta</span>
                           <span class="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">{{ mount.type }}</span>
                         </div>
                         <p class="mt-1 text-muted-foreground">{{ mount.mount_date | date: 'short':'UTC' }}</p>
                         <p class="mt-1">Verraco: {{ mount.boar_code }}</p>
                         <p class="mt-1">Operador: {{ mount.operator_name || 'Sin operador' }}</p>
-                        @if (mount.note) {
-                          <p class="mt-1 text-muted-foreground">Nota: {{ mount.note }}</p>
-                        }
                       </article>
                     }
                   </div>
@@ -124,7 +106,9 @@
                 @case ('farrowing') {
                   <p class="mt-2 text-sm">Vivos: {{ event.data.live_born }} · Nacidos muertos: {{ event.data.stillborn }} · Momificados: {{ event.data.mummified }}</p>
                   <p class="mt-1 text-sm text-muted-foreground">Total nacidos: {{ event.data.live_born + event.data.stillborn + event.data.mummified }}</p>
-                  <p class="mt-1 text-sm text-muted-foreground">Lechones actuales: {{ event.data.current_piglets }}</p>
+                  @if (event.data.duration) {
+                    <p class="mt-1 text-sm text-muted-foreground">Duración: {{ event.data.duration }}</p>
+                  }
                   @if (event.data.start_time || event.data.end_time) {
                     <p class="mt-1 text-sm text-muted-foreground">Horario: {{ event.data.start_time || '—' }} – {{ event.data.end_time || '—' }}</p>
                   }
@@ -138,67 +122,23 @@
                     <p class="mt-1 text-sm text-muted-foreground">Peso nacidos muertos: {{ event.data.stillborn_weight }} kg</p>
                   }
                   <p class="mt-1 text-sm text-muted-foreground">Manipulado: {{ event.data.is_manipulated ? 'Sí' : 'No' }}</p>
-                  <p class="mt-1 text-sm text-muted-foreground">
-                    Nodriza: {{ event.data.is_nurse ? 'Sí' : 'No' }}
-                    @if (event.data.is_nurse && event.data.nurse_start_date) {
-                      <span> · Inicio: {{ event.data.nurse_start_date }}</span>
-                    }
-                  </p>
+                  <p class="mt-1 text-sm text-muted-foreground">Nodriza: {{ event.data.is_nurse ? 'Sí' : 'No' }}</p>
                   @if (event.data.operators.length) {
                     <ul class="mt-2 space-y-1 text-sm text-muted-foreground">
-                      @for (operator of event.data.operators; track operator.id) {
-                        <li>Operador: {{ operator.operator_name || operator.operator_id }}</li>
+                      @for (operator of event.data.operators; track $index) {
+                        <li>Operador: {{ operator.operator_name }}</li>
                       }
                     </ul>
                   }
                   @if (event.data.medications.length) {
                     <ul class="mt-2 space-y-1 text-sm text-muted-foreground">
-                      @for (medication of event.data.medications; track medication.id) {
-                        <li>Medicamento {{ medication.medication_id }} · Dosis {{ medication.dose }} · Aplicado por {{ medication.applied_by }}</li>
+                      @for (medication of event.data.medications; track $index) {
+                        <li>{{ medication.medication_name }} · Dosis {{ medication.dose }} · Aplicado por {{ medication.applied_by_name }}</li>
                       }
                     </ul>
                   }
                   @if (event.data.note) {
                     <p class="mt-2 text-sm">Nota: {{ event.data.note }}</p>
-                  }
-                }
-                @case ('piglet_death') {
-                  <p class="mt-2 text-sm">{{ event.data.quantity }} lechón(es) · {{ event.data.cause }} · Turno {{ event.data.turn }}</p>
-                  @if (event.data.weight !== null) {
-                    <p class="mt-1 text-sm text-muted-foreground">Peso: {{ event.data.weight }} kg</p>
-                  }
-                  @if (event.data.operator_name) {
-                    <p class="mt-1 text-sm text-muted-foreground">Operador: {{ event.data.operator_name }}</p>
-                  }
-                  @if (event.data.note) {
-                    <p class="mt-1 text-sm text-muted-foreground">Nota: {{ event.data.note }}</p>
-                  }
-                }
-                @case ('piglet_fostering') {
-                  <p class="mt-2 text-sm">{{ event.data.quantity }} lechón(es): {{ event.data.donor_sow_code }} → {{ event.data.receiver_sow_code }}</p>
-                  @if (event.data.note) {
-                    <p class="mt-1 text-sm text-muted-foreground">Nota: {{ event.data.note }}</p>
-                  }
-                }
-                @case ('partial_weaging') {
-                  <p class="mt-2 text-sm">{{ event.data.quantity }} lechón(es) · {{ event.data.type }}</p>
-                  @if (event.data.total_weight !== null) {
-                    <p class="mt-1 text-sm text-muted-foreground">Peso total: {{ event.data.total_weight }} kg</p>
-                  }
-                  @if (event.data.note) {
-                    <p class="mt-1 text-sm text-muted-foreground">Nota: {{ event.data.note }}</p>
-                  }
-                }
-                @case ('weaging') {
-                  <p class="mt-2 text-sm">{{ event.data.quantity }} lechón(es) destetados</p>
-                  @if (event.data.total_weight !== null) {
-                    <p class="mt-1 text-sm text-muted-foreground">Peso total: {{ event.data.total_weight }} kg</p>
-                  }
-                  @if (event.data.destination) {
-                    <p class="mt-1 text-sm text-muted-foreground">Destino: {{ event.data.destination }}</p>
-                  }
-                  @if (event.data.note) {
-                    <p class="mt-1 text-sm text-muted-foreground">Nota: {{ event.data.note }}</p>
                   }
                 }
               }

@@ -9,17 +9,24 @@ import { SowHistoryPage } from './sow-history-page';
 
 const historyPayload: SowHistory = {
   sow: {
-    id: 'sow-1', code: 'C-001', location: 'Corral A', active: true, entry_date: '2026-01-10',
-    birth_date: null, note: null, state: 'Viva', origin: 'Propio', parity: 2, breed_id: 'breed-1',
+    code: 'C-001', entry_date: '2026-01-10', birth_date: null,
+    state: 'Viva', parity: 2, breed_name: 'Large White', age: '1 año',
   },
   events: [
-    { type: 'sow_entry', date: '2026-01-10T00:00:00Z', data: {
-      id: 'sow-1', code: 'C-001', location: 'Corral A', active: true, entry_date: '2026-01-10',
-      birth_date: null, note: null, state: 'Viva', origin: 'Propio', parity: 2, breed_id: 'breed-1',
+    { type: 'sow_entry', date: '2026-01-10', data: {
+      code: 'C-001', entry_date: '2026-01-10', birth_date: null,
+      state: 'Viva', parity: 2, breed_name: 'Large White', age: '1 año',
     } },
-    { type: 'abortion', date: '2026-02-10T00:00:00Z', data: {
-      id: 'abortion-1', sow_id: 'sow-1', sow_code: 'C-001', service_id: 'service-1',
-      abortion_date: '2026-02-10', cause: 'Infeccioso', note: null,
+    { type: 'abortion', date: '2026-02-10', data: {
+      sow_code: 'C-001', abortion_date: '2026-02-10', cause: 'Infeccioso', note: null,
+    } },
+    { type: 'farrowing', date: '2026-03-01', data: {
+      farrow_date: '2026-03-01', start_time: '22:00', end_time: '02:30', duration: '04:30',
+      location: 'Corral A', live_born: 10, mummified: 1, stillborn: 1,
+      litter_weight: 15.5, stillborn_weight: 2.5, is_manipulated: false, note: null,
+      is_nurse: false,
+      operators: [{ operator_name: 'Op 1' }],
+      medications: [{ medication_name: 'Oxitocina', dose: 2, applied_by_name: 'Op 2' }],
     } },
   ],
 };
@@ -49,6 +56,13 @@ describe('SowHistoryPage', () => {
     expect(sowService.getSowHistory).toHaveBeenCalledWith('C-001');
     expect(fixture.nativeElement.textContent).toContain('Cerda C-001');
     expect(fixture.nativeElement.textContent).toContain('Aborto');
+    expect(fixture.nativeElement.textContent).toContain('Duración: 04:30');
+    expect(fixture.nativeElement.textContent).toContain('Oxitocina');
+
+    const cards = fixture.nativeElement.querySelectorAll('ol > li');
+    expect(cards[0].classList).toContain('border-l-gray-400');
+    expect(cards[1].classList).toContain('border-l-red-500');
+    expect(cards[2].classList).toContain('border-l-blue-500');
   });
 
   it('shows a loading state and an empty reproductive history', async () => {

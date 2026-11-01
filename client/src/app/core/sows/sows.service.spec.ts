@@ -150,7 +150,13 @@ describe('SowsService', () => {
   });
 
   it('gets a sow history by encoded code', async () => {
-    const expected = { sow: sowPayload, events: [] };
+    const expected = {
+      sow: {
+        code: 'C 001', entry_date: '2026-01-10', birth_date: null,
+        state: 'Viva', parity: 3, breed_name: 'Large White', age: '1 año',
+      },
+      events: [],
+    };
     const promise = firstValueFrom(service.getSowHistory('C 001'));
 
     const call = http.expectOne(
