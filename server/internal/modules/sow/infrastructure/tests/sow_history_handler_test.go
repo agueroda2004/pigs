@@ -1,14 +1,20 @@
 package tests
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
 
 	abortiondomain "server/internal/modules/abortion/domain"
 	farrowingdomain "server/internal/modules/farrowing/domain"
+	pigletdeathdomain "server/internal/modules/pigletdeath/domain"
+	pigletfosteringdomain "server/internal/modules/pigletfostering/domain"
 	servicedomain "server/internal/modules/service/domain"
 	sowapplication "server/internal/modules/sow/application"
 	sowdomain "server/internal/modules/sow/domain"
@@ -29,9 +35,14 @@ func newHistoryHandler(
 	serviceUseCase *fakeServicesHistoryBySowUseCase,
 	abortionUseCase *fakeAbortionHistoryBySowUseCase,
 	farrowingUseCase *fakeFarrowingHistoryBySowUseCase,
+	pigletDeathUseCase *fakePigletDeathHistoryBySowUseCase,
+	pigletFosteringUseCase *fakePigletFosteringHistoryBySowUseCase,
 ) *sowinfra.SowHistoryHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return sowinfra.NewSowHistoryHandler(sowUseCase, serviceUseCase, abortionUseCase, farrowingUseCase, passThrough)
+	return sowinfra.NewSowHistoryHandler(
+		sowUseCase, serviceUseCase, abortionUseCase, farrowingUseCase,
+		pigletDeathUseCase, pigletFosteringUseCase, passThrough,
+	)
 }
 
 func historySow() *sowdomain.SowHistoryBySow {
@@ -52,6 +63,10 @@ func TestSowHistoryHandlerGet(t *testing.T) {
 		start := "22:00"
 		end := "02:30"
 		duration := "04:30"
+		note := "Muerte durante la noche"
+		weight := 2.5
+		fosteringNote := "Traslado a la cerda 106"
+		sowID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 		serviceUseCase := &fakeServicesHistoryBySowUseCase{services: []*servicedomain.ServiceHistoryBySow{
 			{
 				SowCode: "C-001",
@@ -83,23 +98,54 @@ func TestSowHistoryHandlerGet(t *testing.T) {
 				},
 			},
 		}}
+		pigletDeathUseCase := &fakePigletDeathHistoryBySowUseCase{deaths: []*pigletdeathdomain.PigletDeathHistoryBySow{
+			{
+				OperatorName: "Op 3",
+				DeathDate:    time.Date(2026, time.April, 5, 0, 0, 0, 0, time.UTC),
+				Quantity:     3,
+				Weight:       &weight,
+				Cause:        pigletdeathdomain.CauseCrushed,
+				Turn:         pigletdeathdomain.TurnMorning,
+				Note:         &note,
+			},
+		}}
+		pigletFosteringUseCase := &fakePigletFosteringHistoryBySowUseCase{fosterings: []*pigletfosteringdomain.PigletFosteringHistoryBySow{
+			{
+				SowID:        sowID,
+				Role:         pigletfosteringdomain.PigletFosteringRoleDonor,
+				MovementDate: time.Date(2026, time.April, 10, 0, 0, 0, 0, time.UTC),
+				Quantity:     -2,
+				Note:         &fosteringNote,
+			},
+		}}
 		sowUseCase := &fakeSowHistoryBySowUseCase{history: historySow()}
-		handler := newHistoryHandler(sowUseCase, serviceUseCase, abortionUseCase, farrowingUseCase)
+		handler := newHistoryHandler(
+			sowUseCase, serviceUseCase, abortionUseCase, farrowingUseCase,
+			pigletDeathUseCase, pigletFosteringUseCase,
+		)
 
 		response := serveHistory(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/c-001/history", nil))
 
 		if response.Code != http.StatusOK {
 			t.Fatalf("status=%d", response.Code)
 		}
-		if !sowUseCase.called || !serviceUseCase.called || !abortionUseCase.called || !farrowingUseCase.called {
+		if !sowUseCase.called || !serviceUseCase.called || !abortionUseCase.called ||
+			!farrowingUseCase.called || !pigletDeathUseCase.called || !pigletFosteringUseCase.called {
 			t.Fatalf("not every use case was called")
 		}
 		if farrowingUseCase.code != "c-001" {
 			t.Fatalf("farrowing code = %q, want c-001", farrowingUseCase.code)
 		}
+		if pigletDeathUseCase.code != "c-001" {
+			t.Fatalf("piglet death code = %q, want c-001", pigletDeathUseCase.code)
+		}
+		if pigletFosteringUseCase.code != "c-001" {
+			t.Fatalf("piglet fostering code = %q, want c-001", pigletFosteringUseCase.code)
+		}
 		body := response.Body.String()
 		for _, want := range []string{
 			`"sow"`, `"events"`, `"type":"sow_entry"`, `"type":"service"`, `"type":"abortion"`, `"type":"farrowing"`,
+			`"type":"piglet_death"`, `"type":"piglet_fostering"`,
 			`"code":"C-001"`, `"entry_date":"2026-01-10"`, `"birth_date":"2025-01-01"`,
 			`"breed_name":"Large White"`, `"age":"1 año"`,
 			`"boar_code":"B-001"`, `"mount_date":"2026-02-01"`,
@@ -108,20 +154,178 @@ func TestSowHistoryHandlerGet(t *testing.T) {
 			`"live_born":10`, `"stillborn":1`, `"mummified":1`,
 			`"is_manipulated":true`, `"is_nurse":true`,
 			`"operator_name":"Op 1"`, `"medication_name":"Oxitocina"`, `"dose":2`, `"applied_by_name":"Op 2"`,
+			`"operator_name":"Op 3"`, `"death_date":"2026-04-05"`, `"quantity":3`, `"weight":2.5`,
+			`"cause":"Aplastado"`, `"turn":"Mañana"`, `"note":"Muerte durante la noche"`,
+			`"sow_id":"11111111-1111-1111-1111-111111111111"`, `"role":"donor"`,
+			`"movement_date":"2026-04-10"`, `"quantity":-2`, `"note":"Traslado a la cerda 106"`,
 		} {
 			if !strings.Contains(body, want) {
 				t.Fatalf("body missing %q: %s", want, body)
 			}
 		}
+		fosteringIndex := strings.Index(body, `"type":"piglet_fostering"`)
+		pigletDeathIndex := strings.Index(body, `"type":"piglet_death"`)
 		farrowingIndex := strings.Index(body, `"type":"farrowing"`)
 		abortionIndex := strings.Index(body, `"type":"abortion"`)
 		serviceIndex := strings.Index(body, `"type":"service"`)
 		entryIndex := strings.Index(body, `"type":"sow_entry"`)
-		if farrowingIndex > abortionIndex || abortionIndex > serviceIndex || serviceIndex > entryIndex {
+		if fosteringIndex > pigletDeathIndex || pigletDeathIndex > farrowingIndex ||
+			farrowingIndex > abortionIndex || abortionIndex > serviceIndex || serviceIndex > entryIndex {
 			t.Fatalf("events are not newest-first: %s", body)
 		}
 		if strings.Contains(body, `"services"`) || strings.Contains(body, `"abortions"`) {
 			t.Fatalf("legacy arrays must be absent: %s", body)
+		}
+	})
+
+	t.Run("exposes exactly the seven piglet death fields with nullable weight and note", func(t *testing.T) {
+		sowUseCase := &fakeSowHistoryBySowUseCase{history: historySow()}
+		pigletDeathUseCase := &fakePigletDeathHistoryBySowUseCase{deaths: []*pigletdeathdomain.PigletDeathHistoryBySow{
+			{
+				OperatorName: "Op 3",
+				DeathDate:    time.Date(2026, time.April, 5, 0, 0, 0, 0, time.UTC),
+				Quantity:     3,
+				Weight:       nil,
+				Cause:        pigletdeathdomain.CauseCrushed,
+				Turn:         pigletdeathdomain.TurnMorning,
+				Note:         nil,
+			},
+		}}
+		handler := newHistoryHandler(
+			sowUseCase,
+			&fakeServicesHistoryBySowUseCase{},
+			&fakeAbortionHistoryBySowUseCase{},
+			&fakeFarrowingHistoryBySowUseCase{},
+			pigletDeathUseCase,
+			&fakePigletFosteringHistoryBySowUseCase{},
+		)
+
+		response := serveHistory(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/C-001/history", nil))
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("status=%d", response.Code)
+		}
+
+		var payload struct {
+			Events []struct {
+				Type string          `json:"type"`
+				Date string          `json:"date"`
+				Data json.RawMessage `json:"data"`
+			} `json:"events"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+
+		var data map[string]any
+		for _, event := range payload.Events {
+			if event.Type == "piglet_death" {
+				if event.Date != "2026-04-05" {
+					t.Fatalf("event date = %q, want 2026-04-05", event.Date)
+				}
+				if err := json.Unmarshal(event.Data, &data); err != nil {
+					t.Fatalf("invalid piglet death data: %v", err)
+				}
+				break
+			}
+		}
+		if data == nil {
+			t.Fatalf("missing piglet death event: %s", response.Body.String())
+		}
+		if len(data) != 7 {
+			t.Fatalf("piglet death fields = %v, want exactly seven", data)
+		}
+		for _, key := range []string{"operator_name", "death_date", "quantity", "weight", "cause", "turn", "note"} {
+			if _, ok := data[key]; !ok {
+				t.Fatalf("piglet death missing %q: %v", key, data)
+			}
+		}
+		if data["note"] != nil {
+			t.Fatalf("note = %v, want null", data["note"])
+		}
+		if data["weight"] != nil {
+			t.Fatalf("weight = %v, want null", data["weight"])
+		}
+		if !strings.Contains(response.Body.String(), `"weight":null`) {
+			t.Fatalf("body must contain a null weight: %s", response.Body.String())
+		}
+	})
+
+	t.Run("exposes exactly the five fostering fields with the requested sow perspective", func(t *testing.T) {
+		sowID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+		sowUseCase := &fakeSowHistoryBySowUseCase{history: historySow()}
+		pigletFosteringUseCase := &fakePigletFosteringHistoryBySowUseCase{fosterings: []*pigletfosteringdomain.PigletFosteringHistoryBySow{
+			{
+				SowID:        sowID,
+				Role:         pigletfosteringdomain.PigletFosteringRoleReceiver,
+				MovementDate: time.Date(2026, time.April, 10, 0, 0, 0, 0, time.UTC),
+				Quantity:     3,
+				Note:         nil,
+			},
+		}}
+		handler := newHistoryHandler(
+			sowUseCase,
+			&fakeServicesHistoryBySowUseCase{},
+			&fakeAbortionHistoryBySowUseCase{},
+			&fakeFarrowingHistoryBySowUseCase{},
+			&fakePigletDeathHistoryBySowUseCase{},
+			pigletFosteringUseCase,
+		)
+
+		response := serveHistory(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/C-001/history", nil))
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("status=%d", response.Code)
+		}
+
+		var payload struct {
+			Events []struct {
+				Type string          `json:"type"`
+				Date string          `json:"date"`
+				Data json.RawMessage `json:"data"`
+			} `json:"events"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+
+		var data map[string]any
+		for _, event := range payload.Events {
+			if event.Type == "piglet_fostering" {
+				if event.Date != "2026-04-10" {
+					t.Fatalf("event date = %q, want 2026-04-10", event.Date)
+				}
+				if err := json.Unmarshal(event.Data, &data); err != nil {
+					t.Fatalf("invalid fostering data: %v", err)
+				}
+				break
+			}
+		}
+		if data == nil {
+			t.Fatalf("missing fostering event: %s", response.Body.String())
+		}
+		if len(data) != 5 {
+			t.Fatalf("fostering fields = %v, want exactly five", data)
+		}
+		for _, key := range []string{"sow_id", "role", "movement_date", "quantity", "note"} {
+			if _, ok := data[key]; !ok {
+				t.Fatalf("fostering missing %q: %v", key, data)
+			}
+		}
+		if data["sow_id"] != "22222222-2222-2222-2222-222222222222" {
+			t.Fatalf("sow_id = %v, want the requested sow", data["sow_id"])
+		}
+		if data["role"] != "receiver" {
+			t.Fatalf("role = %v, want receiver", data["role"])
+		}
+		if data["movement_date"] != "2026-04-10" {
+			t.Fatalf("movement_date = %v, want 2026-04-10", data["movement_date"])
+		}
+		if data["quantity"] != float64(3) {
+			t.Fatalf("quantity = %v, want 3", data["quantity"])
+		}
+		if data["note"] != nil {
+			t.Fatalf("note = %v, want null", data["note"])
 		}
 	})
 
@@ -132,6 +336,8 @@ func TestSowHistoryHandlerGet(t *testing.T) {
 			&fakeServicesHistoryBySowUseCase{services: nil},
 			&fakeAbortionHistoryBySowUseCase{},
 			&fakeFarrowingHistoryBySowUseCase{},
+			&fakePigletDeathHistoryBySowUseCase{},
+			&fakePigletFosteringHistoryBySowUseCase{},
 		)
 
 		response := serveHistory(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/c-001/history", nil))
@@ -143,7 +349,9 @@ func TestSowHistoryHandlerGet(t *testing.T) {
 		if !strings.Contains(body, `"events":[{"type":"sow_entry"`) {
 			t.Fatalf("expected only the sow entry event: %s", body)
 		}
-		if strings.Contains(body, `"type":"service"`) || strings.Contains(body, `"type":"abortion"`) || strings.Contains(body, `"type":"farrowing"`) {
+		if strings.Contains(body, `"type":"service"`) || strings.Contains(body, `"type":"abortion"`) ||
+			strings.Contains(body, `"type":"farrowing"`) || strings.Contains(body, `"type":"piglet_death"`) ||
+			strings.Contains(body, `"type":"piglet_fostering"`) {
 			t.Fatalf("unexpected reproductive events: %s", body)
 		}
 	})
@@ -153,15 +361,21 @@ func TestSowHistoryHandlerGet(t *testing.T) {
 			serviceUseCase := &fakeServicesHistoryBySowUseCase{}
 			abortionUseCase := &fakeAbortionHistoryBySowUseCase{}
 			farrowingUseCase := &fakeFarrowingHistoryBySowUseCase{}
+			pigletDeathUseCase := &fakePigletDeathHistoryBySowUseCase{}
+			pigletFosteringUseCase := &fakePigletFosteringHistoryBySowUseCase{}
 			sowUseCase := &fakeSowHistoryBySowUseCase{err: testErr}
-			handler := newHistoryHandler(sowUseCase, serviceUseCase, abortionUseCase, farrowingUseCase)
+			handler := newHistoryHandler(
+				sowUseCase, serviceUseCase, abortionUseCase, farrowingUseCase,
+				pigletDeathUseCase, pigletFosteringUseCase,
+			)
 
 			response := serveHistory(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/C-001/history", nil))
 
 			if response.Code != http.StatusNotFound {
 				t.Fatalf("status=%d", response.Code)
 			}
-			if serviceUseCase.called || abortionUseCase.called || farrowingUseCase.called {
+			if serviceUseCase.called || abortionUseCase.called || farrowingUseCase.called ||
+				pigletDeathUseCase.called || pigletFosteringUseCase.called {
 				t.Fatal("history use cases must not be called when the sow fails")
 			}
 		}
@@ -169,27 +383,81 @@ func TestSowHistoryHandlerGet(t *testing.T) {
 
 	t.Run("returns internal error for dependency failure", func(t *testing.T) {
 		sowFailure := &fakeSowHistoryBySowUseCase{err: errors.New("db down")}
-		handler := newHistoryHandler(sowFailure, &fakeServicesHistoryBySowUseCase{}, &fakeAbortionHistoryBySowUseCase{}, &fakeFarrowingHistoryBySowUseCase{})
+		handler := newHistoryHandler(
+			sowFailure,
+			&fakeServicesHistoryBySowUseCase{},
+			&fakeAbortionHistoryBySowUseCase{},
+			&fakeFarrowingHistoryBySowUseCase{},
+			&fakePigletDeathHistoryBySowUseCase{},
+			&fakePigletFosteringHistoryBySowUseCase{},
+		)
 		if response := serveHistory(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/C-001/history", nil)); response.Code != http.StatusInternalServerError {
 			t.Fatalf("sow failure status=%d", response.Code)
 		}
 
 		serviceFailure := &fakeServicesHistoryBySowUseCase{err: errors.New("db down")}
-		handler = newHistoryHandler(&fakeSowHistoryBySowUseCase{history: historySow()}, serviceFailure, &fakeAbortionHistoryBySowUseCase{}, &fakeFarrowingHistoryBySowUseCase{})
+		handler = newHistoryHandler(
+			&fakeSowHistoryBySowUseCase{history: historySow()},
+			serviceFailure,
+			&fakeAbortionHistoryBySowUseCase{},
+			&fakeFarrowingHistoryBySowUseCase{},
+			&fakePigletDeathHistoryBySowUseCase{},
+			&fakePigletFosteringHistoryBySowUseCase{},
+		)
 		if response := serveHistory(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/C-001/history", nil)); response.Code != http.StatusInternalServerError {
 			t.Fatalf("service failure status=%d", response.Code)
 		}
 
 		abortionFailure := &fakeAbortionHistoryBySowUseCase{err: errors.New("db down")}
-		handler = newHistoryHandler(&fakeSowHistoryBySowUseCase{history: historySow()}, &fakeServicesHistoryBySowUseCase{}, abortionFailure, &fakeFarrowingHistoryBySowUseCase{})
+		handler = newHistoryHandler(
+			&fakeSowHistoryBySowUseCase{history: historySow()},
+			&fakeServicesHistoryBySowUseCase{},
+			abortionFailure,
+			&fakeFarrowingHistoryBySowUseCase{},
+			&fakePigletDeathHistoryBySowUseCase{},
+			&fakePigletFosteringHistoryBySowUseCase{},
+		)
 		if response := serveHistory(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/C-001/history", nil)); response.Code != http.StatusInternalServerError {
 			t.Fatalf("abortion failure status=%d", response.Code)
 		}
 
 		farrowingFailure := &fakeFarrowingHistoryBySowUseCase{err: errors.New("db down")}
-		handler = newHistoryHandler(&fakeSowHistoryBySowUseCase{history: historySow()}, &fakeServicesHistoryBySowUseCase{}, &fakeAbortionHistoryBySowUseCase{}, farrowingFailure)
+		handler = newHistoryHandler(
+			&fakeSowHistoryBySowUseCase{history: historySow()},
+			&fakeServicesHistoryBySowUseCase{},
+			&fakeAbortionHistoryBySowUseCase{},
+			farrowingFailure,
+			&fakePigletDeathHistoryBySowUseCase{},
+			&fakePigletFosteringHistoryBySowUseCase{},
+		)
 		if response := serveHistory(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/C-001/history", nil)); response.Code != http.StatusInternalServerError {
 			t.Fatalf("farrowing failure status=%d", response.Code)
+		}
+
+		pigletDeathFailure := &fakePigletDeathHistoryBySowUseCase{err: errors.New("db down")}
+		handler = newHistoryHandler(
+			&fakeSowHistoryBySowUseCase{history: historySow()},
+			&fakeServicesHistoryBySowUseCase{},
+			&fakeAbortionHistoryBySowUseCase{},
+			&fakeFarrowingHistoryBySowUseCase{},
+			pigletDeathFailure,
+			&fakePigletFosteringHistoryBySowUseCase{},
+		)
+		if response := serveHistory(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/C-001/history", nil)); response.Code != http.StatusInternalServerError {
+			t.Fatalf("piglet death failure status=%d", response.Code)
+		}
+
+		pigletFosteringFailure := &fakePigletFosteringHistoryBySowUseCase{err: errors.New("db down")}
+		handler = newHistoryHandler(
+			&fakeSowHistoryBySowUseCase{history: historySow()},
+			&fakeServicesHistoryBySowUseCase{},
+			&fakeAbortionHistoryBySowUseCase{},
+			&fakeFarrowingHistoryBySowUseCase{},
+			&fakePigletDeathHistoryBySowUseCase{},
+			pigletFosteringFailure,
+		)
+		if response := serveHistory(handler, httptest.NewRequest(http.MethodGet, "/api/v1/sows/C-001/history", nil)); response.Code != http.StatusInternalServerError {
+			t.Fatalf("piglet fostering failure status=%d", response.Code)
 		}
 	})
 }

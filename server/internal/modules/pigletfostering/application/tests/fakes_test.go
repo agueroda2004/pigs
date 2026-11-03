@@ -49,6 +49,10 @@ type fakePigletFosteringRepository struct {
 	listFilter     ports.PigletFosteringFilter
 	listLimit      int
 	listOffset     int
+
+	historyItems []*pigletfosteringdomain.PigletFosteringHistoryBySow
+	historyErr   error
+	historyCode  string
 }
 
 func (f *fakePigletFosteringRepository) GetSow(_ context.Context, id uuid.UUID) (*sowdomain.Sow, error) {
@@ -142,4 +146,9 @@ func (f *fakePigletFosteringRepository) List(
 	f.listLimit = limit
 	f.listOffset = offset
 	return f.listFosterings, f.listTotal, f.listErr
+}
+
+func (f *fakePigletFosteringRepository) HistoryBySow(_ context.Context, sowCode string) ([]*pigletfosteringdomain.PigletFosteringHistoryBySow, error) {
+	f.historyCode = sowCode
+	return f.historyItems, f.historyErr
 }

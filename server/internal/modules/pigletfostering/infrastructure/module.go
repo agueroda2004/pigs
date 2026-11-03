@@ -9,11 +9,12 @@ import (
 )
 
 type Module struct {
-	CreatePigletFostering *pigletfosteringapplication.CreatePigletFosteringService
-	UpdatePigletFostering *pigletfosteringapplication.UpdatePigletFosteringService
-	DeletePigletFostering *pigletfosteringapplication.DeletePigletFosteringService
-	ListPigletFosterings  *pigletfosteringapplication.ListPigletFosteringsService
-	Handler               *PigletFosteringHandler
+	CreatePigletFostering       *pigletfosteringapplication.CreatePigletFosteringService
+	UpdatePigletFostering       *pigletfosteringapplication.UpdatePigletFosteringService
+	DeletePigletFostering       *pigletfosteringapplication.DeletePigletFosteringService
+	ListPigletFosterings        *pigletfosteringapplication.ListPigletFosteringsService
+	PigletFosteringHistoryBySow *pigletfosteringapplication.PigletFosteringHistoryBySowService
+	Handler                     *PigletFosteringHandler
 }
 
 // NewModule assembles the fostering use cases and HTTP handler from its dependencies.
@@ -28,12 +29,14 @@ func NewModule(
 	updatePigletFostering := pigletfosteringapplication.NewUpdatePigletFosteringService(repository, clock)
 	deletePigletFostering := pigletfosteringapplication.NewDeletePigletFosteringService(repository, clock)
 	listPigletFosterings := pigletfosteringapplication.NewListPigletFosteringsService(repository)
+	pigletFosteringHistoryBySow := pigletfosteringapplication.NewPigletFosteringHistoryBySowService(repository)
 
 	return &Module{
-		CreatePigletFostering: createPigletFostering,
-		UpdatePigletFostering: updatePigletFostering,
-		DeletePigletFostering: deletePigletFostering,
-		ListPigletFosterings:  listPigletFosterings,
+		CreatePigletFostering:       createPigletFostering,
+		UpdatePigletFostering:       updatePigletFostering,
+		DeletePigletFostering:       deletePigletFostering,
+		ListPigletFosterings:        listPigletFosterings,
+		PigletFosteringHistoryBySow: pigletFosteringHistoryBySow,
 		Handler: NewPigletFosteringHandler(
 			createPigletFostering,
 			updatePigletFostering,

@@ -38,4 +38,7 @@ type PigletFosteringRepository interface {
 	// List returns one page of fosterings matching the filter together with the
 	// total count of matches, so callers can paginate the result.
 	List(ctx context.Context, filter PigletFosteringFilter, limit int, offset int) ([]*pigletfosteringdomain.PigletFostering, int, error)
+	// HistoryBySow returns every fostering involving the given sow code from its
+	// perspective, without pagination, ordered newest first.
+	HistoryBySow(ctx context.Context, sowCode string) ([]*pigletfosteringdomain.PigletFosteringHistoryBySow, error)
 }

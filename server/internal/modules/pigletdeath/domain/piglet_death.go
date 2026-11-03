@@ -367,3 +367,15 @@ func ParseTurn(value string) (Turn, error) {
 	}
 	return turn, nil
 }
+
+// PigletDeathHistoryBySow is the read model returned for each piglet death in a sow history.
+// It carries the operator name, the optional weight and the death details shown in the timeline.
+type PigletDeathHistoryBySow struct {
+	OperatorName string
+	DeathDate    time.Time
+	Quantity     int
+	Weight       *float64
+	Cause        PigletDeathCause
+	Turn         Turn
+	Note         *string
+}

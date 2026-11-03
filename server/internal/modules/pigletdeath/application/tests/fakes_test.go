@@ -52,6 +52,10 @@ type fakePigletDeathRepository struct {
 	listFilter ports.PigletDeathFilter
 	listLimit  int
 	listOffset int
+
+	historyItems []*pigletdeathdomain.PigletDeathHistoryBySow
+	historyErr   error
+	historyCode  string
 }
 
 func (f *fakePigletDeathRepository) GetSow(_ context.Context, _ uuid.UUID) (*sowdomain.Sow, error) {
@@ -122,4 +126,9 @@ func (f *fakePigletDeathRepository) List(
 	f.listLimit = limit
 	f.listOffset = offset
 	return f.listDeaths, f.listTotal, f.listErr
+}
+
+func (f *fakePigletDeathRepository) HistoryBySow(_ context.Context, sowCode string) ([]*pigletdeathdomain.PigletDeathHistoryBySow, error) {
+	f.historyCode = sowCode
+	return f.historyItems, f.historyErr
 }

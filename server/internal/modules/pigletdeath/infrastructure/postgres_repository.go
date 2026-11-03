@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -491,6 +492,45 @@ func (r *PostgresPigletDeathRepository) List(
 		return nil, 0, fmt.Errorf("No se pudieron consultar las muertes de lechones: %w", err)
 	}
 	return deaths, total, nil
+}
+
+// HistoryBySow loads every piglet death of a sow with its operator name and optional weight.
+// It returns an empty slice when the sow has no deaths and orders newest first.
+func (r *PostgresPigletDeathRepository) HistoryBySow(ctx context.Context, sowCode string) ([]*pigletdeathdomain.PigletDeathHistoryBySow, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT o.name, pd.death_date, pd.quantity, pd.weight, pd.cause, pd.turn, pd.note
+		FROM piglet_deaths pd
+		JOIN farrowings f ON f.id = pd.farrowing_id
+		JOIN sows s ON s.id = f.sow_id
+		JOIN operators o ON o.id = pd.operator_id
+		WHERE LOWER(s.code) = LOWER($1)
+		ORDER BY pd.death_date DESC, pd.created_at DESC
+	`, strings.TrimSpace(sowCode))
+	if err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar las muertes de lechones: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]*pigletdeathdomain.PigletDeathHistoryBySow, 0)
+	for rows.Next() {
+		item := &pigletdeathdomain.PigletDeathHistoryBySow{}
+		if err := rows.Scan(
+			&item.OperatorName,
+			&item.DeathDate,
+			&item.Quantity,
+			&item.Weight,
+			&item.Cause,
+			&item.Turn,
+			&item.Note,
+		); err != nil {
+			return nil, fmt.Errorf("No se pudieron consultar las muertes de lechones: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar las muertes de lechones: %w", err)
+	}
+	return items, nil
 }
 
 // mapPostgresError wraps a PostgreSQL write failure with context.

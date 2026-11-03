@@ -6,8 +6,12 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/google/uuid"
+
 	abortiondomain "server/internal/modules/abortion/domain"
 	farrowingdomain "server/internal/modules/farrowing/domain"
+	pigletdeathdomain "server/internal/modules/pigletdeath/domain"
+	pigletfosteringdomain "server/internal/modules/pigletfostering/domain"
 	servicedomain "server/internal/modules/service/domain"
 	sowapplication "server/internal/modules/sow/application"
 	sowdomain "server/internal/modules/sow/domain"
@@ -31,13 +35,23 @@ type FarrowingHistoryBySowUseCase interface {
 	Execute(context.Context, string) ([]*farrowingdomain.FarrowingHistoryBySow, error)
 }
 
+type PigletDeathHistoryBySowUseCase interface {
+	Execute(context.Context, string) ([]*pigletdeathdomain.PigletDeathHistoryBySow, error)
+}
+
+type PigletFosteringHistoryBySowUseCase interface {
+	Execute(context.Context, string) ([]*pigletfosteringdomain.PigletFosteringHistoryBySow, error)
+}
+
 // SowHistoryHandler serves the authenticated sow-history read endpoint.
 type SowHistoryHandler struct {
-	getSowHistory       SowHistoryBySowUseCase
-	getServicesHistory  ServicesHistoryBySowUseCase
-	getAbortionHistory  AbortionHistoryBySowUseCase
-	getFarrowingHistory FarrowingHistoryBySowUseCase
-	authMiddleware      func(http.Handler) http.Handler
+	getSowHistory             SowHistoryBySowUseCase
+	getServicesHistory        ServicesHistoryBySowUseCase
+	getAbortionHistory        AbortionHistoryBySowUseCase
+	getFarrowingHistory       FarrowingHistoryBySowUseCase
+	getPigletDeathHistory     PigletDeathHistoryBySowUseCase
+	getPigletFosteringHistory PigletFosteringHistoryBySowUseCase
+	authMiddleware            func(http.Handler) http.Handler
 }
 
 // NewSowHistoryHandler wires the use cases and authentication middleware.
@@ -46,14 +60,18 @@ func NewSowHistoryHandler(
 	getServicesHistory ServicesHistoryBySowUseCase,
 	getAbortionHistory AbortionHistoryBySowUseCase,
 	getFarrowingHistory FarrowingHistoryBySowUseCase,
+	getPigletDeathHistory PigletDeathHistoryBySowUseCase,
+	getPigletFosteringHistory PigletFosteringHistoryBySowUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 ) *SowHistoryHandler {
 	return &SowHistoryHandler{
-		getSowHistory:       getSowHistory,
-		getServicesHistory:  getServicesHistory,
-		getAbortionHistory:  getAbortionHistory,
-		getFarrowingHistory: getFarrowingHistory,
-		authMiddleware:      authMiddleware,
+		getSowHistory:             getSowHistory,
+		getServicesHistory:        getServicesHistory,
+		getAbortionHistory:        getAbortionHistory,
+		getFarrowingHistory:       getFarrowingHistory,
+		getPigletDeathHistory:     getPigletDeathHistory,
+		getPigletFosteringHistory: getPigletFosteringHistory,
+		authMiddleware:            authMiddleware,
 	}
 }
 
@@ -122,6 +140,24 @@ type farrowingHistoryBySowResponse struct {
 	Medications     []farrowingHistoryMedicationResponse `json:"medications"`
 }
 
+type pigletDeathHistoryBySowResponse struct {
+	OperatorName string   `json:"operator_name"`
+	DeathDate    string   `json:"death_date"`
+	Quantity     int      `json:"quantity"`
+	Weight       *float64 `json:"weight"`
+	Cause        string   `json:"cause"`
+	Turn         string   `json:"turn"`
+	Note         *string  `json:"note"`
+}
+
+type pigletFosteringHistoryBySowResponse struct {
+	SowID        uuid.UUID `json:"sow_id"`
+	Role         string    `json:"role"`
+	MovementDate string    `json:"movement_date"`
+	Quantity     int       `json:"quantity"`
+	Note         *string   `json:"note"`
+}
+
 type sowHistoryEventResponse struct {
 	Type string `json:"type"`
 	Date string `json:"date"`
@@ -134,8 +170,8 @@ type sowHistoryResponse struct {
 }
 
 // get returns the unified sow history timeline for the requested code.
-// It loads the sow, services, abortions and farrowings, then merges them into
-// newest-first events while preserving the existing not-found behavior.
+// It loads the sow, services, abortions, farrowings, piglet deaths and fosterings,
+// then merges them into newest-first events while preserving the existing behavior.
 func (h *SowHistoryHandler) get(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 
@@ -167,7 +203,19 @@ func (h *SowHistoryHandler) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events := make([]sowHistoryEventResponse, 0, 1+len(services)+len(abortions)+len(farrowings))
+	pigletDeaths, err := h.getPigletDeathHistory.Execute(r.Context(), code)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	fosterings, err := h.getPigletFosteringHistory.Execute(r.Context(), code)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	events := make([]sowHistoryEventResponse, 0, 1+len(services)+len(abortions)+len(farrowings)+len(pigletDeaths)+len(fosterings))
 	events = append(events, sowHistoryEventResponse{
 		Type: "sow_entry",
 		Date: sow.EntryDate,
@@ -197,6 +245,20 @@ func (h *SowHistoryHandler) get(w http.ResponseWriter, r *http.Request) {
 			Type: "farrowing",
 			Date: farrowing.FarrowDate,
 			Data: toFarrowingHistoryResponse(farrowing),
+		})
+	}
+	for _, death := range pigletDeaths {
+		events = append(events, sowHistoryEventResponse{
+			Type: "piglet_death",
+			Date: death.DeathDate.UTC().Format("2006-01-02"),
+			Data: toPigletDeathHistoryResponse(death),
+		})
+	}
+	for _, fostering := range fosterings {
+		events = append(events, sowHistoryEventResponse{
+			Type: "piglet_fostering",
+			Date: fostering.MovementDate.UTC().Format("2006-01-02"),
+			Data: toPigletFosteringHistoryResponse(fostering),
 		})
 	}
 
@@ -291,5 +353,31 @@ func toFarrowingHistoryResponse(farrowing *farrowingdomain.FarrowingHistoryBySow
 		IsNurse:         farrowing.IsNurse,
 		Operators:       operators,
 		Medications:     medications,
+	}
+}
+
+// toPigletDeathHistoryResponse maps a piglet death history item to the HTTP shape.
+// It formats the death date as YYYY-MM-DD and preserves the nullable weight and note.
+func toPigletDeathHistoryResponse(death *pigletdeathdomain.PigletDeathHistoryBySow) pigletDeathHistoryBySowResponse {
+	return pigletDeathHistoryBySowResponse{
+		OperatorName: death.OperatorName,
+		DeathDate:    death.DeathDate.UTC().Format("2006-01-02"),
+		Quantity:     death.Quantity,
+		Weight:       death.Weight,
+		Cause:        string(death.Cause),
+		Turn:         string(death.Turn),
+		Note:         death.Note,
+	}
+}
+
+// toPigletFosteringHistoryResponse maps a fostering history item to the HTTP shape.
+// It formats the movement date as YYYY-MM-DD and preserves the nullable note.
+func toPigletFosteringHistoryResponse(fostering *pigletfosteringdomain.PigletFosteringHistoryBySow) pigletFosteringHistoryBySowResponse {
+	return pigletFosteringHistoryBySowResponse{
+		SowID:        fostering.SowID,
+		Role:         string(fostering.Role),
+		MovementDate: fostering.MovementDate.UTC().Format("2006-01-02"),
+		Quantity:     fostering.Quantity,
+		Note:         fostering.Note,
 	}
 }

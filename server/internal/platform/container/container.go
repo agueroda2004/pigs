@@ -154,6 +154,8 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		container.Service.ServicesHistoryBySow,
 		container.Abortion.AbortHistoryBySow,
 		container.Farrowing.FarrowingHistoryBySow,
+		container.PigletDeath.PigletDeathHistoryBySow,
+		container.PigletFostering.PigletFosteringHistoryBySow,
 		authModule.AuthMiddleware,
 	)
 	return container, nil

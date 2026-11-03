@@ -40,4 +40,7 @@ type PigletDeathRepository interface {
 	// List returns one page of piglet deaths matching the filter together with
 	// the total count of matches, so callers can paginate the result.
 	List(ctx context.Context, filter PigletDeathFilter, limit int, offset int) ([]*pigletdeathdomain.PigletDeath, int, error)
+	// HistoryBySow returns every piglet death associated with the given sow code,
+	// without pagination, ordered newest first.
+	HistoryBySow(ctx context.Context, sowCode string) ([]*pigletdeathdomain.PigletDeathHistoryBySow, error)
 }

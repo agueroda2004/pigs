@@ -11,6 +11,8 @@ import (
 	abortiondomain "server/internal/modules/abortion/domain"
 	authdomain "server/internal/modules/auth/domain"
 	farrowingdomain "server/internal/modules/farrowing/domain"
+	pigletdeathdomain "server/internal/modules/pigletdeath/domain"
+	pigletfosteringdomain "server/internal/modules/pigletfostering/domain"
 	servicedomain "server/internal/modules/service/domain"
 	sowapplication "server/internal/modules/sow/application"
 	sowdomain "server/internal/modules/sow/domain"
@@ -139,6 +141,32 @@ func (f *fakeFarrowingHistoryBySowUseCase) Execute(_ context.Context, code strin
 	f.called = true
 	f.code = code
 	return f.farrowings, f.err
+}
+
+type fakePigletDeathHistoryBySowUseCase struct {
+	deaths []*pigletdeathdomain.PigletDeathHistoryBySow
+	err    error
+	code   string
+	called bool
+}
+
+func (f *fakePigletDeathHistoryBySowUseCase) Execute(_ context.Context, code string) ([]*pigletdeathdomain.PigletDeathHistoryBySow, error) {
+	f.called = true
+	f.code = code
+	return f.deaths, f.err
+}
+
+type fakePigletFosteringHistoryBySowUseCase struct {
+	fosterings []*pigletfosteringdomain.PigletFosteringHistoryBySow
+	err        error
+	code       string
+	called     bool
+}
+
+func (f *fakePigletFosteringHistoryBySowUseCase) Execute(_ context.Context, code string) ([]*pigletfosteringdomain.PigletFosteringHistoryBySow, error) {
+	f.called = true
+	f.code = code
+	return f.fosterings, f.err
 }
 
 func (f *fakeDeleteSowUseCase) Execute(_ context.Context, sowID uuid.UUID) error {

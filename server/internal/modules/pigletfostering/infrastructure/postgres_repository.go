@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -588,4 +589,46 @@ func (r *PostgresPigletFosteringRepository) List(
 		return nil, 0, fmt.Errorf("No se pudieron consultar los traslados de lechones: %w", err)
 	}
 	return fosterings, total, nil
+}
+
+// HistoryBySow loads every fostering involving a sow from that sow's perspective.
+// It returns an empty slice when there are no transfers and orders newest first.
+func (r *PostgresPigletFosteringRepository) HistoryBySow(ctx context.Context, sowCode string) ([]*pigletfosteringdomain.PigletFosteringHistoryBySow, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT CASE WHEN LOWER(ds.code) = LOWER($1) THEN ds.id ELSE rs.id END,
+		       CASE WHEN LOWER(ds.code) = LOWER($1) THEN 'donor'::text ELSE 'receiver'::text END,
+		       pf.movement_date,
+		       CASE WHEN LOWER(ds.code) = LOWER($1) THEN -pf.quantity ELSE pf.quantity END,
+		       pf.note
+		FROM piglet_fosterings pf
+		JOIN farrowings df ON df.id = pf.donor_farrowing_id
+		JOIN farrowings rf ON rf.id = pf.receiver_farrowing_id
+		JOIN sows ds ON ds.id = df.sow_id
+		JOIN sows rs ON rs.id = rf.sow_id
+		WHERE LOWER(ds.code) = LOWER($1) OR LOWER(rs.code) = LOWER($1)
+		ORDER BY pf.movement_date DESC, pf.created_at DESC
+	`, strings.TrimSpace(sowCode))
+	if err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los traslados de lechones: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]*pigletfosteringdomain.PigletFosteringHistoryBySow, 0)
+	for rows.Next() {
+		item := &pigletfosteringdomain.PigletFosteringHistoryBySow{}
+		if err := rows.Scan(
+			&item.SowID,
+			&item.Role,
+			&item.MovementDate,
+			&item.Quantity,
+			&item.Note,
+		); err != nil {
+			return nil, fmt.Errorf("No se pudieron consultar los traslados de lechones: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los traslados de lechones: %w", err)
+	}
+	return items, nil
 }
