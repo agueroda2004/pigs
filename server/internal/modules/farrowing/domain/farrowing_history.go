@@ -32,15 +32,15 @@ type FarrowingHistoryBySow struct {
 // FarrowingHistoryOperator is the operator name shown for a farrowing history event.
 // It only carries the display name because the history response does not expose ids.
 type FarrowingHistoryOperator struct {
-	OperatorName string
+	OperatorName string `json:"operator_name"`
 }
 
 // FarrowingHistoryMedication is the medication detail shown for a farrowing history event.
 // It records the medication name, its dose and the name of the operator that applied it.
 type FarrowingHistoryMedication struct {
-	MedicationName string
-	Dose           float64
-	AppliedByName  string
+	MedicationName string  `json:"medication_name"`
+	Dose           float64 `json:"dose"`
+	AppliedByName  string  `json:"applied_by_name"`
 }
 
 // FormatDuration returns the HH:MM duration between two optional HH:MM times.

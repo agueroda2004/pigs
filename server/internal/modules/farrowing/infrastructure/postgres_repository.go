@@ -696,9 +696,34 @@ func (r *PostgresFarrowingRepository) HistoryBySow(ctx context.Context, sowCode 
 	rows, err := r.pool.Query(ctx, `
 		SELECT f.id, f.farrow_date, f.start_time, f.end_time, f.location,
 		       f.live_born, f.mummified, f.stillborn, f.litter_weight,
-		       f.stillborn_weight, f.is_manipulated, f.note, f.is_nurse
+		       f.stillborn_weight, f.is_manipulated, f.note, f.is_nurse,
+		       COALESCE(o.operators, '[]'::jsonb) AS operators,
+		       COALESCE(m.medications, '[]'::jsonb) AS medications
 		FROM farrowings f
 		JOIN sows s ON s.id = f.sow_id
+		LEFT JOIN LATERAL (
+			SELECT jsonb_agg(
+			           jsonb_build_object('operator_name', op.name)
+			           ORDER BY fo.created_at ASC, fo.id ASC
+			       ) AS operators
+			FROM farrowing_operators fo
+			JOIN operators op ON op.id = fo.operator_id
+			WHERE fo.farrowing_id = f.id
+		) o ON TRUE
+		LEFT JOIN LATERAL (
+			SELECT jsonb_agg(
+			           jsonb_build_object(
+			               'medication_name', med.name,
+			               'dose', fm.dose,
+			               'applied_by_name', op.name
+			           )
+			           ORDER BY fm.created_at ASC, fm.id ASC
+			       ) AS medications
+			FROM farrowing_medications fm
+			JOIN medications med ON med.id = fm.medication_id
+			JOIN operators op ON op.id = fm.applied_by
+			WHERE fm.farrowing_id = f.id
+		) m ON TRUE
 		WHERE LOWER(s.code) = LOWER($1)
 		ORDER BY f.farrow_date DESC, f.created_at DESC
 	`, strings.TrimSpace(sowCode))
@@ -708,7 +733,6 @@ func (r *PostgresFarrowingRepository) HistoryBySow(ctx context.Context, sowCode 
 	defer rows.Close()
 
 	items := make([]*farrowingdomain.FarrowingHistoryBySow, 0)
-	ids := make([]string, 0)
 	for rows.Next() {
 		item := &farrowingdomain.FarrowingHistoryBySow{}
 		var farrowDate time.Time
@@ -726,100 +750,18 @@ func (r *PostgresFarrowingRepository) HistoryBySow(ctx context.Context, sowCode 
 			&item.IsManipulated,
 			&item.Note,
 			&item.IsNurse,
+			&item.Operators,
+			&item.Medications,
 		); err != nil {
 			return nil, fmt.Errorf("No se pudieron consultar los partos: %w", err)
 		}
 		item.FarrowDate = farrowDate.UTC().Format("2006-01-02")
-		item.Operators = make([]farrowingdomain.FarrowingHistoryOperator, 0)
-		item.Medications = make([]farrowingdomain.FarrowingHistoryMedication, 0)
 		items = append(items, item)
-		ids = append(ids, item.ID.String())
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("No se pudieron consultar los partos: %w", err)
 	}
-	if len(items) == 0 {
-		return items, nil
-	}
-
-	operators, err := r.historyOperators(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	medications, err := r.historyMedications(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	for _, item := range items {
-		if values, ok := operators[item.ID]; ok {
-			item.Operators = values
-		}
-		if values, ok := medications[item.ID]; ok {
-			item.Medications = values
-		}
-	}
 	return items, nil
-}
-
-// historyOperators loads the operator names of the given farrowings grouped by farrowing id.
-// It returns an empty map when none of the farrowings has an operator.
-func (r *PostgresFarrowingRepository) historyOperators(ctx context.Context, farrowingIDs []string) (map[uuid.UUID][]farrowingdomain.FarrowingHistoryOperator, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT fo.farrowing_id, o.name
-		FROM farrowing_operators fo
-		JOIN operators o ON o.id = fo.operator_id
-		WHERE fo.farrowing_id = ANY($1::uuid[])
-		ORDER BY fo.farrowing_id, fo.created_at ASC
-	`, farrowingIDs)
-	if err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar los operadores del parto: %w", err)
-	}
-	defer rows.Close()
-
-	result := make(map[uuid.UUID][]farrowingdomain.FarrowingHistoryOperator, len(farrowingIDs))
-	for rows.Next() {
-		var farrowingID uuid.UUID
-		var name string
-		if err := rows.Scan(&farrowingID, &name); err != nil {
-			return nil, fmt.Errorf("No se pudieron consultar los operadores del parto: %w", err)
-		}
-		result[farrowingID] = append(result[farrowingID], farrowingdomain.FarrowingHistoryOperator{OperatorName: name})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar los operadores del parto: %w", err)
-	}
-	return result, nil
-}
-
-// historyMedications loads the medication names, doses and applying operators of the
-// given farrowings grouped by farrowing id. It returns an empty map when none exist.
-func (r *PostgresFarrowingRepository) historyMedications(ctx context.Context, farrowingIDs []string) (map[uuid.UUID][]farrowingdomain.FarrowingHistoryMedication, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT fm.farrowing_id, m.name, fm.dose, o.name
-		FROM farrowing_medications fm
-		JOIN medications m ON m.id = fm.medication_id
-		JOIN operators o ON o.id = fm.applied_by
-		WHERE fm.farrowing_id = ANY($1::uuid[])
-		ORDER BY fm.farrowing_id, fm.created_at ASC
-	`, farrowingIDs)
-	if err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar los medicamentos del parto: %w", err)
-	}
-	defer rows.Close()
-
-	result := make(map[uuid.UUID][]farrowingdomain.FarrowingHistoryMedication, len(farrowingIDs))
-	for rows.Next() {
-		var farrowingID uuid.UUID
-		var medication farrowingdomain.FarrowingHistoryMedication
-		if err := rows.Scan(&farrowingID, &medication.MedicationName, &medication.Dose, &medication.AppliedByName); err != nil {
-			return nil, fmt.Errorf("No se pudieron consultar los medicamentos del parto: %w", err)
-		}
-		result[farrowingID] = append(result[farrowingID], medication)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("No se pudieron consultar los medicamentos del parto: %w", err)
-	}
-	return result, nil
 }
 
 // listOperators fetches the operator links of a farrowing.
