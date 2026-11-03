@@ -10,12 +10,14 @@ import (
 
 	abortiondomain "server/internal/modules/abortion/domain"
 	farrowingdomain "server/internal/modules/farrowing/domain"
+	partialweagingdomain "server/internal/modules/partialweaging/domain"
 	pigletdeathdomain "server/internal/modules/pigletdeath/domain"
 	pigletfosteringdomain "server/internal/modules/pigletfostering/domain"
 	servicedomain "server/internal/modules/service/domain"
 	sowapplication "server/internal/modules/sow/application"
 	sowdomain "server/internal/modules/sow/domain"
 	"server/internal/modules/sow/ports"
+	weagingdomain "server/internal/modules/weaging/domain"
 	platformhttp "server/internal/platform/http"
 )
 
@@ -43,6 +45,14 @@ type PigletFosteringHistoryBySowUseCase interface {
 	Execute(context.Context, string) ([]*pigletfosteringdomain.PigletFosteringHistoryBySow, error)
 }
 
+type PartialWeagingHistoryBySowUseCase interface {
+	Execute(context.Context, string) ([]*partialweagingdomain.PartialWeagingHistoryBySow, error)
+}
+
+type WeagingHistoryBySowUseCase interface {
+	Execute(context.Context, string) ([]*weagingdomain.WeagingHistoryBySow, error)
+}
+
 // SowHistoryHandler serves the authenticated sow-history read endpoint.
 type SowHistoryHandler struct {
 	getSowHistory             SowHistoryBySowUseCase
@@ -51,6 +61,8 @@ type SowHistoryHandler struct {
 	getFarrowingHistory       FarrowingHistoryBySowUseCase
 	getPigletDeathHistory     PigletDeathHistoryBySowUseCase
 	getPigletFosteringHistory PigletFosteringHistoryBySowUseCase
+	getPartialWeagingHistory  PartialWeagingHistoryBySowUseCase
+	getWeagingHistory         WeagingHistoryBySowUseCase
 	authMiddleware            func(http.Handler) http.Handler
 }
 
@@ -62,6 +74,8 @@ func NewSowHistoryHandler(
 	getFarrowingHistory FarrowingHistoryBySowUseCase,
 	getPigletDeathHistory PigletDeathHistoryBySowUseCase,
 	getPigletFosteringHistory PigletFosteringHistoryBySowUseCase,
+	getPartialWeagingHistory PartialWeagingHistoryBySowUseCase,
+	getWeagingHistory WeagingHistoryBySowUseCase,
 	authMiddleware func(http.Handler) http.Handler,
 ) *SowHistoryHandler {
 	return &SowHistoryHandler{
@@ -71,6 +85,8 @@ func NewSowHistoryHandler(
 		getFarrowingHistory:       getFarrowingHistory,
 		getPigletDeathHistory:     getPigletDeathHistory,
 		getPigletFosteringHistory: getPigletFosteringHistory,
+		getPartialWeagingHistory:  getPartialWeagingHistory,
+		getWeagingHistory:         getWeagingHistory,
 		authMiddleware:            authMiddleware,
 	}
 }
@@ -158,6 +174,21 @@ type pigletFosteringHistoryBySowResponse struct {
 	Note         *string   `json:"note"`
 }
 
+type partialWeagingHistoryBySowResponse struct {
+	WeagingDate string   `json:"weaging_date"`
+	Quantity    int      `json:"quantity"`
+	TotalWeight *float64 `json:"total_weight"`
+	Type        string   `json:"type"`
+	Note        *string  `json:"note"`
+}
+
+type weagingHistoryBySowResponse struct {
+	WeagingDate string   `json:"weaging_date"`
+	Quantity    int      `json:"quantity"`
+	TotalWeight *float64 `json:"total_weight"`
+	Note        *string  `json:"note"`
+}
+
 type sowHistoryEventResponse struct {
 	Type string `json:"type"`
 	Date string `json:"date"`
@@ -170,8 +201,8 @@ type sowHistoryResponse struct {
 }
 
 // get returns the unified sow history timeline for the requested code.
-// It loads the sow, services, abortions, farrowings, piglet deaths and fosterings,
-// then merges them into newest-first events while preserving the existing behavior.
+// It loads the sow, services, abortions, farrowings, piglet deaths, fosterings and
+// partial weagings, then merges them into newest-first events while preserving behavior.
 func (h *SowHistoryHandler) get(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 
@@ -215,7 +246,19 @@ func (h *SowHistoryHandler) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events := make([]sowHistoryEventResponse, 0, 1+len(services)+len(abortions)+len(farrowings)+len(pigletDeaths)+len(fosterings))
+	partialWeagings, err := h.getPartialWeagingHistory.Execute(r.Context(), code)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	weagings, err := h.getWeagingHistory.Execute(r.Context(), code)
+	if err != nil {
+		platformhttp.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	events := make([]sowHistoryEventResponse, 0, 1+len(services)+len(abortions)+len(farrowings)+len(pigletDeaths)+len(fosterings)+len(partialWeagings)+len(weagings))
 	events = append(events, sowHistoryEventResponse{
 		Type: "sow_entry",
 		Date: sow.EntryDate,
@@ -259,6 +302,20 @@ func (h *SowHistoryHandler) get(w http.ResponseWriter, r *http.Request) {
 			Type: "piglet_fostering",
 			Date: fostering.MovementDate.UTC().Format("2006-01-02"),
 			Data: toPigletFosteringHistoryResponse(fostering),
+		})
+	}
+	for _, weaging := range partialWeagings {
+		events = append(events, sowHistoryEventResponse{
+			Type: "partial_weaging",
+			Date: weaging.WeagingDate.UTC().Format("2006-01-02"),
+			Data: toPartialWeagingHistoryResponse(weaging),
+		})
+	}
+	for _, weaging := range weagings {
+		events = append(events, sowHistoryEventResponse{
+			Type: "weaging",
+			Date: weaging.WeagingDate.UTC().Format("2006-01-02"),
+			Data: toWeagingHistoryResponse(weaging),
 		})
 	}
 
@@ -379,5 +436,28 @@ func toPigletFosteringHistoryResponse(fostering *pigletfosteringdomain.PigletFos
 		MovementDate: fostering.MovementDate.UTC().Format("2006-01-02"),
 		Quantity:     fostering.Quantity,
 		Note:         fostering.Note,
+	}
+}
+
+// toPartialWeagingHistoryResponse maps a partial weaging history item to the HTTP shape.
+// It formats the weaging date as YYYY-MM-DD and preserves the nullable total weight and note.
+func toPartialWeagingHistoryResponse(weaging *partialweagingdomain.PartialWeagingHistoryBySow) partialWeagingHistoryBySowResponse {
+	return partialWeagingHistoryBySowResponse{
+		WeagingDate: weaging.WeagingDate.UTC().Format("2006-01-02"),
+		Quantity:    weaging.Quantity,
+		TotalWeight: weaging.TotalWeight,
+		Type:        string(weaging.Type),
+		Note:        weaging.Note,
+	}
+}
+
+// toWeagingHistoryResponse maps a full weaging history item to the HTTP shape.
+// It formats the weaging date as YYYY-MM-DD and preserves the nullable total weight and note.
+func toWeagingHistoryResponse(weaging *weagingdomain.WeagingHistoryBySow) weagingHistoryBySowResponse {
+	return weagingHistoryBySowResponse{
+		WeagingDate: weaging.WeagingDate.UTC().Format("2006-01-02"),
+		Quantity:    weaging.Quantity,
+		TotalWeight: weaging.TotalWeight,
+		Note:        weaging.Note,
 	}
 }

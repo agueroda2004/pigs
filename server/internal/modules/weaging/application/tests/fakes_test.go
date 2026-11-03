@@ -49,6 +49,10 @@ type fakeWeagingRepository struct {
 	listFilter   ports.WeagingFilter
 	listLimit    int
 	listOffset   int
+
+	historyItems []*weagingdomain.WeagingHistoryBySow
+	historyErr   error
+	historyCode  string
 }
 
 func (f *fakeWeagingRepository) GetSow(_ context.Context, id uuid.UUID) (*sowdomain.Sow, error) {
@@ -123,4 +127,9 @@ func (f *fakeWeagingRepository) List(_ context.Context, filter ports.WeagingFilt
 	f.listLimit = limit
 	f.listOffset = offset
 	return f.listWeagings, f.listTotal, f.listErr
+}
+
+func (f *fakeWeagingRepository) HistoryBySow(_ context.Context, sowCode string) ([]*weagingdomain.WeagingHistoryBySow, error) {
+	f.historyCode = sowCode
+	return f.historyItems, f.historyErr
 }

@@ -37,4 +37,7 @@ type WeagingRepository interface {
 	Update(ctx context.Context, weaging *weagingdomain.Weaging) error
 	Delete(ctx context.Context, weaging *weagingdomain.Weaging, farrowing *farrowingdomain.Farrowing, sow *sowdomain.Sow) error
 	List(ctx context.Context, filter WeagingFilter, limit, offset int) ([]*weagingdomain.Weaging, int, error)
+	// HistoryBySow returns every full weaging associated with the given sow code,
+	// without pagination, ordered newest first.
+	HistoryBySow(ctx context.Context, sowCode string) ([]*weagingdomain.WeagingHistoryBySow, error)
 }

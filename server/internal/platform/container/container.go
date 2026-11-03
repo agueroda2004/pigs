@@ -156,6 +156,8 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		container.Farrowing.FarrowingHistoryBySow,
 		container.PigletDeath.PigletDeathHistoryBySow,
 		container.PigletFostering.PigletFosteringHistoryBySow,
+		container.PartialWeaging.PartialWeagingHistoryBySow,
+		container.Weaging.WeagingHistoryBySow,
 		authModule.AuthMiddleware,
 	)
 	return container, nil

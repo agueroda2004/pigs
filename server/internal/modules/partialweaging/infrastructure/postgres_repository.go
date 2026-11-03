@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -563,4 +564,40 @@ func (r *PostgresPartialWeagingRepository) List(
 		return nil, 0, fmt.Errorf("No se pudieron consultar los destetes parciales: %w", err)
 	}
 	return weagings, total, nil
+}
+
+// HistoryBySow loads every partial weaging of a sow with its type and optional weight.
+// It returns an empty slice when the sow has no partial weagings and orders newest first.
+func (r *PostgresPartialWeagingRepository) HistoryBySow(ctx context.Context, sowCode string) ([]*partialweagingdomain.PartialWeagingHistoryBySow, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT pw.weaging_date, pw.quantity, pw.total_weight, pw.type, pw.note
+		FROM partial_weagings pw
+		JOIN farrowings f ON f.id = pw.farrowing_id
+		JOIN sows s ON s.id = f.sow_id
+		WHERE LOWER(s.code) = LOWER($1)
+		ORDER BY pw.weaging_date DESC, pw.created_at DESC
+	`, strings.TrimSpace(sowCode))
+	if err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los destetes parciales: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]*partialweagingdomain.PartialWeagingHistoryBySow, 0)
+	for rows.Next() {
+		item := &partialweagingdomain.PartialWeagingHistoryBySow{}
+		if err := rows.Scan(
+			&item.WeagingDate,
+			&item.Quantity,
+			&item.TotalWeight,
+			&item.Type,
+			&item.Note,
+		); err != nil {
+			return nil, fmt.Errorf("No se pudieron consultar los destetes parciales: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los destetes parciales: %w", err)
+	}
+	return items, nil
 }

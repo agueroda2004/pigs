@@ -9,11 +9,12 @@ import (
 )
 
 type Module struct {
-	CreateWeaging *weagingapplication.CreateWeagingService
-	ListWeagings  *weagingapplication.ListWeagingsService
-	UpdateWeaging *weagingapplication.UpdateWeagingService
-	DeleteWeaging *weagingapplication.DeleteWeagingService
-	Handler       *WeagingHandler
+	CreateWeaging       *weagingapplication.CreateWeagingService
+	ListWeagings        *weagingapplication.ListWeagingsService
+	UpdateWeaging       *weagingapplication.UpdateWeagingService
+	DeleteWeaging       *weagingapplication.DeleteWeagingService
+	WeagingHistoryBySow *weagingapplication.WeagingHistoryBySowService
+	Handler             *WeagingHandler
 }
 
 // NewModule assembles the weaging use cases and HTTP handler from its dependencies.
@@ -28,12 +29,14 @@ func NewModule(
 	listWeagings := weagingapplication.NewListWeagingsService(repository)
 	updateWeaging := weagingapplication.NewUpdateWeagingService(repository, clock)
 	deleteWeaging := weagingapplication.NewDeleteWeagingService(repository, clock)
+	weagingHistoryBySow := weagingapplication.NewWeagingHistoryBySowService(repository)
 
 	return &Module{
-		CreateWeaging: createWeaging,
-		ListWeagings:  listWeagings,
-		UpdateWeaging: updateWeaging,
-		DeleteWeaging: deleteWeaging,
+		CreateWeaging:       createWeaging,
+		ListWeagings:        listWeagings,
+		UpdateWeaging:       updateWeaging,
+		DeleteWeaging:       deleteWeaging,
+		WeagingHistoryBySow: weagingHistoryBySow,
 		Handler: NewWeagingHandler(
 			createWeaging,
 			listWeagings,

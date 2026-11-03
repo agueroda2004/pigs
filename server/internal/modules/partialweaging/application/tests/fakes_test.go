@@ -58,6 +58,10 @@ type fakePartialWeagingRepository struct {
 	deleted          *partialweagingdomain.PartialWeaging
 	deletedFarrowing *farrowingdomain.Farrowing
 	deletedSow       *sowdomain.Sow
+
+	historyItems []*partialweagingdomain.PartialWeagingHistoryBySow
+	historyErr   error
+	historyCode  string
 }
 
 func (f *fakePartialWeagingRepository) GetSow(_ context.Context, id uuid.UUID) (*sowdomain.Sow, error) {
@@ -144,4 +148,9 @@ func (f *fakePartialWeagingRepository) Delete(
 	f.deletedFarrowing = farrowing
 	f.deletedSow = sow
 	return f.deleteErr
+}
+
+func (f *fakePartialWeagingRepository) HistoryBySow(_ context.Context, sowCode string) ([]*partialweagingdomain.PartialWeagingHistoryBySow, error) {
+	f.historyCode = sowCode
+	return f.historyItems, f.historyErr
 }

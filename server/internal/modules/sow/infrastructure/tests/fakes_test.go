@@ -11,6 +11,7 @@ import (
 	abortiondomain "server/internal/modules/abortion/domain"
 	authdomain "server/internal/modules/auth/domain"
 	farrowingdomain "server/internal/modules/farrowing/domain"
+	partialweagingdomain "server/internal/modules/partialweaging/domain"
 	pigletdeathdomain "server/internal/modules/pigletdeath/domain"
 	pigletfosteringdomain "server/internal/modules/pigletfostering/domain"
 	servicedomain "server/internal/modules/service/domain"
@@ -19,6 +20,7 @@ import (
 	sowinfra "server/internal/modules/sow/infrastructure"
 	"server/internal/modules/sow/ports"
 	userdomain "server/internal/modules/user/domain"
+	weagingdomain "server/internal/modules/weaging/domain"
 )
 
 type fakeCreateSowUseCase struct {
@@ -167,6 +169,32 @@ func (f *fakePigletFosteringHistoryBySowUseCase) Execute(_ context.Context, code
 	f.called = true
 	f.code = code
 	return f.fosterings, f.err
+}
+
+type fakePartialWeagingHistoryBySowUseCase struct {
+	weagings []*partialweagingdomain.PartialWeagingHistoryBySow
+	err      error
+	code     string
+	called   bool
+}
+
+func (f *fakePartialWeagingHistoryBySowUseCase) Execute(_ context.Context, code string) ([]*partialweagingdomain.PartialWeagingHistoryBySow, error) {
+	f.called = true
+	f.code = code
+	return f.weagings, f.err
+}
+
+type fakeWeagingHistoryBySowUseCase struct {
+	weagings []*weagingdomain.WeagingHistoryBySow
+	err      error
+	code     string
+	called   bool
+}
+
+func (f *fakeWeagingHistoryBySowUseCase) Execute(_ context.Context, code string) ([]*weagingdomain.WeagingHistoryBySow, error) {
+	f.called = true
+	f.code = code
+	return f.weagings, f.err
 }
 
 func (f *fakeDeleteSowUseCase) Execute(_ context.Context, sowID uuid.UUID) error {

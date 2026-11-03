@@ -36,6 +36,15 @@ var (
 	ErrInvalidUpdate              = errors.New("Debe indicar al menos un campo para actualizar")
 )
 
+// WeagingHistoryBySow is the read model returned for each full weaging in a sow history.
+// It carries only the timeline fields and keeps the optional total weight and note nullable.
+type WeagingHistoryBySow struct {
+	WeagingDate time.Time
+	Quantity    int
+	TotalWeight *float64
+	Note        *string
+}
+
 // Weaging is the aggregate root that represents the full weaning of a farrowing.
 // It records the weaned quantity, optional weight and destination.
 type Weaging struct {

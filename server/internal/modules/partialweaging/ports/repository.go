@@ -43,4 +43,7 @@ type PartialWeagingRepository interface {
 	GetPreviousNurseDate(ctx context.Context, farrowingID uuid.UUID, before time.Time) (time.Time, error)
 	Update(ctx context.Context, weaging *partialweagingdomain.PartialWeaging) error
 	Delete(ctx context.Context, weaging *partialweagingdomain.PartialWeaging, farrowing *farrowingdomain.Farrowing, sow *sowdomain.Sow) error
+	// HistoryBySow returns every partial weaging associated with the given sow code,
+	// without pagination, ordered newest first.
+	HistoryBySow(ctx context.Context, sowCode string) ([]*partialweagingdomain.PartialWeagingHistoryBySow, error)
 }

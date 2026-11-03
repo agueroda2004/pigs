@@ -9,11 +9,12 @@ import (
 )
 
 type Module struct {
-	CreatePartialWeaging *partialweagingapplication.CreatePartialWeagingService
-	ListPartialWeagings  *partialweagingapplication.ListPartialWeagingsService
-	UpdatePartialWeaging *partialweagingapplication.UpdatePartialWeagingService
-	DeletePartialWeaging *partialweagingapplication.DeletePartialWeagingService
-	Handler              *PartialWeagingHandler
+	CreatePartialWeaging       *partialweagingapplication.CreatePartialWeagingService
+	ListPartialWeagings        *partialweagingapplication.ListPartialWeagingsService
+	UpdatePartialWeaging       *partialweagingapplication.UpdatePartialWeagingService
+	DeletePartialWeaging       *partialweagingapplication.DeletePartialWeagingService
+	PartialWeagingHistoryBySow *partialweagingapplication.PartialWeagingHistoryBySowService
+	Handler                    *PartialWeagingHandler
 }
 
 // NewModule assembles the partial weaging use cases and HTTP handler from its dependencies.
@@ -28,12 +29,14 @@ func NewModule(
 	listPartialWeagings := partialweagingapplication.NewListPartialWeagingsService(repository)
 	updatePartialWeaging := partialweagingapplication.NewUpdatePartialWeagingService(repository, clock)
 	deletePartialWeaging := partialweagingapplication.NewDeletePartialWeagingService(repository, clock)
+	partialWeagingHistoryBySow := partialweagingapplication.NewPartialWeagingHistoryBySowService(repository)
 
 	return &Module{
-		CreatePartialWeaging: createPartialWeaging,
-		ListPartialWeagings:  listPartialWeagings,
-		UpdatePartialWeaging: updatePartialWeaging,
-		DeletePartialWeaging: deletePartialWeaging,
-		Handler:              NewPartialWeagingHandler(createPartialWeaging, listPartialWeagings, deletePartialWeaging, updatePartialWeaging, authMiddleware, adminMiddleware),
+		CreatePartialWeaging:       createPartialWeaging,
+		ListPartialWeagings:        listPartialWeagings,
+		UpdatePartialWeaging:       updatePartialWeaging,
+		DeletePartialWeaging:       deletePartialWeaging,
+		PartialWeagingHistoryBySow: partialWeagingHistoryBySow,
+		Handler:                    NewPartialWeagingHandler(createPartialWeaging, listPartialWeagings, deletePartialWeaging, updatePartialWeaging, authMiddleware, adminMiddleware),
 	}
 }

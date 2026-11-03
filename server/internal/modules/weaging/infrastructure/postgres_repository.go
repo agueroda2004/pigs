@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -471,6 +472,41 @@ func (r *PostgresWeagingRepository) List(ctx context.Context, filter ports.Weagi
 		return nil, 0, fmt.Errorf("No se pudieron consultar los destetes: %w", err)
 	}
 	return weagings, total, nil
+}
+
+// HistoryBySow loads every full weaging of a sow with its optional weight and note.
+// It returns an empty slice when the sow has no full weagings and orders newest first.
+func (r *PostgresWeagingRepository) HistoryBySow(ctx context.Context, sowCode string) ([]*weagingdomain.WeagingHistoryBySow, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT w.weaging_date, w.quantity, w.total_weight, w.note
+		FROM weagings w
+		JOIN farrowings f ON f.id = w.farrowing_id
+		JOIN sows s ON s.id = f.sow_id
+		WHERE LOWER(s.code) = LOWER($1)
+		ORDER BY w.weaging_date DESC, w.created_at DESC
+	`, strings.TrimSpace(sowCode))
+	if err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los destetes: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]*weagingdomain.WeagingHistoryBySow, 0)
+	for rows.Next() {
+		item := &weagingdomain.WeagingHistoryBySow{}
+		if err := rows.Scan(
+			&item.WeagingDate,
+			&item.Quantity,
+			&item.TotalWeight,
+			&item.Note,
+		); err != nil {
+			return nil, fmt.Errorf("No se pudieron consultar los destetes: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("No se pudieron consultar los destetes: %w", err)
+	}
+	return items, nil
 }
 
 // mapPostgresError translates PostgreSQL errors into port errors.

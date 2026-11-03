@@ -66,6 +66,16 @@ type PartialWeaging struct {
 	UpdatedBy   uuid.UUID
 }
 
+// PartialWeagingHistoryBySow is the read model returned for each partial weaging in a sow history.
+// It carries only the timeline fields and keeps the optional total weight and note nullable.
+type PartialWeagingHistoryBySow struct {
+	WeagingDate time.Time
+	Quantity    int
+	TotalWeight *float64
+	Type        Type
+	Note        *string
+}
+
 // NewPartialWeagingParams holds the fields required to build a new partial weaging.
 // The farrowing and sow are resolved by the use case and both note and weight may be nil.
 type NewPartialWeagingParams struct {
