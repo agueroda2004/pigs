@@ -4,8 +4,21 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 
-import { SowHistory, SowHistoryEvent, SowHistoryFarrowing } from '../../../core/sows/sow-history.models';
+import { PigletDeathCause, Turn } from '../../../core/piglet-deaths/piglet-death.models';
+import {
+  SowHistory,
+  SowHistoryEvent,
+  SowHistoryFarrowing,
+  SowHistoryPigletFostering,
+} from '../../../core/sows/sow-history.models';
 import { SowsService } from '../../../core/sows/sows.service';
+import { PIGLET_DEATH_CAUSE_LABELS } from '../../piglet-deaths/piglet-death-cause';
+import { PIGLET_DEATH_TURN_LABELS } from '../../piglet-deaths/piglet-death-turn';
+
+const FOSTERING_ROLE_LABELS: Record<SowHistoryPigletFostering['role'], string> = {
+  donor: 'Dona',
+  receiver: 'Adopta',
+};
 
 @Component({
   selector: 'app-sow-history-page',
@@ -57,6 +70,8 @@ export class SowHistoryPage {
       service: 'Servicio',
       abortion: 'Aborto',
       farrowing: 'Parto',
+      piglet_death: 'Muerte de lechones',
+      piglet_fostering: 'Traslado de lechones',
     };
     return titles[event.type];
   }
@@ -71,9 +86,31 @@ export class SowHistoryPage {
         return 'border-l-4 border-l-red-500';
       case 'farrowing':
         return 'border-l-4 border-l-blue-500';
+      case 'piglet_death':
+        return 'border-l-4 border-l-warning';
+      case 'piglet_fostering':
+        return 'border-l-4 border-l-purple-500';
       default:
         return 'border-l-4 border-l-gray-300';
     }
+  }
+
+  // fosteringRoleLabel translates the server role into its display label.
+  // It falls back to the raw role value when the role is unknown.
+  protected fosteringRoleLabel(role: SowHistoryPigletFostering['role']): string {
+    return FOSTERING_ROLE_LABELS[role] ?? role;
+  }
+
+  // pigletDeathCauseLabel translates a server cause into its display label.
+  // It falls back to the raw value when the cause is unknown.
+  protected pigletDeathCauseLabel(cause: string): string {
+    return PIGLET_DEATH_CAUSE_LABELS[cause as PigletDeathCause] ?? cause;
+  }
+
+  // pigletDeathTurnLabel translates a server turn into its display label.
+  // It falls back to the raw value when the turn is unknown.
+  protected pigletDeathTurnLabel(turn: string): string {
+    return PIGLET_DEATH_TURN_LABELS[turn as Turn] ?? turn;
   }
 
   protected farrowingTimeRange(farrowing: SowHistoryFarrowing): string | null {

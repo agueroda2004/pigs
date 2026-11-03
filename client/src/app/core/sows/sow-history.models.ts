@@ -58,11 +58,31 @@ export interface SowHistoryFarrowing {
   medications: SowHistoryFarrowingMedication[];
 }
 
+export interface SowHistoryPigletDeath {
+  operator_name: string;
+  death_date: string;
+  quantity: number;
+  weight: number | null;
+  cause: string;
+  turn: string;
+  note: string | null;
+}
+
+export interface SowHistoryPigletFostering {
+  sow_id: string;
+  role: 'donor' | 'receiver';
+  movement_date: string;
+  quantity: number;
+  note: string | null;
+}
+
 export type SowHistoryEvent =
   | { type: 'sow_entry'; date: string; data: SowHistorySow }
   | { type: 'service'; date: string; data: SowHistoryService }
   | { type: 'abortion'; date: string; data: SowHistoryAbortion }
-  | { type: 'farrowing'; date: string; data: SowHistoryFarrowing };
+  | { type: 'farrowing'; date: string; data: SowHistoryFarrowing }
+  | { type: 'piglet_death'; date: string; data: SowHistoryPigletDeath }
+  | { type: 'piglet_fostering'; date: string; data: SowHistoryPigletFostering };
 
 export interface SowHistory {
   sow: SowHistorySow;

@@ -212,6 +212,39 @@
                     <p class="mt-2 text-sm">Nota: {{ event.data.note }}</p>
                   }
                 }
+                @case ('piglet_death') {
+                  <p class="mt-2 text-sm">
+                    Cantidad: {{ event.data.quantity }} · Causa:
+                    {{ pigletDeathCauseLabel(event.data.cause) }} · Turno:
+                    {{ pigletDeathTurnLabel(event.data.turn) }}
+                  </p>
+                  @if (event.data.weight !== null) {
+                    <p class="mt-1 text-sm text-muted-foreground">
+                      Peso: {{ event.data.weight }} kg
+                    </p>
+                  }
+                  <p class="mt-1 text-sm text-muted-foreground">
+                    Fecha: {{ event.data.death_date }}
+                  </p>
+                  <p class="mt-1 text-sm text-muted-foreground">
+                    Operador: {{ event.data.operator_name }}
+                  </p>
+                  @if (event.data.note) {
+                    <p class="mt-1 text-sm text-muted-foreground">Nota: {{ event.data.note }}</p>
+                  }
+                }
+                @case ('piglet_fostering') {
+                  <p class="mt-2 text-sm">
+                    {{ fosteringRoleLabel(event.data.role) }} · Cantidad:
+                    {{ event.data.quantity }}
+                  </p>
+                  <p class="mt-1 text-sm text-muted-foreground">
+                    Fecha: {{ event.data.movement_date }}
+                  </p>
+                  @if (event.data.note) {
+                    <p class="mt-1 text-sm text-muted-foreground">Nota: {{ event.data.note }}</p>
+                  }
+                }
               }
             </li>
           }
