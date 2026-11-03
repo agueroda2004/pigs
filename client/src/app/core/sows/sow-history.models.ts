@@ -76,13 +76,30 @@ export interface SowHistoryPigletFostering {
   note: string | null;
 }
 
+export interface SowHistoryPartialWeaging {
+  weaging_date: string;
+  quantity: number;
+  total_weight: number | null;
+  type: string;
+  note: string | null;
+}
+
+export interface SowHistoryWeaging {
+  weaging_date: string;
+  quantity: number;
+  total_weight: number | null;
+  note: string | null;
+}
+
 export type SowHistoryEvent =
   | { type: 'sow_entry'; date: string; data: SowHistorySow }
   | { type: 'service'; date: string; data: SowHistoryService }
   | { type: 'abortion'; date: string; data: SowHistoryAbortion }
   | { type: 'farrowing'; date: string; data: SowHistoryFarrowing }
   | { type: 'piglet_death'; date: string; data: SowHistoryPigletDeath }
-  | { type: 'piglet_fostering'; date: string; data: SowHistoryPigletFostering };
+  | { type: 'piglet_fostering'; date: string; data: SowHistoryPigletFostering }
+  | { type: 'partial_weaging'; date: string; data: SowHistoryPartialWeaging }
+  | { type: 'weaging'; date: string; data: SowHistoryWeaging };
 
 export interface SowHistory {
   sow: SowHistorySow;

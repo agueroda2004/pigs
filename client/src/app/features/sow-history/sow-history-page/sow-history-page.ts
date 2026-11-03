@@ -4,6 +4,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 
+import { PartialWeagingType } from '../../../core/partial-weagings/partial-weaging.models';
 import { PigletDeathCause, Turn } from '../../../core/piglet-deaths/piglet-death.models';
 import {
   SowHistory,
@@ -12,6 +13,7 @@ import {
   SowHistoryPigletFostering,
 } from '../../../core/sows/sow-history.models';
 import { SowsService } from '../../../core/sows/sows.service';
+import { PARTIAL_WEAGING_TYPE_LABELS } from '../../partial-weagings/partial-weaging-type';
 import { PIGLET_DEATH_CAUSE_LABELS } from '../../piglet-deaths/piglet-death-cause';
 import { PIGLET_DEATH_TURN_LABELS } from '../../piglet-deaths/piglet-death-turn';
 
@@ -72,6 +74,8 @@ export class SowHistoryPage {
       farrowing: 'Parto',
       piglet_death: 'Muerte de lechones',
       piglet_fostering: 'Traslado de lechones',
+      partial_weaging: 'Destete parcial',
+      weaging: 'Destete',
     };
     return titles[event.type];
   }
@@ -90,6 +94,10 @@ export class SowHistoryPage {
         return 'border-l-4 border-l-warning';
       case 'piglet_fostering':
         return 'border-l-4 border-l-purple-500';
+      case 'partial_weaging':
+        return 'border-l-4 border-l-teal-500';
+      case 'weaging':
+        return 'border-l-4 border-l-emerald-500';
       default:
         return 'border-l-4 border-l-gray-300';
     }
@@ -111,6 +119,12 @@ export class SowHistoryPage {
   // It falls back to the raw value when the turn is unknown.
   protected pigletDeathTurnLabel(turn: string): string {
     return PIGLET_DEATH_TURN_LABELS[turn as Turn] ?? turn;
+  }
+
+  // partialWeagingTypeLabel translates a server type into its display label.
+  // It falls back to the raw value when the type is unknown.
+  protected partialWeagingTypeLabel(type: string): string {
+    return PARTIAL_WEAGING_TYPE_LABELS[type as PartialWeagingType] ?? type;
   }
 
   protected farrowingTimeRange(farrowing: SowHistoryFarrowing): string | null {

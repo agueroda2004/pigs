@@ -111,6 +111,29 @@ const fosteringDonorEvent: SowHistoryEvent = {
   },
 };
 
+const partialWeagingEvent: SowHistoryEvent = {
+  type: 'partial_weaging',
+  date: '2026-04-15',
+  data: {
+    weaging_date: '2026-04-15',
+    quantity: 4,
+    total_weight: 42.5,
+    type: 'Nodriza',
+    note: 'Destete parcial de la camada',
+  },
+};
+
+const weagingEvent: SowHistoryEvent = {
+  type: 'weaging',
+  date: '2026-04-20',
+  data: {
+    weaging_date: '2026-04-20',
+    quantity: 5,
+    total_weight: 55.5,
+    note: 'Destete completo',
+  },
+};
+
 const historyPayload: SowHistory = {
   sow: {
     code: 'C-001',
@@ -265,6 +288,137 @@ describe('SowHistoryPage', () => {
       'Traslado de lechones',
       'Ingreso a la granja',
     ]);
+  });
+
+  it('renders partial weaging events with type, quantity and optional weight', async () => {
+    sowService.getSowHistory.mockReturnValue(
+      of({
+        ...historyPayload,
+        events: [partialWeagingEvent, pigletDeathEvent, sowEntryEvent],
+      }),
+    );
+    const fixture = TestBed.createComponent(SowHistoryPage);
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector('#sow-history-code') as HTMLInputElement;
+    input.value = 'C-001';
+    input.dispatchEvent(new Event('input'));
+    fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Destete parcial');
+    expect(text).toContain('Tipo: Nodriza');
+    expect(text).toContain('Cantidad: 4');
+    expect(text).toContain('Fecha: 2026-04-15');
+    expect(text).toContain('Peso total: 42.5 kg');
+    expect(text).toContain('Nota: Destete parcial de la camada');
+    expect(text).not.toContain('No hay eventos reproductivos registrados');
+
+    const cards = fixture.nativeElement.querySelectorAll('ol > li') as NodeListOf<HTMLElement>;
+    expect(cards[0].classList).toContain('border-l-teal-500');
+    expect(cards[1].classList).toContain('border-l-warning');
+    expect(cards[2].classList).toContain('border-l-gray-400');
+
+    const titles = Array.from(cards).map((card: HTMLElement) =>
+      card.querySelector('h3')?.textContent?.trim(),
+    );
+    expect(titles).toEqual(['Destete parcial', 'Muerte de lechones', 'Ingreso a la granja']);
+  });
+
+  it('omits the partial weaging weight and note when they are null', async () => {
+    const weagingWithoutOptionalFields: SowHistoryEvent = {
+      type: 'partial_weaging',
+      date: '2026-04-16',
+      data: {
+        weaging_date: '2026-04-16',
+        quantity: 2,
+        total_weight: null,
+        type: 'Baja_Viabilidad',
+        note: null,
+      },
+    };
+    sowService.getSowHistory.mockReturnValue(
+      of({ ...historyPayload, events: [weagingWithoutOptionalFields, sowEntryEvent] }),
+    );
+    const fixture = TestBed.createComponent(SowHistoryPage);
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector('#sow-history-code') as HTMLInputElement;
+    input.value = 'C-001';
+    input.dispatchEvent(new Event('input'));
+    fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Tipo: Baja viabilidad');
+    expect(text).not.toContain('Peso total:');
+    expect(text).not.toContain('Nota:');
+    expect(text).not.toContain('No hay eventos reproductivos registrados');
+  });
+
+  it('renders full weaging events with quantity and optional weight', async () => {
+    sowService.getSowHistory.mockReturnValue(
+      of({
+        ...historyPayload,
+        events: [weagingEvent, partialWeagingEvent, sowEntryEvent],
+      }),
+    );
+    const fixture = TestBed.createComponent(SowHistoryPage);
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector('#sow-history-code') as HTMLInputElement;
+    input.value = 'C-001';
+    input.dispatchEvent(new Event('input'));
+    fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Destete');
+    expect(text).toContain('Cantidad: 5');
+    expect(text).toContain('Fecha: 2026-04-20');
+    expect(text).toContain('Peso total: 55.5 kg');
+    expect(text).toContain('Nota: Destete completo');
+    expect(text).not.toContain('No hay eventos reproductivos registrados');
+
+    const cards = fixture.nativeElement.querySelectorAll('ol > li') as NodeListOf<HTMLElement>;
+    expect(cards[0].classList).toContain('border-l-emerald-500');
+    expect(cards[1].classList).toContain('border-l-teal-500');
+    expect(cards[2].classList).toContain('border-l-gray-400');
+
+    const titles = Array.from(cards).map((card: HTMLElement) =>
+      card.querySelector('h3')?.textContent?.trim(),
+    );
+    expect(titles).toEqual(['Destete', 'Destete parcial', 'Ingreso a la granja']);
+  });
+
+  it('omits the full weaging weight and note when they are null', async () => {
+    const weagingWithoutOptionalFields: SowHistoryEvent = {
+      type: 'weaging',
+      date: '2026-04-21',
+      data: {
+        weaging_date: '2026-04-21',
+        quantity: 2,
+        total_weight: null,
+        note: null,
+      },
+    };
+    sowService.getSowHistory.mockReturnValue(
+      of({ ...historyPayload, events: [weagingWithoutOptionalFields, sowEntryEvent] }),
+    );
+    const fixture = TestBed.createComponent(SowHistoryPage);
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector('#sow-history-code') as HTMLInputElement;
+    input.value = 'C-001';
+    input.dispatchEvent(new Event('input'));
+    fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).not.toContain('Peso total:');
+    expect(text).not.toContain('Nota:');
+    expect(text).not.toContain('No hay eventos reproductivos registrados');
   });
 
   it('shows a loading state and an empty reproductive history', async () => {

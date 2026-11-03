@@ -245,6 +245,37 @@
                     <p class="mt-1 text-sm text-muted-foreground">Nota: {{ event.data.note }}</p>
                   }
                 }
+                @case ('partial_weaging') {
+                  <p class="mt-2 text-sm">
+                    Tipo: {{ partialWeagingTypeLabel(event.data.type) }} · Cantidad:
+                    {{ event.data.quantity }}
+                  </p>
+                  <p class="mt-1 text-sm text-muted-foreground">
+                    Fecha: {{ event.data.weaging_date }}
+                  </p>
+                  @if (event.data.total_weight !== null) {
+                    <p class="mt-1 text-sm text-muted-foreground">
+                      Peso total: {{ event.data.total_weight }} kg
+                    </p>
+                  }
+                  @if (event.data.note) {
+                    <p class="mt-1 text-sm text-muted-foreground">Nota: {{ event.data.note }}</p>
+                  }
+                }
+                @case ('weaging') {
+                  <p class="mt-2 text-sm">Cantidad: {{ event.data.quantity }}</p>
+                  <p class="mt-1 text-sm text-muted-foreground">
+                    Fecha: {{ event.data.weaging_date }}
+                  </p>
+                  @if (event.data.total_weight !== null) {
+                    <p class="mt-1 text-sm text-muted-foreground">
+                      Peso total: {{ event.data.total_weight }} kg
+                    </p>
+                  }
+                  @if (event.data.note) {
+                    <p class="mt-1 text-sm text-muted-foreground">Nota: {{ event.data.note }}</p>
+                  }
+                }
               }
             </li>
           }
