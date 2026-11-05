@@ -101,7 +101,29 @@ export type SowHistoryEvent =
   | { type: 'partial_weaging'; date: string; data: SowHistoryPartialWeaging }
   | { type: 'weaging'; date: string; data: SowHistoryWeaging };
 
+export interface SowHistoryAverages {
+  average_live_born: number | null;
+  average_stillborn: number | null;
+  average_mummified: number | null;
+  average_live_born_weight: number | null;
+  average_litter_weight: number | null;
+  average_stillborn_weight: number | null;
+  mortality_rate_percentage: number | null;
+  average_deaths_per_farrowing: number | null;
+  average_dead_piglet_weight: number | null;
+  average_weaned_piglets: number | null;
+  average_weaned_piglet_weight: number | null;
+  average_gestation_days: number | null;
+  average_weaning_age_days: number | null;
+  manipulated_farrowings: number;
+  total_farrowings: number;
+  manipulated_text: string;
+  average_farrowing_duration: string | null;
+  average_farrowing_duration_formatted: string | null;
+}
+
 export interface SowHistory {
   sow: SowHistorySow;
   events: SowHistoryEvent[];
+  averages: SowHistoryAverages;
 }

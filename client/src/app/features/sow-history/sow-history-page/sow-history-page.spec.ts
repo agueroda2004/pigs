@@ -145,6 +145,26 @@ const historyPayload: SowHistory = {
     age: '1 año',
   },
   events: [pigletDeathEvent, farrowingEvent, abortionEvent, serviceEvent, sowEntryEvent],
+  averages: {
+    average_live_born: 10,
+    average_stillborn: 1,
+    average_mummified: 1,
+    average_live_born_weight: 1.55,
+    average_litter_weight: 15.5,
+    average_stillborn_weight: 2.5,
+    mortality_rate_percentage: 30,
+    average_deaths_per_farrowing: 3,
+    average_dead_piglet_weight: 2.5,
+    average_weaned_piglets: 3,
+    average_weaned_piglet_weight: 19.5,
+    average_gestation_days: 114,
+    average_weaning_age_days: 21,
+    manipulated_farrowings: 0,
+    total_farrowings: 1,
+    manipulated_text: 'Esta cerda ha sido manipulada 0 partos de 1 totales',
+    average_farrowing_duration: '04:30',
+    average_farrowing_duration_formatted: '4 h 30 min',
+  },
 };
 
 describe('SowHistoryPage', () => {

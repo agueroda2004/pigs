@@ -80,6 +80,101 @@
           <dd>{{ result.sow.age }}</dd>
         </div>
       </dl>
+
+      <section class="mt-5 space-y-3" aria-label="Promedios reproductivos">
+        <h3 class="text-sm font-semibold">Promedios reproductivos</h3>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <article class="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+            <h4 class="font-medium">Camada y nacimientos</h4>
+            <dl class="mt-2 space-y-1">
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Promedio nacidos vivos</dt>
+                <dd>{{ result.averages.average_live_born ?? '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Promedio nacidos muertos</dt>
+                <dd>{{ result.averages.average_stillborn ?? '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Promedio momificados</dt>
+                <dd>{{ result.averages.average_mummified ?? '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Peso nacido vivo (kg/lechón)</dt>
+                <dd>{{ result.averages.average_live_born_weight ?? '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Peso camada (kg/camada)</dt>
+                <dd>{{ result.averages.average_litter_weight ?? '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Peso nacido muerto (kg/lechón)</dt>
+                <dd>{{ result.averages.average_stillborn_weight ?? '—' }}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article class="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+            <h4 class="font-medium">Destete</h4>
+            <dl class="mt-2 space-y-1">
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Promedio lechones destetados</dt>
+                <dd>{{ result.averages.average_weaned_piglets ?? '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Peso lechones destetados (kg/lechón)</dt>
+                <dd>{{ result.averages.average_weaned_piglet_weight ?? '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Edad promedio al destete (días)</dt>
+                <dd>{{ result.averages.average_weaning_age_days ?? '—' }}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article class="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+            <h4 class="font-medium">Mortalidad en lactancia</h4>
+            <dl class="mt-2 space-y-1">
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Tasa de mortalidad (%)</dt>
+                <dd>{{ result.averages.mortality_rate_percentage ?? '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Promedio muertes por parto</dt>
+                <dd>{{ result.averages.average_deaths_per_farrowing ?? '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Peso lechón muerto (kg)</dt>
+                <dd>{{ result.averages.average_dead_piglet_weight ?? '—' }}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article class="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+            <h4 class="font-medium">Ciclo reproductivo y parto</h4>
+            <dl class="mt-2 space-y-1">
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Gestación promedio (días)</dt>
+                <dd>{{ result.averages.average_gestation_days ?? '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Duración de parto</dt>
+                <dd>
+                  {{
+                    result.averages.average_farrowing_duration_formatted ??
+                      result.averages.average_farrowing_duration ??
+                      '—'
+                  }}
+                </dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-muted-foreground">Manipulación</dt>
+                <dd>{{ result.averages.manipulated_text }}</dd>
+              </div>
+            </dl>
+          </article>
+        </div>
+      </section>
     </section>
 
     @if (
@@ -201,7 +296,7 @@
                       <ul class="mt-1 space-y-1">
                         @for (medication of event.data.medications; track $index) {
                           <li>
-                            {{ medication.medication_name }} · Dosis {{ medication.dose }} ·
+                            {{ medication.medication_name }} · Dosis {{ medication.dose }}ml ·
                             Aplicado por {{ medication.applied_by_name }}
                           </li>
                         }

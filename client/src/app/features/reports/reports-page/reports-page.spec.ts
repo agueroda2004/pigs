@@ -8,5 +8,6 @@ describe('ReportsPage', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Reportes');
+    expect(fixture.nativeElement.textContent).toContain('Trabajando');
   });
 });
