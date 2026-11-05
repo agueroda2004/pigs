@@ -697,10 +697,16 @@ func (r *PostgresFarrowingRepository) HistoryBySow(ctx context.Context, sowCode 
 		SELECT f.id, f.farrow_date, f.start_time, f.end_time, f.location,
 		       f.live_born, f.mummified, f.stillborn, f.litter_weight,
 		       f.stillborn_weight, f.is_manipulated, f.note, f.is_nurse,
+		       (f.farrow_date::date - mount.last_mount_date::date)::int AS gestation_days,
 		       COALESCE(o.operators, '[]'::jsonb) AS operators,
 		       COALESCE(m.medications, '[]'::jsonb) AS medications
 		FROM farrowings f
 		JOIN sows s ON s.id = f.sow_id
+		LEFT JOIN LATERAL (
+			SELECT MAX(m.mount_date)::date AS last_mount_date
+			FROM mounts m
+			WHERE m.service_id = f.service_id
+		) mount ON TRUE
 		LEFT JOIN LATERAL (
 			SELECT jsonb_agg(
 			           jsonb_build_object('operator_name', op.name)
@@ -750,6 +756,7 @@ func (r *PostgresFarrowingRepository) HistoryBySow(ctx context.Context, sowCode 
 			&item.IsManipulated,
 			&item.Note,
 			&item.IsNurse,
+			&item.GestationDays,
 			&item.Operators,
 			&item.Medications,
 		); err != nil {

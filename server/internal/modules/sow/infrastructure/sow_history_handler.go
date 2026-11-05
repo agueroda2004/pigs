@@ -195,9 +195,31 @@ type sowHistoryEventResponse struct {
 	Data any    `json:"data"`
 }
 
+type sowAveragesResponse struct {
+	AverageLiveBorn                   *float64 `json:"average_live_born"`
+	AverageStillborn                  *float64 `json:"average_stillborn"`
+	AverageMummified                  *float64 `json:"average_mummified"`
+	AverageLiveBornWeight             *float64 `json:"average_live_born_weight"`
+	AverageLitterWeight               *float64 `json:"average_litter_weight"`
+	AverageStillbornWeight            *float64 `json:"average_stillborn_weight"`
+	MortalityRatePercentage           *float64 `json:"mortality_rate_percentage"`
+	AverageDeathsPerFarrowing         *float64 `json:"average_deaths_per_farrowing"`
+	AverageDeadPigletWeight           *float64 `json:"average_dead_piglet_weight"`
+	AverageWeanedPiglets              *float64 `json:"average_weaned_piglets"`
+	AverageWeanedPigletWeight         *float64 `json:"average_weaned_piglet_weight"`
+	AverageGestationDays              *float64 `json:"average_gestation_days"`
+	AverageWeaningAgeDays             *float64 `json:"average_weaning_age_days"`
+	ManipulatedFarrowings             int      `json:"manipulated_farrowings"`
+	TotalFarrowings                   int      `json:"total_farrowings"`
+	ManipulatedText                   string   `json:"manipulated_text"`
+	AverageFarrowingDuration          *string  `json:"average_farrowing_duration"`
+	AverageFarrowingDurationFormatted *string  `json:"average_farrowing_duration_formatted"`
+}
+
 type sowHistoryResponse struct {
-	Sow    sowHistoryBySowResponse   `json:"sow"`
-	Events []sowHistoryEventResponse `json:"events"`
+	Sow      sowHistoryBySowResponse   `json:"sow"`
+	Events   []sowHistoryEventResponse `json:"events"`
+	Averages sowAveragesResponse       `json:"averages"`
 }
 
 // get returns the unified sow history timeline for the requested code.
@@ -323,9 +345,12 @@ func (h *SowHistoryHandler) get(w http.ResponseWriter, r *http.Request) {
 		return events[i].Date > events[j].Date
 	})
 
+	averages := sowdomain.CalculateSowHistoryAverages(farrowings, pigletDeaths, weagings, partialWeagings)
+
 	platformhttp.WriteJSON(w, http.StatusOK, sowHistoryResponse{
-		Sow:    toSowHistoryBySowResponse(sow),
-		Events: events,
+		Sow:      toSowHistoryBySowResponse(sow),
+		Events:   events,
+		Averages: toSowAveragesResponse(averages),
 	})
 }
 
@@ -459,5 +484,30 @@ func toWeagingHistoryResponse(weaging *weagingdomain.WeagingHistoryBySow) weagin
 		Quantity:    weaging.Quantity,
 		TotalWeight: weaging.TotalWeight,
 		Note:        weaging.Note,
+	}
+}
+
+// toSowAveragesResponse maps the calculated sow averages to the HTTP response shape.
+// It keeps every nullable metric as null when the calculator did not have valid data.
+func toSowAveragesResponse(averages sowdomain.SowHistoryAverages) sowAveragesResponse {
+	return sowAveragesResponse{
+		AverageLiveBorn:                   averages.AverageLiveBorn,
+		AverageStillborn:                  averages.AverageStillborn,
+		AverageMummified:                  averages.AverageMummified,
+		AverageLiveBornWeight:             averages.AverageLiveBornWeight,
+		AverageLitterWeight:               averages.AverageLitterWeight,
+		AverageStillbornWeight:            averages.AverageStillbornWeight,
+		MortalityRatePercentage:           averages.MortalityRatePercentage,
+		AverageDeathsPerFarrowing:         averages.AverageDeathsPerFarrowing,
+		AverageDeadPigletWeight:           averages.AverageDeadPigletWeight,
+		AverageWeanedPiglets:              averages.AverageWeanedPiglets,
+		AverageWeanedPigletWeight:         averages.AverageWeanedPigletWeight,
+		AverageGestationDays:              averages.AverageGestationDays,
+		AverageWeaningAgeDays:             averages.AverageWeaningAgeDays,
+		ManipulatedFarrowings:             averages.ManipulatedFarrowings,
+		TotalFarrowings:                   averages.TotalFarrowings,
+		ManipulatedText:                   averages.ManipulatedText,
+		AverageFarrowingDuration:          averages.AverageFarrowingDuration,
+		AverageFarrowingDurationFormatted: averages.AverageFarrowingDurationFormatted,
 	}
 }

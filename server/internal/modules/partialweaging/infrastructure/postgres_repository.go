@@ -570,7 +570,8 @@ func (r *PostgresPartialWeagingRepository) List(
 // It returns an empty slice when the sow has no partial weagings and orders newest first.
 func (r *PostgresPartialWeagingRepository) HistoryBySow(ctx context.Context, sowCode string) ([]*partialweagingdomain.PartialWeagingHistoryBySow, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT pw.weaging_date, pw.quantity, pw.total_weight, pw.type, pw.note
+		SELECT pw.weaging_date, pw.quantity, pw.total_weight, pw.type, pw.note,
+		       (pw.weaging_date::date - f.farrow_date::date)::int AS weaning_age_days
 		FROM partial_weagings pw
 		JOIN farrowings f ON f.id = pw.farrowing_id
 		JOIN sows s ON s.id = f.sow_id
@@ -591,6 +592,7 @@ func (r *PostgresPartialWeagingRepository) HistoryBySow(ctx context.Context, sow
 			&item.TotalWeight,
 			&item.Type,
 			&item.Note,
+			&item.WeaningAgeDays,
 		); err != nil {
 			return nil, fmt.Errorf("No se pudieron consultar los destetes parciales: %w", err)
 		}

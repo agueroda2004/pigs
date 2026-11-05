@@ -25,6 +25,7 @@ type FarrowingHistoryBySow struct {
 	IsManipulated   bool
 	Note            *string
 	IsNurse         bool
+	GestationDays   *int
 	Operators       []FarrowingHistoryOperator
 	Medications     []FarrowingHistoryMedication
 }

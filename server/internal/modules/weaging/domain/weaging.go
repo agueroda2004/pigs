@@ -39,10 +39,11 @@ var (
 // WeagingHistoryBySow is the read model returned for each full weaging in a sow history.
 // It carries only the timeline fields and keeps the optional total weight and note nullable.
 type WeagingHistoryBySow struct {
-	WeagingDate time.Time
-	Quantity    int
-	TotalWeight *float64
-	Note        *string
+	WeagingDate    time.Time
+	Quantity       int
+	TotalWeight    *float64
+	Note           *string
+	WeaningAgeDays *int
 }
 
 // Weaging is the aggregate root that represents the full weaning of a farrowing.

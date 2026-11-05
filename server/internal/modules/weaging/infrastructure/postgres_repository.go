@@ -478,7 +478,8 @@ func (r *PostgresWeagingRepository) List(ctx context.Context, filter ports.Weagi
 // It returns an empty slice when the sow has no full weagings and orders newest first.
 func (r *PostgresWeagingRepository) HistoryBySow(ctx context.Context, sowCode string) ([]*weagingdomain.WeagingHistoryBySow, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT w.weaging_date, w.quantity, w.total_weight, w.note
+		SELECT w.weaging_date, w.quantity, w.total_weight, w.note,
+		       (w.weaging_date::date - f.farrow_date::date)::int AS weaning_age_days
 		FROM weagings w
 		JOIN farrowings f ON f.id = w.farrowing_id
 		JOIN sows s ON s.id = f.sow_id
@@ -498,6 +499,7 @@ func (r *PostgresWeagingRepository) HistoryBySow(ctx context.Context, sowCode st
 			&item.Quantity,
 			&item.TotalWeight,
 			&item.Note,
+			&item.WeaningAgeDays,
 		); err != nil {
 			return nil, fmt.Errorf("No se pudieron consultar los destetes: %w", err)
 		}
