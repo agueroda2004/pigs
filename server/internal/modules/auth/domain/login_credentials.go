@@ -25,7 +25,7 @@ func NewLoginCredentials(username string, password string) (LoginCredentials, er
 		return LoginCredentials{}, ErrInvalidUsername
 	}
 
-	if password == "" || len([]rune(password)) > userdomain.MaxPasswordLength {
+	if password == "" || len([]rune(password)) > userdomain.MaxPasswordLength || len([]byte(password)) > 72 {
 		return LoginCredentials{}, ErrInvalidPassword
 	}
 

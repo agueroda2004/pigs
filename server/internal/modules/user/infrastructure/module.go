@@ -23,6 +23,7 @@ func NewModule(
 	repository ports.UserRepository,
 	hasher ports.PasswordHasher,
 	clock func() time.Time,
+	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *Module {
 	createUser := userapplication.NewCreateUserService(repository, hasher, clock)
@@ -37,6 +38,6 @@ func NewModule(
 		UpdateOwnUser:     updateOwnUser,
 		UpdateUserByAdmin: updateUserByAdmin,
 		DeleteUser:        deleteUser,
-		Handler:           NewUserHandler(createUser, listUsers, updateOwnUser, updateUserByAdmin, deleteUser, adminMiddleware),
+		Handler:           NewUserHandler(createUser, listUsers, updateOwnUser, updateUserByAdmin, deleteUser, authMiddleware, adminMiddleware),
 	}
 }

@@ -55,6 +55,9 @@ func Load() (Config, error) {
 	if jwtSecret == "" {
 		return Config{}, errors.New("La variable JWT_SECRET es obligatoria")
 	}
+	if len(jwtSecret) < 32 {
+		return Config{}, errors.New("La variable JWT_SECRET debe tener al menos 32 caracteres")
+	}
 
 	accessTokenTTL, err := parseDurationEnv("ACCESS_TOKEN_TTL", 15*time.Minute)
 	if err != nil {

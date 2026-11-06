@@ -2,7 +2,6 @@ package http
 
 import (
 	"net/http"
-	"strings"
 )
 
 const (
@@ -30,12 +29,7 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 
 				if r.Method == http.MethodOptions {
 					w.Header().Set("Access-Control-Allow-Methods", corsAllowMethods)
-
-					headers := strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers"))
-					if headers == "" {
-						headers = corsAllowHeaders
-					}
-					w.Header().Set("Access-Control-Allow-Headers", headers)
+					w.Header().Set("Access-Control-Allow-Headers", corsAllowHeaders)
 					w.Header().Set("Access-Control-Max-Age", corsMaxAge)
 					w.WriteHeader(http.StatusNoContent)
 					return

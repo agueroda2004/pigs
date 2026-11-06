@@ -71,6 +71,7 @@ func (s *LoginService) Execute(ctx context.Context, command LoginCommand) (*Logi
 	user, err := s.users.FindByUsername(ctx, credentials.Username)
 	if err != nil {
 		if errors.Is(err, userports.ErrUserNotFound) {
+			_ = s.passwordVerifier.Verify("$2a$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidinv", credentials.Password)
 			return nil, ErrInvalidCredentials
 		}
 		return nil, err

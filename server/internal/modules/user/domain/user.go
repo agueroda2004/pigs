@@ -219,7 +219,7 @@ func validateUsername(username string) (string, error) {
 // ValidatePassword checks a plain-text password before it is hashed.
 // It returns ErrInvalidPassword when the password is empty or exceeds the maximum length.
 func ValidatePassword(password string) error {
-	if password == "" || len([]rune(password)) > MaxPasswordLength {
+	if password == "" || len([]rune(password)) > MaxPasswordLength || len([]byte(password)) > 72 {
 		return ErrInvalidPassword
 	}
 	return nil
