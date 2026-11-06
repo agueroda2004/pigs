@@ -104,6 +104,20 @@ func (r *PostgresRefreshTokenRepository) RevokeFamily(ctx context.Context, famil
 	return nil
 }
 
+// RevokeSessions revokes every non-revoked refresh token belonging to the given user.
+// It wraps any storage failure with a descriptive error.
+func (r *PostgresRefreshTokenRepository) RevokeSessions(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE refresh_tokens
+		SET is_revoked = TRUE
+		WHERE user_id = $1 AND is_revoked = FALSE
+	`, userID)
+	if err != nil {
+		return fmt.Errorf("No se pudo revocar las sesiones del usuario: %w", err)
+	}
+	return nil
+}
+
 // RevokeByHash revokes the non-revoked token matching the given hash.
 // It wraps any storage failure with a descriptive error.
 func (r *PostgresRefreshTokenRepository) RevokeByHash(ctx context.Context, hash string) error {

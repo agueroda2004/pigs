@@ -132,7 +132,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 
 	container := &Container{
 		DB:              db,
-		User:            userinfrastructure.NewModule(userRepository, hasher, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
+		User:            userinfrastructure.NewModule(userRepository, hasher, clock, refreshTokenRepository, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Breed:           breedinfrastructure.NewModule(breedRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Boar:            boarinfrastructure.NewModule(boarRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		BoarRemoval:     boarremovalinfrastructure.NewModule(boarRemovalRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
