@@ -24,6 +24,7 @@ import (
 	weaginginfrastructure "server/internal/modules/weaging/infrastructure"
 	"server/internal/platform/config"
 	"server/internal/platform/database"
+	"server/internal/platform/ratelimit"
 )
 
 type Container struct {
@@ -116,6 +117,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		SameSite: authinfrastructure.SameSiteFromString(applicationConfig.CookieSameSite),
 	}
 
+	loginLimiter := ratelimit.New(5, time.Minute)
 	authModule := authinfrastructure.NewModule(
 		userRepository,
 		refreshTokenRepository,
@@ -128,6 +130,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		applicationConfig.AccessTokenTTL,
 		applicationConfig.RefreshTokenTTL,
 		cookieConfig,
+		loginLimiter,
 	)
 
 	container := &Container{

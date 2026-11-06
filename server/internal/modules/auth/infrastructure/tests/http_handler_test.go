@@ -176,6 +176,7 @@ func TestAuthHandlerMe(t *testing.T) {
 			&fakeRefreshUseCase{},
 			&fakeLogoutUseCase{},
 			verifier.Authenticate,
+			nil,
 			15*time.Minute,
 			7*24*time.Hour,
 			authinfra.CookieConfig{Secure: false, SameSite: http.SameSiteLaxMode},

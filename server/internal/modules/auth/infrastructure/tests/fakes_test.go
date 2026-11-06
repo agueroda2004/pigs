@@ -64,6 +64,7 @@ func newTestAuthHandler(login authinfra.LoginUseCase, refresh authinfra.RefreshU
 		refresh,
 		logout,
 		func(next http.Handler) http.Handler { return next },
+		nil,
 		15*time.Minute,
 		7*24*time.Hour,
 		authinfra.CookieConfig{Secure: false, SameSite: http.SameSiteLaxMode},

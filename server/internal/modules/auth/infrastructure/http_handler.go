@@ -14,6 +14,7 @@ import (
 	userdomain "server/internal/modules/user/domain"
 	userports "server/internal/modules/user/ports"
 	platformhttp "server/internal/platform/http"
+	ratelimit "server/internal/platform/ratelimit"
 )
 
 type LoginUseCase interface {
@@ -33,6 +34,7 @@ type AuthHandler struct {
 	refreshUseCase RefreshUseCase
 	logoutUseCase  LogoutUseCase
 	authMiddleware func(http.Handler) http.Handler
+	loginLimiter   *ratelimit.Limiter
 	accessTTL      time.Duration
 	refreshTTL     time.Duration
 	cookieConfig   CookieConfig
@@ -45,6 +47,7 @@ func NewAuthHandler(
 	refresh RefreshUseCase,
 	logout LogoutUseCase,
 	authMiddleware func(http.Handler) http.Handler,
+	loginLimiter *ratelimit.Limiter,
 	accessTTL time.Duration,
 	refreshTTL time.Duration,
 	cookieConfig CookieConfig,
@@ -54,6 +57,7 @@ func NewAuthHandler(
 		refreshUseCase: refresh,
 		logoutUseCase:  logout,
 		authMiddleware: authMiddleware,
+		loginLimiter:   loginLimiter,
 		accessTTL:      accessTTL,
 		refreshTTL:     refreshTTL,
 		cookieConfig:   cookieConfig,
@@ -83,6 +87,11 @@ type meResponse struct {
 // login handles POST /api/v1/auth/login and starts a session for valid credentials.
 // It sets the access and refresh cookies and maps auth errors to HTTP status codes.
 func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
+	if h.loginLimiter != nil && !h.loginLimiter.Allow(r.RemoteAddr) {
+		platformhttp.WriteError(w, http.StatusTooManyRequests, errors.New("Demasiados intentos, intente mas tarde"))
+		return
+	}
+
 	var request loginRequest
 	if err := platformhttp.DecodeJSON(w, r, &request); err != nil {
 		platformhttp.WriteError(w, http.StatusBadRequest, err)
