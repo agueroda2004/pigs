@@ -24,6 +24,24 @@
         </a>
 
         <a
+          routerLink="/reports"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Reportes</span>
+        </a>
+
+        <a
+          routerLink="/sow-history"
+          routerLinkActive="bg-muted font-medium text-foreground"
+          (click)="closeSidebar()"
+          class="block rounded-md px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <span>Historial de cerdas</span>
+        </a>
+
+        <a
           routerLink="/breeds"
           routerLinkActive="bg-muted font-medium text-foreground"
           (click)="closeSidebar()"

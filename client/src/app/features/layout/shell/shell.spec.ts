@@ -50,6 +50,8 @@ describe('Shell', () => {
 
     expect(labels(fixture)).toEqual([
       'Panel',
+      'Reportes',
+      'Historial de cerdas',
       'Razas',
       'Verracos',
       'Remover verracos',
