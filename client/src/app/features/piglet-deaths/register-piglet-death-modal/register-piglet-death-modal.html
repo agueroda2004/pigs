@@ -1,15 +1,29 @@
 <app-modal [open]="open()" size="xl" title="Registrar muerte" (closed)="closed.emit()">
   <form class="space-y-4" [formGroup]="form" (ngSubmit)="submit()">
-    <div class="space-y-1.5">
-      <span class="block text-sm font-medium">Cerda</span>
-      <app-search-dropdown
-        formControlName="sow_id"
-        [options]="sowOptions()"
-        placeholder="Seleccionar cerda"
-      />
-      @if (form.controls.sow_id.touched && form.controls.sow_id.invalid) {
-        <p class="text-xs text-danger">La cerda es obligatoria.</p>
-      }
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Cerda</span>
+        <app-search-dropdown
+          formControlName="sow_id"
+          [options]="sowOptions()"
+          placeholder="Seleccionar cerda"
+        />
+        @if (form.controls.sow_id.touched && form.controls.sow_id.invalid) {
+          <p class="text-xs text-danger">La cerda es obligatoria.</p>
+        }
+      </div>
+
+      <div class="space-y-1.5">
+        <span class="block text-sm font-medium">Fecha de la muerte</span>
+        <app-date-picker
+          formControlName="death_date"
+          [maxDate]="today"
+          placeholder="Seleccionar fecha"
+        />
+        @if (form.controls.death_date.touched && form.controls.death_date.invalid) {
+          <p class="text-xs text-danger">La fecha de la muerte es obligatoria.</p>
+        }
+      </div>
     </div>
 
     <div class="space-y-1.5">
@@ -24,19 +38,7 @@
       }
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-3">
-      <div class="space-y-1.5">
-        <span class="block text-sm font-medium">Fecha de la muerte</span>
-        <app-date-picker
-          formControlName="death_date"
-          [maxDate]="today"
-          placeholder="Seleccionar fecha"
-        />
-        @if (form.controls.death_date.touched && form.controls.death_date.invalid) {
-          <p class="text-xs text-danger">La fecha de la muerte es obligatoria.</p>
-        }
-      </div>
-
+    <div class="grid gap-4 sm:grid-cols-2">
       <div class="space-y-1.5">
         <label for="piglet-death-quantity" class="block text-sm font-medium">Cantidad</label>
         <input
