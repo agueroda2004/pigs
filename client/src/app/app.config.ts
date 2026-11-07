@@ -9,6 +9,8 @@ import {
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
 import { provideRouter } from '@angular/router';
+import { provideServiceWorker } from '@angular/service-worker';
+import { isDevMode } from '@angular/core';
 
 import { AuthService } from './core/auth/auth.service';
 import { authInterceptor } from './core/auth/auth.interceptor';
@@ -24,5 +26,9 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptors([credentialsInterceptor, authInterceptor])),
     provideAppInitializer(() => inject(AuthService).loadCurrentUser()),
     { provide: LOCALE_ID, useValue: 'es' },
+    provideServiceWorker('ngsw-worker.js', {
+      enabled: !isDevMode(),
+      registrationStrategy: 'registerWhenStable:30000',
+    }),
   ],
 };
