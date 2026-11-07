@@ -1,0 +1,4 @@
+-- PostgreSQL cannot remove a value from an existing enum type.
+-- Rolling back this migration is intentionally a no-op so rows already using
+-- 'Muerte_subita' or 'Baja_viabilidad' stay valid. Rebuild the enum manually
+-- if the values must be removed.

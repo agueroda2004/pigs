@@ -8,7 +8,9 @@ export type PigletDeathCause =
   | 'Pata_abierta'
   | 'Bacteria'
   | 'Reaccion_medicamento'
-  | 'Desaparecido';
+  | 'Desaparecido'
+  | 'Muerte_subita'
+  | 'Baja_viabilidad';
 
 export type Turn = 'Mañana' | 'Tarde' | 'Madrugada' | 'Madrugada_no_asistida' | 'Sin Turno';
 

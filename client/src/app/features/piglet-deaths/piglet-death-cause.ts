@@ -11,6 +11,8 @@ export const PIGLET_DEATH_CAUSE_LABELS: Record<PigletDeathCause, string> = {
   Bacteria: 'Bacteria',
   Reaccion_medicamento: 'Reacción a medicamento',
   Desaparecido: 'Desaparecido',
+  Muerte_subita: 'Muerte Súbita',
+  Baja_viabilidad: 'Baja Viabilidad',
 };
 
 export const PIGLET_DEATH_CAUSE_CLASSES: Record<PigletDeathCause, string> = {
@@ -24,4 +26,6 @@ export const PIGLET_DEATH_CAUSE_CLASSES: Record<PigletDeathCause, string> = {
   Bacteria: 'bg-danger/10 text-danger',
   Reaccion_medicamento: 'bg-warning/10 text-warning',
   Desaparecido: 'bg-muted text-muted-foreground',
+  Muerte_subita: 'bg-danger/10 text-danger',
+  Baja_viabilidad: 'bg-warning/10 text-warning',
 };

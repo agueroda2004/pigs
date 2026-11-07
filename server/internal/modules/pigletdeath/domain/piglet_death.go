@@ -29,6 +29,10 @@ const (
 	CauseBacteria           PigletDeathCause = "Bacteria"
 	CauseMedicationReaction PigletDeathCause = "Reaccion_medicamento"
 	CauseMissing            PigletDeathCause = "Desaparecido"
+	CauseSuddenDeath       PigletDeathCause = "Muerte_subita"
+	CauseMuerteSubita      PigletDeathCause = "Muerte_subita"
+	CauseLowViability      PigletDeathCause = "Baja_viabilidad"
+	CauseBajaViabilidad    PigletDeathCause = "Baja_viabilidad"
 )
 
 // Turn represents the shift when a piglet death was registered.
@@ -325,12 +329,12 @@ func (d *PigletDeath) Update(params UpdatePigletDeathParams, updatedBy uuid.UUID
 }
 
 // isValidCause checks whether the cause belongs to the piglet death domain.
-// Only the ten causes defined by the piglet_death_cause enum are accepted.
+// Only the twelve causes defined by the piglet_death_cause enum are accepted.
 func isValidCause(cause PigletDeathCause) bool {
 	switch cause {
 	case CauseCrushed, CauseWeakness, CauseDiarrhea, CauseDeformity, CauseOther,
 		CauseCannibalism, CauseOpenLeg, CauseBacteria, CauseMedicationReaction,
-		CauseMissing:
+		CauseMissing, CauseSuddenDeath, CauseLowViability:
 		return true
 	default:
 		return false
