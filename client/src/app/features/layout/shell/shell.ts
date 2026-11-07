@@ -1,5 +1,8 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { filter, map, startWith } from 'rxjs';
+import { NavigationEnd } from '@angular/router';
 
 import { landingUrl } from '../../../core/auth/auth.navigation';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -77,6 +80,41 @@ export class Shell {
   ]);
 
   protected readonly expandedGroups = signal<Set<string>>(new Set());
+
+  protected readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map((event) => event.urlAfterRedirects),
+      startWith(this.router.url),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  protected readonly activeGroup = computed(() => {
+    const url = this.currentUrl();
+    return (
+      this.adminGroups().find((group) =>
+        group.items.some((item) => url === item.route || url.startsWith(`${item.route}/`)),
+      )?.label ?? null
+    );
+  });
+
+  constructor() {
+    effect(() => {
+      const group = this.activeGroup();
+      if (!group) {
+        return;
+      }
+      this.expandedGroups.update((groups) => {
+        if (groups.has(group)) {
+          return groups;
+        }
+        const next = new Set(groups);
+        next.add(group);
+        return next;
+      });
+    });
+  }
 
   protected toggleGroup(label: string): void {
     this.expandedGroups.update((groups) => {

@@ -48,9 +48,7 @@ describe('Shell', () => {
   it('keeps the existing administrator navigation', async () => {
     const fixture = await render({ id: '2', username: 'admin', role: 'Admin' });
     const component = fixture.componentInstance as any;
-    for (const group of ['General', 'Animales', 'Reproducción', 'Lechones', 'Administración']) {
-      component.toggleGroup(group);
-    }
+    component.expandedGroups.set(new Set(['General', 'Animales', 'Reproducción', 'Lechones', 'Administración']));
     fixture.detectChanges();
 
     expect(labels(fixture)).toEqual([
