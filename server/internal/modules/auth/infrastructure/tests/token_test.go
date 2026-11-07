@@ -40,7 +40,7 @@ func TestRandomTokenGeneratorGenerate(t *testing.T) {
 }
 
 func TestSHA256TokenHasherHash(t *testing.T) {
-	hasher := authinfra.NewSHA256TokenHasher()
+	hasher := authinfra.NewSHA256TokenHasher("pepper")
 
 	hash, err := hasher.Hash("token")
 	if err != nil {

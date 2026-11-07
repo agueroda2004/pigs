@@ -18,8 +18,9 @@ type Config struct {
 	Port        string
 	BcryptCost  int
 
-	JWTSecret       string
-	AccessTokenTTL  time.Duration
+	JWTSecret          string
+	RefreshTokenPepper string
+	AccessTokenTTL     time.Duration
 	RefreshTokenTTL time.Duration
 	CookieSecure    bool
 	CookieSameSite  string
@@ -59,6 +60,11 @@ func Load() (Config, error) {
 		return Config{}, errors.New("La variable JWT_SECRET debe tener al menos 32 caracteres")
 	}
 
+	refreshTokenPepper := os.Getenv("REFRESH_TOKEN_PEPPER")
+	if refreshTokenPepper == "" {
+		refreshTokenPepper = jwtSecret
+	}
+
 	accessTokenTTL, err := parseDurationEnv("ACCESS_TOKEN_TTL", 15*time.Minute)
 	if err != nil {
 		return Config{}, err
@@ -69,7 +75,10 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
-	cookieSecure := false
+	cookieSecure := true
+	if os.Getenv("ALLOW_INSECURE_COOKIES") == "true" {
+		cookieSecure = false
+	}
 	if value := os.Getenv("COOKIE_SECURE"); value != "" {
 		parsedSecure, err := strconv.ParseBool(value)
 		if err != nil {
@@ -93,6 +102,7 @@ func Load() (Config, error) {
 		Port:               port,
 		BcryptCost:         bcryptCost,
 		JWTSecret:          jwtSecret,
+		RefreshTokenPepper: refreshTokenPepper,
 		AccessTokenTTL:     accessTokenTTL,
 		RefreshTokenTTL:    refreshTokenTTL,
 		CookieSecure:       cookieSecure,

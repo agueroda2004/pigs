@@ -106,7 +106,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 	// + === AUTH MODULE ===
 	refreshTokenRepository := authinfrastructure.NewPostgresRefreshTokenRepository(db)
 	tokenGenerator := authinfrastructure.NewRandomTokenGenerator()
-	tokenHasher := authinfrastructure.NewSHA256TokenHasher()
+	tokenHasher := authinfrastructure.NewSHA256TokenHasher(applicationConfig.RefreshTokenPepper)
 	accessIssuer := authinfrastructure.NewJWTAccessTokenIssuer(
 		applicationConfig.JWTSecret,
 		applicationConfig.AccessTokenTTL,

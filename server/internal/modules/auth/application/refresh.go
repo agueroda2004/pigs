@@ -70,6 +70,9 @@ func (s *RefreshService) Execute(ctx context.Context, command RefreshCommand) (*
 	now := s.clock()
 
 	if err := token.CanBeRotated(now); err != nil {
+		// Reuse of a refresh token revokes the whole family. Concurrent legitimate
+		// refreshes may therefore invalidate a session; this is an accepted trade-off
+		// to keep reuse detection simple and secure.
 		if token.WasReused() {
 			if revokeErr := s.refreshTokens.RevokeFamily(ctx, token.FamilyID); revokeErr != nil {
 				return nil, revokeErr
