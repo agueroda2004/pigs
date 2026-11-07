@@ -40,7 +40,7 @@ export class Shell {
       ],
     },
     {
-      label: 'Ganado',
+      label: 'Animales',
       items: [
         { label: 'Verracos', route: '/boars' },
         { label: 'Cerdas', route: '/sows' },
@@ -76,9 +76,7 @@ export class Shell {
     },
   ]);
 
-  protected readonly expandedGroups = signal<Set<string>>(
-    new Set(this.adminGroups().map((group) => group.label)),
-  );
+  protected readonly expandedGroups = signal<Set<string>>(new Set());
 
   protected toggleGroup(label: string): void {
     this.expandedGroups.update((groups) => {
