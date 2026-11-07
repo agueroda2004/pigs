@@ -23,12 +23,14 @@ func NewModule(
 	repository ports.UserRepository,
 	hasher ports.PasswordHasher,
 	clock func() time.Time,
+	sessionRevoker ports.SessionRevoker,
+	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *Module {
 	createUser := userapplication.NewCreateUserService(repository, hasher, clock)
 	listUsers := userapplication.NewListUsersService(repository)
-	updateOwnUser := userapplication.NewUpdateOwnUserService(repository, hasher, clock)
-	updateUserByAdmin := userapplication.NewUpdateUserByAdminService(repository, hasher, clock)
+	updateOwnUser := userapplication.NewUpdateOwnUserService(repository, hasher, clock, sessionRevoker)
+	updateUserByAdmin := userapplication.NewUpdateUserByAdminService(repository, hasher, clock, sessionRevoker)
 	deleteUser := userapplication.NewDeleteUserService(repository)
 
 	return &Module{
@@ -37,6 +39,6 @@ func NewModule(
 		UpdateOwnUser:     updateOwnUser,
 		UpdateUserByAdmin: updateUserByAdmin,
 		DeleteUser:        deleteUser,
-		Handler:           NewUserHandler(createUser, listUsers, updateOwnUser, updateUserByAdmin, deleteUser, adminMiddleware),
+		Handler:           NewUserHandler(createUser, listUsers, updateOwnUser, updateUserByAdmin, deleteUser, authMiddleware, adminMiddleware),
 	}
 }

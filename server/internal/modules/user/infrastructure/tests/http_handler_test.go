@@ -83,7 +83,7 @@ func TestUserHandlerUpdate(t *testing.T) {
 		update := &fakeUpdateUserUseCase{user: handlerUser()}
 		handler := newTestHandler(&fakeCreateUserUseCase{}, update, &fakeUpdateUserByAdminUseCase{})
 		request := httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+userID.String(), strings.NewReader(`{"name":"New Name"}`))
-		response := serve(handler, request)
+		response := serve(handler, authenticatedRequest(request, userID))
 
 		if response.Code != http.StatusOK || update.userID != userID || update.command.Name == nil || *update.command.Name != "New Name" {
 			t.Fatalf("status=%d id=%v command=%#v", response.Code, update.userID, update.command)
@@ -115,7 +115,9 @@ func TestUserHandlerUpdate(t *testing.T) {
 			t.Run(test.name, func(t *testing.T) {
 				update := &fakeUpdateUserUseCase{err: test.err}
 				handler := newTestHandler(&fakeCreateUserUseCase{}, update, &fakeUpdateUserByAdminUseCase{})
-				response := serve(handler, httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+uuid.New().String(), strings.NewReader(`{"name":"Ana"}`)))
+				id := uuid.New()
+				request := httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+id.String(), strings.NewReader(`{"name":"Ana"}`))
+				response := serve(handler, authenticatedRequest(request, id))
 				if response.Code != test.status {
 					t.Fatalf("status=%d, want %d", response.Code, test.status)
 				}

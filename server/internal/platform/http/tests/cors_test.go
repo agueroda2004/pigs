@@ -67,7 +67,7 @@ func TestCORS(t *testing.T) {
 		if recorder.Header().Get("Access-Control-Allow-Methods") == "" {
 			t.Fatal("expected allow methods header")
 		}
-		if recorder.Header().Get("Access-Control-Allow-Headers") != "content-type" {
+		if recorder.Header().Get("Access-Control-Allow-Headers") != "Content-Type" {
 			t.Fatalf("allow headers = %q", recorder.Header().Get("Access-Control-Allow-Headers"))
 		}
 	})

@@ -6,6 +6,7 @@ import (
 
 	authapplication "server/internal/modules/auth/application"
 	"server/internal/modules/auth/ports"
+	ratelimit "server/internal/platform/ratelimit"
 )
 
 type Module struct {
@@ -31,6 +32,7 @@ func NewModule(
 	accessTTL time.Duration,
 	refreshTTL time.Duration,
 	cookieConfig CookieConfig,
+	loginLimiter *ratelimit.Limiter,
 ) *Module {
 	login := authapplication.NewLoginService(
 		users,
@@ -59,7 +61,7 @@ func NewModule(
 		LoginService:   login,
 		RefreshService: refresh,
 		LogoutService:  logout,
-		Handler:        NewAuthHandler(login, refresh, logout, authenticator.Authenticate, accessTTL, refreshTTL, cookieConfig),
+		Handler:        NewAuthHandler(login, refresh, logout, authenticator.Authenticate, loginLimiter, accessTTL, refreshTTL, cookieConfig),
 		AuthMiddleware: authenticator.Authenticate,
 		AdminMiddleware: func(next http.Handler) http.Handler {
 			return authenticator.Authenticate(RequireAdmin(next))

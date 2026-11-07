@@ -81,8 +81,11 @@ func main() {
 	weagingHandler.RegisterRoutes(mux)
 
 	server := &http.Server{
-		Addr:    ":" + applicationConfig.Port,
-		Handler: platformhttp.CORS(applicationConfig.CorsAllowedOrigins)(mux),
+		Addr:         ":" + applicationConfig.Port,
+		Handler:      platformhttp.CORS(applicationConfig.CorsAllowedOrigins)(mux),
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	listener, err := net.Listen("tcp", server.Addr)

@@ -27,7 +27,7 @@ func TestCookieBuilder(t *testing.T) {
 	t.Run("builds refresh token cookie", func(t *testing.T) {
 		cookie := authinfra.BuildRefreshTokenCookie("token", 604800, config)
 
-		if cookie.Name != "refresh_token" || cookie.Value != "token" || cookie.Path != "/" || cookie.MaxAge != 604800 {
+		if cookie.Name != "refresh_token" || cookie.Value != "token" || cookie.Path != "/api/v1/auth" || cookie.MaxAge != 604800 {
 			t.Fatalf("unexpected cookie: %#v", cookie)
 		}
 		if !cookie.HttpOnly {

@@ -50,7 +50,7 @@ func BuildRefreshTokenCookie(token string, maxAge int, config CookieConfig) *htt
 	return &http.Cookie{
 		Name:     refreshTokenCookieName,
 		Value:    token,
-		Path:     "/",
+		Path:     "/api/v1/auth",
 		HttpOnly: true,
 		Secure:   config.Secure,
 		SameSite: config.SameSite,
@@ -78,7 +78,7 @@ func ClearRefreshTokenCookie(config CookieConfig) *http.Cookie {
 	return &http.Cookie{
 		Name:     refreshTokenCookieName,
 		Value:    "",
-		Path:     "/",
+		Path:     "/api/v1/auth",
 		HttpOnly: true,
 		Secure:   config.Secure,
 		SameSite: config.SameSite,

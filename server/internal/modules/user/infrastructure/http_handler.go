@@ -40,6 +40,7 @@ type UserHandler struct {
 	updateOwnUser   UpdateOwnUserUseCase
 	updateUserAdmin UpdateUserByAdminUseCase
 	deleteUser      DeleteUserUseCase
+	authMiddleware  func(http.Handler) http.Handler
 	adminMiddleware func(http.Handler) http.Handler
 }
 
@@ -51,6 +52,7 @@ func NewUserHandler(
 	updateOwnUser UpdateOwnUserUseCase,
 	updateUserAdmin UpdateUserByAdminUseCase,
 	deleteUser DeleteUserUseCase,
+	authMiddleware func(http.Handler) http.Handler,
 	adminMiddleware func(http.Handler) http.Handler,
 ) *UserHandler {
 	return &UserHandler{
@@ -59,6 +61,7 @@ func NewUserHandler(
 		updateOwnUser:   updateOwnUser,
 		updateUserAdmin: updateUserAdmin,
 		deleteUser:      deleteUser,
+		authMiddleware:  authMiddleware,
 		adminMiddleware: adminMiddleware,
 	}
 }
@@ -67,7 +70,7 @@ func NewUserHandler(
 // Admin-only routes are wrapped with the admin middleware.
 func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/users", h.adminMiddleware(http.HandlerFunc(h.create)))
-	mux.HandleFunc("PATCH /api/v1/users/{id}", h.update)
+	mux.Handle("PATCH /api/v1/users/{id}", h.authMiddleware(http.HandlerFunc(h.update)))
 	mux.Handle("GET /api/v1/admin/users", h.adminMiddleware(http.HandlerFunc(h.list)))
 	mux.Handle("PATCH /api/v1/admin/users/{id}", h.adminMiddleware(http.HandlerFunc(h.updateByAdmin)))
 	mux.Handle("DELETE /api/v1/admin/users/{id}", h.adminMiddleware(http.HandlerFunc(h.delete)))
@@ -148,6 +151,16 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 	userID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		platformhttp.WriteError(w, http.StatusBadRequest, errors.New("El identificador del usuario no es válido"))
+		return
+	}
+
+	actor, ok := authdomain.AuthenticatedUserFromContext(r.Context())
+	if !ok {
+		platformhttp.WriteError(w, http.StatusUnauthorized, errors.New("Usuario no autenticado"))
+		return
+	}
+	if actor.UserID != userID {
+		platformhttp.WriteError(w, http.StatusForbidden, errors.New("No tiene permisos para realizar esta accion"))
 		return
 	}
 

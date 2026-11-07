@@ -86,21 +86,22 @@ func newTestHandler(create userinfra.CreateUserUseCase, update userinfra.UpdateO
 
 func newTestHandlerWithList(list userinfra.ListUsersUseCase, create userinfra.CreateUserUseCase, update userinfra.UpdateOwnUserUseCase, updateAdmin userinfra.UpdateUserByAdminUseCase) *userinfra.UserHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return userinfra.NewUserHandler(create, list, update, updateAdmin, &fakeDeleteUserUseCase{}, passThrough)
+	return userinfra.NewUserHandler(create, list, update, updateAdmin, &fakeDeleteUserUseCase{}, passThrough, passThrough)
 }
 
 func newDeleteHandler(remove userinfra.DeleteUserUseCase) *userinfra.UserHandler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return userinfra.NewUserHandler(&fakeCreateUserUseCase{}, &fakeListUsersUseCase{}, &fakeUpdateUserUseCase{}, &fakeUpdateUserByAdminUseCase{}, remove, passThrough)
+	return userinfra.NewUserHandler(&fakeCreateUserUseCase{}, &fakeListUsersUseCase{}, &fakeUpdateUserUseCase{}, &fakeUpdateUserByAdminUseCase{}, remove, passThrough, passThrough)
 }
 
 func newAdminGuardHandler(remove userinfra.DeleteUserUseCase) *userinfra.UserHandler {
+	passThrough := func(next http.Handler) http.Handler { return next }
 	adminGuard := func(_ http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusForbidden)
 		})
 	}
-	return userinfra.NewUserHandler(&fakeCreateUserUseCase{}, &fakeListUsersUseCase{}, &fakeUpdateUserUseCase{}, &fakeUpdateUserByAdminUseCase{}, remove, adminGuard)
+	return userinfra.NewUserHandler(&fakeCreateUserUseCase{}, &fakeListUsersUseCase{}, &fakeUpdateUserUseCase{}, &fakeUpdateUserByAdminUseCase{}, remove, passThrough, adminGuard)
 }
 
 func authenticatedRequest(request *http.Request, userID uuid.UUID) *http.Request {

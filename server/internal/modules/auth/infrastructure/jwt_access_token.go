@@ -58,7 +58,7 @@ func NewJWTAccessTokenVerifier(secret string) *JWTAccessTokenVerifier {
 // It returns the authenticated user or ErrInvalidAccessToken when the token is invalid.
 func (v *JWTAccessTokenVerifier) Verify(token string) (*authdomain.AuthenticatedUser, error) {
 	parsed, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+		if t.Method != jwt.SigningMethodHS256 {
 			return nil, ErrInvalidSigningMethod
 		}
 		return v.secret, nil
@@ -81,8 +81,19 @@ func (v *JWTAccessTokenVerifier) Verify(token string) (*authdomain.Authenticated
 		return nil, ErrInvalidAccessToken
 	}
 
+	expiry, ok := claims["exp"].(float64)
+	if !ok {
+		return nil, ErrInvalidAccessToken
+	}
+	if time.Unix(int64(expiry), 0).Before(time.Now()) {
+		return nil, ErrInvalidAccessToken
+	}
+
 	username, _ := claims["username"].(string)
-	role, _ := claims["role"].(string)
+	role, ok := claims["role"].(string)
+	if !ok || (role != string(userdomain.RoleUser) && role != string(userdomain.RoleAdmin)) {
+		return nil, ErrInvalidAccessToken
+	}
 
 	return &authdomain.AuthenticatedUser{
 		UserID:   userID,

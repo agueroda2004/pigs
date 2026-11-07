@@ -10,7 +10,7 @@ type BcryptPasswordHasher struct {
 // When cost is zero it falls back to bcrypt.DefaultCost.
 func NewBcryptPasswordHasher(cost int) *BcryptPasswordHasher {
 	if cost == 0 {
-		cost = bcrypt.DefaultCost
+		cost = 12
 	}
 	return &BcryptPasswordHasher{cost: cost}
 }

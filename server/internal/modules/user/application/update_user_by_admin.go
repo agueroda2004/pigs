@@ -20,9 +20,10 @@ type UpdateUserByAdminCommand struct {
 }
 
 type UpdateUserByAdminService struct {
-	repository ports.UserRepository
-	hasher     ports.PasswordHasher
-	clock      func() time.Time
+	repository     ports.UserRepository
+	hasher         ports.PasswordHasher
+	clock          func() time.Time
+	sessionRevoker ports.SessionRevoker
 }
 
 // NewUpdateUserByAdminService builds an admin update use case with its dependencies.
@@ -31,11 +32,13 @@ func NewUpdateUserByAdminService(
 	repository ports.UserRepository,
 	hasher ports.PasswordHasher,
 	clock func() time.Time,
+	sessionRevoker ports.SessionRevoker,
 ) *UpdateUserByAdminService {
 	return &UpdateUserByAdminService{
-		repository: repository,
-		hasher:     hasher,
-		clock:      clock,
+		repository:     repository,
+		hasher:         hasher,
+		clock:          clock,
+		sessionRevoker: sessionRevoker,
 	}
 }
 
@@ -77,6 +80,11 @@ func (s *UpdateUserByAdminService) Execute(
 
 	if err := s.repository.Update(ctx, currentUser); err != nil {
 		return nil, err
+	}
+	if s.sessionRevoker != nil {
+		if err := s.sessionRevoker.RevokeSessions(ctx, userID); err != nil {
+			return nil, err
+		}
 	}
 	return currentUser, nil
 }

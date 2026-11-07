@@ -37,5 +37,9 @@ func WriteStatus(w http.ResponseWriter, status int) {
 // WriteError writes an error message as a JSON error response.
 // It uses WriteJSON with the given status code.
 func WriteError(w http.ResponseWriter, status int, err error) {
-	WriteJSON(w, status, map[string]string{"error": err.Error()})
+	message := err.Error()
+	if status >= http.StatusInternalServerError {
+		message = "Error interno del servidor"
+	}
+	WriteJSON(w, status, map[string]string{"error": message})
 }

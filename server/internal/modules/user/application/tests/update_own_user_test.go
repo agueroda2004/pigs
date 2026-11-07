@@ -23,7 +23,7 @@ func TestUpdateOwnUserServiceExecute(t *testing.T) {
 		password := "new-secret"
 		repository := &fakeUserRepository{getUser: user}
 		hasher := &fakePasswordHasher{hash: "new-hash"}
-		service := userapplication.NewUpdateOwnUserService(repository, hasher, func() time.Time { return now })
+		service := userapplication.NewUpdateOwnUserService(repository, hasher, func() time.Time { return now }, nil)
 
 		updated, err := service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{Name: &name, Password: &password})
 
@@ -43,7 +43,7 @@ func TestUpdateOwnUserServiceExecute(t *testing.T) {
 		name := "Updated"
 		hasher := &fakePasswordHasher{hash: "unused"}
 		repository := &fakeUserRepository{getUser: user}
-		service := userapplication.NewUpdateOwnUserService(repository, hasher, time.Now)
+		service := userapplication.NewUpdateOwnUserService(repository, hasher, time.Now, nil)
 
 		_, err := service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{Name: &name})
 
@@ -56,7 +56,7 @@ func TestUpdateOwnUserServiceExecute(t *testing.T) {
 		user := testUser(userID)
 		repository := &fakeUserRepository{getUser: user}
 		hasher := &fakePasswordHasher{hash: "unused"}
-		service := userapplication.NewUpdateOwnUserService(repository, hasher, time.Now)
+		service := userapplication.NewUpdateOwnUserService(repository, hasher, time.Now, nil)
 
 		for _, password := range []string{"", strings.Repeat("a", 51)} {
 			_, err := service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{Password: &password})
@@ -70,7 +70,7 @@ func TestUpdateOwnUserServiceExecute(t *testing.T) {
 	t.Run("propagates get, hash, validation, and update errors", func(t *testing.T) {
 		getErr := errors.New("get failed")
 		repository := &fakeUserRepository{getErr: getErr}
-		service := userapplication.NewUpdateOwnUserService(repository, &fakePasswordHasher{}, time.Now)
+		service := userapplication.NewUpdateOwnUserService(repository, &fakePasswordHasher{}, time.Now, nil)
 		_, err := service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{})
 		if !errors.Is(err, getErr) {
 			t.Fatalf("get error = %v", err)
@@ -79,7 +79,7 @@ func TestUpdateOwnUserServiceExecute(t *testing.T) {
 		hashErr := errors.New("hash failed")
 		user := testUser(userID)
 		repository = &fakeUserRepository{getUser: user}
-		service = userapplication.NewUpdateOwnUserService(repository, &fakePasswordHasher{err: hashErr}, time.Now)
+		service = userapplication.NewUpdateOwnUserService(repository, &fakePasswordHasher{err: hashErr}, time.Now, nil)
 		password := "new-secret"
 		_, err = service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{Password: &password})
 		if !errors.Is(err, hashErr) || repository.updated != nil {
@@ -87,7 +87,7 @@ func TestUpdateOwnUserServiceExecute(t *testing.T) {
 		}
 
 		repository = &fakeUserRepository{getUser: testUser(userID)}
-		service = userapplication.NewUpdateOwnUserService(repository, &fakePasswordHasher{}, time.Now)
+		service = userapplication.NewUpdateOwnUserService(repository, &fakePasswordHasher{}, time.Now, nil)
 		_, err = service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{})
 		if !errors.Is(err, userdomain.ErrInvalidUpdate) || repository.updated != nil {
 			t.Fatalf("validation error = %v", err)
@@ -96,7 +96,7 @@ func TestUpdateOwnUserServiceExecute(t *testing.T) {
 		updateErr := errors.New("update failed")
 		repository = &fakeUserRepository{getUser: testUser(userID), updateErr: updateErr}
 		name := "Updated"
-		service = userapplication.NewUpdateOwnUserService(repository, &fakePasswordHasher{}, time.Now)
+		service = userapplication.NewUpdateOwnUserService(repository, &fakePasswordHasher{}, time.Now, nil)
 		_, err = service.Execute(context.Background(), userID, userapplication.UpdateOwnUserCommand{Name: &name})
 		if !errors.Is(err, updateErr) {
 			t.Fatalf("update error = %v", err)

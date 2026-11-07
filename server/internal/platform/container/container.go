@@ -24,6 +24,7 @@ import (
 	weaginginfrastructure "server/internal/modules/weaging/infrastructure"
 	"server/internal/platform/config"
 	"server/internal/platform/database"
+	"server/internal/platform/ratelimit"
 )
 
 type Container struct {
@@ -105,7 +106,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 	// + === AUTH MODULE ===
 	refreshTokenRepository := authinfrastructure.NewPostgresRefreshTokenRepository(db)
 	tokenGenerator := authinfrastructure.NewRandomTokenGenerator()
-	tokenHasher := authinfrastructure.NewSHA256TokenHasher()
+	tokenHasher := authinfrastructure.NewSHA256TokenHasher(applicationConfig.RefreshTokenPepper)
 	accessIssuer := authinfrastructure.NewJWTAccessTokenIssuer(
 		applicationConfig.JWTSecret,
 		applicationConfig.AccessTokenTTL,
@@ -116,6 +117,7 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		SameSite: authinfrastructure.SameSiteFromString(applicationConfig.CookieSameSite),
 	}
 
+	loginLimiter := ratelimit.New(5, time.Minute)
 	authModule := authinfrastructure.NewModule(
 		userRepository,
 		refreshTokenRepository,
@@ -128,11 +130,12 @@ func New(ctx context.Context, applicationConfig config.Config) (*Container, erro
 		applicationConfig.AccessTokenTTL,
 		applicationConfig.RefreshTokenTTL,
 		cookieConfig,
+		loginLimiter,
 	)
 
 	container := &Container{
 		DB:              db,
-		User:            userinfrastructure.NewModule(userRepository, hasher, clock, authModule.AdminMiddleware),
+		User:            userinfrastructure.NewModule(userRepository, hasher, clock, refreshTokenRepository, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Breed:           breedinfrastructure.NewModule(breedRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		Boar:            boarinfrastructure.NewModule(boarRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),
 		BoarRemoval:     boarremovalinfrastructure.NewModule(boarRemovalRepository, clock, authModule.AuthMiddleware, authModule.AdminMiddleware),

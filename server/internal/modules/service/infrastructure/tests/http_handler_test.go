@@ -617,7 +617,7 @@ func TestServiceHandlerFarrowingSchedule(t *testing.T) {
 		if strings.Contains(body, "dial tcp") || strings.Contains(body, "5432") {
 			t.Fatalf("body leaked database details: %s", body)
 		}
-		if !strings.Contains(body, "No se pudo obtener la programación de partos") {
+		if !strings.Contains(body, "Error interno del servidor") {
 			t.Fatalf("unexpected body: %s", body)
 		}
 	})
