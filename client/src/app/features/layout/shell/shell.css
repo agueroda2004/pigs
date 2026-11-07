@@ -1,0 +1,17 @@
+nav {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+}
+
+nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+nav::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: hsl(var(--muted-foreground) / 0.35);
+}
+
+nav::-webkit-scrollbar-track {
+  background: transparent;
+}
