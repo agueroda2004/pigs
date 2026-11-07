@@ -53,6 +53,7 @@ describe('Shell', () => {
 
     expect(labels(fixture)).toEqual([
       'Panel',
+      'Inicio',
       'Reportes',
       'Historial de cerdas',
       'Verracos',

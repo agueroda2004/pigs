@@ -38,6 +38,7 @@ export class Shell {
       label: 'General',
       items: [
         { label: 'Panel', route: this.homeLink() },
+        { label: 'Inicio', route: '/home' },
         { label: 'Reportes', route: '/reports' },
         { label: 'Historial de cerdas', route: '/sow-history' },
       ],
